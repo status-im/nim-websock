@@ -73,6 +73,7 @@ proc newWebSocket*(req: Request, protocol: string = ""): Future[tuple[ws: AsyncW
 
   var ws = WebSocket()
   ws.masked = false
+  # Todo: Change this to chronos AsyncFD
   ws.tcpSocket = req.client
   ws.protocol = protocol
   let (ws, error) = await ws.handshake(req.headers)
