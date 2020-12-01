@@ -1,4 +1,4 @@
-import chronos, asyncdispatch, asynchttpserver, base64, nativesockets
+import chronos, asynchttpserver, base64, nativesockets
 
 type HeaderVerificationError* {.pure.} = enum
   None

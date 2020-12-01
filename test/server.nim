@@ -1,7 +1,7 @@
-import ../ws, chronos, asynchttpserver
+import ws, chronos, asynchttpserver
 
 proc cb(req: Request) {.async.} =
-  var ws = await newWebSocket(req)
+  let (ws, error) = await newWebSocket(req)
   ws.close()
 
 var server = newAsyncHttpServer()
