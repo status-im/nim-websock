@@ -6,6 +6,8 @@ license = "MIT"
 
 requires "nim >= 1.2.6"
 requires "chronos >= 2.5.2 & < 3.0.0"
+requires "httputils >= 0.2.0"
+requires "chronicles >= 0.10.0"
 
 task lint, "format source files according to the official style guide":
   exec "./lint.nims"

@@ -1,8 +1,7 @@
-import ws, chronos, asynchttpserver
+import ws, chronos
 
-proc cb(req: Request) {.async.} =
-  let (ws, error) = await newWebSocket(req)
-  ws.close()
-
-var server = newAsyncHttpServer()
-waitFor server.serve(Port(9001), cb)
+when isMainModule:
+  let address = "127.0.0.1:8888"
+  var httpServer = newHttpServer(address)
+  httpServer.server.start()
+  waitFor httpServer.server.join()
