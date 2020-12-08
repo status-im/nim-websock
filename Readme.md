@@ -1,4 +1,4 @@
-Websocket for Nim
+# Websocket for Nim
 
 We're working towards an implementation of the
 [Websocket](https://tools.ietf.org/html/rfc6455) protocol for
@@ -14,8 +14,14 @@ Install dependencies:
 nimble install -d
 ```
 
-Run tests:
+Starting HTTP server:
 
 ```bash
-nimble test
+nim c -r test/server.nim
+```
+
+Testing Server Response:
+
+```bash
+curl --location --request GET 'http://localhost:8888'
 ```

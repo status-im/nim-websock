@@ -63,17 +63,7 @@ proc validateRequest(transp: StreamTransport,
       result = ErrorFailure
     return
 
-  let length = header.contentLength()
-  if length <= 0:
-    # request length could not be calculated.
-    debug "Content-Length is missing or 0", address = transp.remoteAddress()
-    if await transp.sendHTTPResponse(header.version, Http411):
-      result = Error
-    else:
-      result = ErrorFailure
-    return
-
-  if length > MaxHttpRequestSize:
+  if header.contentLength() > MaxHttpRequestSize:
     # request length is more then `MaxHttpRequestSize`.
     debug "Maximum size of request body reached",
           address = transp.remoteAddress()
