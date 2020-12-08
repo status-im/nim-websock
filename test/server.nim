@@ -1,10 +1,16 @@
 import ws, chronos, chronicles, httputils
 
 proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-  info "Header: ", header
+  info "Header: ", uri = header.uri()
+  if header.uri() == "/ws":
+    info "Initiating web socket connection."
+    try:
+      var ws = await newWebSocket(header, transp)
+      info "Websocket handshake completed."
+    except WebSocketError:
+      echo "socket closed:", getCurrentExceptionMsg()
+
   let res = await transp.sendHTTPResponse(HttpVersion11, Http200, "Hello World")
-  debug "Disconnecting client", address = transp.remoteAddress()
-  await transp.closeWait()
 
 when isMainModule:
   let address = "127.0.0.1:8888"
