@@ -6,6 +6,7 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
     info "Initiating web socket connection."
     try:
       var ws = await newWebSocket(header, transp)
+      echo await ws.receivePacket()
       info "Websocket handshake completed."
     except WebSocketError:
       echo "socket closed:", getCurrentExceptionMsg()
