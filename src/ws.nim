@@ -1,12 +1,13 @@
 import chronos, chronicles, httputils, strutils, base64, std/sha1, random,
-    streams, nativesockets
+    streams, nativesockets, uri, times, chronos.timer, tables
 
 const
   MaxHttpHeadersSize = 8192        # maximum size of HTTP headers in octets
   MaxHttpRequestSize = 128 * 1024  # maximum size of HTTP body in octets
-  HttpHeadersTimeout = 120.seconds # timeout for receiving headers (120 sec)
-  HttpBodyTimeout = 12.seconds     # timeout for receiving body (12 sec)
+  HttpHeadersTimeout = timer.seconds(120) # timeout for receiving headers (120 sec)
+  HttpBodyTimeout = timer.seconds(12)     # timeout for receiving body (12 sec)
   HeadersMark = @[byte(0x0D), byte(0x0A), byte(0x0D), byte(0x0A)]
+  WebsocketUserAgent* = "nim-ws (https://github.com/status-im/nim-ws)"
 
 type
   ReadyState* = enum
@@ -22,6 +23,7 @@ type
     protocol*: string
     readyState*: ReadyState
     masked*: bool # send masked packets
+    header*: HttpHeaders
 
   AsyncCallback = proc (transp: StreamTransport,
       header: HttpRequestHeader): Future[void] {.closure, gcsafe.}
@@ -32,6 +34,21 @@ type
     Success, Error, ErrorFailure
 
   WebSocketError* = object of IOError
+
+  HttpHeaders* = ref object
+    table*: TableRef[string, seq[string]]
+
+type
+  AsyncHttpClient* = ref object
+    connected: bool
+    currentURL: Url          ## Where we are currently connected.
+    headers: seq[HttpHeader] ## Headers to send in requests.
+    userAgent: string
+    contentTotal: BiggestInt
+    contentProgress: BiggestInt
+    oneSecondProgress: BiggestInt
+    transp: StreamTransport
+    buf: seq[byte]
 
 template `[]`(value: uint8, index: int): bool =
   ## Get bits from uint8, uint8[2] gets 2nd bit.
@@ -486,3 +503,69 @@ proc newHttpServer*(address: string, handler: AsyncCallback,
   result.callback = handler
   result = cast[HttpServer](createStreamServer(address, serveClient, flags,
       child = cast[StreamServer](result)))
+
+func toTitleCase(s: string): string =
+  result = newString(len(s))
+  var upper = true
+  for i in 0..len(s) - 1:
+    result[i] = if upper: toUpperAscii(s[i]) else: toLowerAscii(s[i])
+    upper = s[i] == '-'
+
+func toCaseInsensitive*(headers: HttpHeaders, s: string): string {.inline.} =
+  return toTitleCase(s)
+
+func newHttpHeaders*(): HttpHeaders =
+  ## Returns a new ``HttpHeaders`` object. if ``titleCase`` is set to true,
+  ## headers are passed to the server in title case (e.g. "Content-Length")
+  new result
+  result.table = newTable[string, seq[string]]()
+
+func newHttpHeaders*(keyValuePairs:
+    openArray[tuple[key: string, val: string]]): HttpHeaders =
+  ## Returns a new ``HttpHeaders`` object from an array. if ``titleCase`` is set to true,
+  ## headers are passed to the server in title case (e.g. "Content-Length")
+  new result
+  result.table = newTable[string, seq[string]]()
+
+  for pair in keyValuePairs:
+    let key = result.toCaseInsensitive(pair.key)
+    {.cast(noSideEffect).}:
+      if key in result.table:
+        result.table[key].add(pair.val)
+      else:
+        result.table[key] = @[pair.val]
+
+proc newAsyncWebsocketClient*(uri: Uri, protocols: seq[string] = @[]): Future[WebSocket] {.async.} =
+  let
+    keyDec = align(
+      when declared(toUnix):
+        $getTime().toUnix
+      else:
+        $getTime().toSeconds.int64, 16, '#')
+    key = encode(keyDec)
+
+  var uri = uri
+  case uri.scheme
+  of "ws":
+    uri.scheme = "http"
+  of "wss":
+    uri.scheme = "https"
+  else:
+    raise newException(WebSocketError, "uri scheme has to be " &
+      "'ws' for plaintext or 'wss' for websocket over ssl.")
+
+  var headers = newHttpHeaders({
+    "Connection": "Upgrade",
+    "Upgrade": "websocket",
+    "Cache-Control": "no-cache",
+    "Sec-WebSocket-Version": "13",
+    "Sec-WebSocket-Key": key
+  })
+
+  new(result)
+
+proc newAsyncWebsocketClient*(host: string, port: Port, path: string,
+    protocols: seq[string] = @[]): Future[WebSocket] =
+  let uri = "ws://" & host & ":" & $port & "/" & path
+  result = newAsyncWebsocketClient(parseUri(uri), protocols)
+
