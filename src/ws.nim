@@ -2,12 +2,12 @@ import chronos, chronicles, httputils, strutils, base64, std/sha1, random,
     streams, nativesockets, uri, times, chronos/timer, tables
 
 const
-  MaxHttpHeadersSize = 8192           # maximum size of HTTP headers in octets
-  MaxHttpRequestSize = 128 * 1024     # maximum size of HTTP body in octets
+  MaxHttpHeadersSize = 8192       # maximum size of HTTP headers in octets
+  MaxHttpRequestSize = 128 * 1024 # maximum size of HTTP body in octets
   HttpHeadersTimeout = timer.seconds(120) # timeout for receiving headers (120 sec)
   WebsocketUserAgent* = "nim-ws (https://github.com/status-im/nim-ws)"
   CRLF* = "\c\L"
-  HeaderSep = @[byte('\c'),byte('\L'),byte('\c'),byte('\L')]
+  HeaderSep = @[byte('\c'), byte('\L'), byte('\c'), byte('\L')]
 
 type
   ReadyState* = enum
@@ -444,7 +444,8 @@ proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
 
   info "Received connection", address = $transp.remoteAddress()
   try: # MaxHttpHeadersSize
-    let hlenfut = transp.readUntil(addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
+    let hlenfut = transp.readUntil(addr buffer[0], MaxHttpHeadersSize,
+        sep = HeaderSep)
     let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
     if not ores:
       # Timeout
@@ -594,7 +595,8 @@ proc recvData(transp: StreamTransport): Future[string] {.async.} =
   var header: HttpResponseHeader
   var error = false
   try:
-    let hlenfut = transp.readUntil(addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
+    let hlenfut = transp.readUntil(addr buffer[0], MaxHttpHeadersSize,
+        sep = HeaderSep)
     let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
     if not ores:
       # Timeout

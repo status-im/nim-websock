@@ -1,6 +1,7 @@
 import ws, nativesockets, chronos, os, chronicles
 
-let wsClient = waitFor newWebsocketClient("127.0.0.1", Port(8888), path = "/ws", protocols = @["myfancyprotocol"])
+let wsClient = waitFor newWebsocketClient("127.0.0.1", Port(8888), path = "/ws",
+    protocols = @["myfancyprotocol"])
 info "Websocket client: ", State = wsClient.readyState
 
 for idx in 1 .. 5:
