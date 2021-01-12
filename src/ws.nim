@@ -250,7 +250,6 @@ proc send*(ws: WebSocket, text: string, opcode = Opcode.Text): Future[void] {.as
       let data = frame[i ..< min(frame.len, i + maxSize)]
       discard await ws.tcpSocket.write(data)
       i += maxSize
-      await stepsAsync(1)
   except Defect, IOError, OSError, ValueError:
     # Wrap all exceptions in a WebSocketError so its easy to catch
     raise newException(WebSocketError, "Failed to send data: " &
