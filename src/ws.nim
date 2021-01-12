@@ -97,15 +97,6 @@ proc handshake*(ws: WebSocket, header: HttpRequestHeader) {.async.} =
     sh = secureHash(ws.key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
     acceptKey = base64.encode(decodeBase16($sh))
 
-#  var response = "HTTP/1.1 101 Web Socket Protocol Handshake" & CRLF
-#  response.add("Sec-WebSocket-Accept: " & acceptKey & CRLF)
-#  response.add("Connection: Upgrade" & CRLF)
-#  response.add("Upgrade: webSocket" & CRLF)
-#
-#  if ws.protocol != "":
-#    response.add("Sec-WebSocket-Protocol: " & ws.protocol & CRLF)
-#  response.add CRLF
-
   var response = "HTTP/1.1 101 Web Socket Protocol Handshake\c\L"
   response.add("Sec-WebSocket-Accept: " & acceptKey & "\c\L")
   response.add("Connection: Upgrade\c\L")
