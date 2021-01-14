@@ -10,3 +10,6 @@ for idx in 1 .. 5:
   info "Server:", data = recvData
   os.sleep(1000)
 
+# Gracefully close the websocket
+wsClient.close()
+

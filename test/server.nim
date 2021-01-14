@@ -11,7 +11,8 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       else:
         error "Failed to open websocket connection."
         return
-      while true:
+
+      while ws.readyState == Open:
         let recvData = await ws.receiveStrPacket()
         info "Client:", data = recvData
         await ws.send(recvData)

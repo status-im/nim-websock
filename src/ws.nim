@@ -1,5 +1,5 @@
 import chronos, chronicles, httputils, strutils, base64, std/sha1, random,
-    streams, nativesockets, uri, times, chronos/timer, tables
+    streams, nativesockets, uri, times, chronos/timer, tables, stew/bitops2, stew/byteutils
 
 const
   MaxHttpHeadersSize = 8192       # maximum size of HTTP headers in octets
@@ -8,6 +8,7 @@ const
   WebsocketUserAgent* = "nim-ws (https://github.com/status-im/nim-ws)"
   CRLF* = "\c\L"
   HeaderSep = @[byte('\c'), byte('\L'), byte('\c'), byte('\L')]
+  SHA1DigestSize = 20
 
 type
   ReadyState* = enum
@@ -44,38 +45,12 @@ type
 
   WebSocketError* = object of IOError
 
+  Base16Error* = object of CatchableError
+    ## Base16 specific exception type
+
 template `[]`(value: uint8, index: int): bool =
-  ## Get bits from uint8, uint8[2] gets 2nd bit.
-  (value and (1 shl (7 - index))) != 0
-
-proc nibbleFromChar(c: char): int =
-  ## Converts hex chars like `0` to 0 and `F` to 15.
-  case c:
-    of '0'..'9': (ord(c) - ord('0'))
-    of 'a'..'f': (ord(c) - ord('a') + 10)
-    of 'A'..'F': (ord(c) - ord('A') + 10)
-    else: 255
-
-proc nibbleToChar(value: int): char =
-  ## Converts number like 0 to `0` and 15 to `fg`.
-  case value:
-    of 0..9: char(value + ord('0'))
-    else: char(value + ord('a') - 10)
-
-proc decodeBase16*(str: string): string =
-  ## Base16 decode a string.
-  result = newString(str.len div 2)
-  for i in 0 ..< result.len:
-    result[i] = chr(
-      (nibbleFromChar(str[2 * i]) shl 4) or
-      nibbleFromChar(str[2 * i + 1]))
-
-proc encodeBase16*(str: string): string =
-  ## Base61 encode a string.
-  result = newString(str.len * 2)
-  for i, c in str:
-    result[i * 2] = nibbleToChar(ord(c) shr 4)
-    result[i * 2 + 1] = nibbleToChar(ord(c) and 0x0f)
+  ## Get bits from uint8, uint8[2] gets 3rd bit.
+  getBitBE(value, index)
 
 proc genMaskKey(): array[4, char] =
   ## Generates a random key of 4 random chars.
@@ -95,7 +70,7 @@ proc handshake*(ws: WebSocket, header: HttpRequestHeader) {.async.} =
 
   let
     sh = secureHash(ws.key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-    acceptKey = base64.encode(decodeBase16($sh))
+    acceptKey = base64.encode(hexToByteArray[SHA1DigestSize]($sh))
 
   var response = "HTTP/1.1 101 Web Socket Protocol Handshake\c\L"
   response.add("Sec-WebSocket-Accept: " & acceptKey & "\c\L")
@@ -170,7 +145,7 @@ type
     rsv3: bool ## MUST be 0
     opcode: Opcode ## Defines the interpretation of the "Payload data".
     mask: bool ## Defines whether the "Payload data" is masked.
-    data: string ## Payload data
+    data: seq[byte] ## Payload data
 
 proc encodeFrame(f: Frame): string =
   ## Encodes a frame into a string buffer.
@@ -341,7 +316,7 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   # Read the data.
   var data: seq[byte]
   data = await ws.tcpSocket.read(int finalLen)
-  result.data = toString(data)
+  result.data = data
   if result.data.len != int finalLen:
     raise newException(WebSocketError, "Socket closed")
 
@@ -380,8 +355,8 @@ proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
     of Cont:
       discard
     of Close:
-      ws.readyState = Closed
-      raise newException(WebSocketError, "Socket closed")
+      debug "Closing connection"
+      ws.close()
 
 proc sendHTTPResponse*(transp: StreamTransport, version: HttpVersion, code: HttpCode,
                 data: string = ""): Future[bool] {.async.} =
