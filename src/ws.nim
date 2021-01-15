@@ -226,6 +226,7 @@ proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[
     # Send stuff in 1 megabyte chunks to prevent IOErrors.
     # This really large packets.
     var i = 0
+    debug "Encoding Frame:", len = frame.len
     while i < frame.len:
       let frameSize = min(frame.len, i + maxSize)
       let res = await ws.tcpSocket.write(frame[i ..< frameSize])
@@ -251,6 +252,8 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
   except TransportUseClosedError:
     ws.readyState = Closed
     raise newException(WebSocketError, "Socket closed")
+
+  debug "Got a frame from the WebSocket"
 
   if header.len != 2:
     ws.readyState = Closed
