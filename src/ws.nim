@@ -197,7 +197,7 @@ proc encodeFrame(f: Frame): string =
     # If we need to mask it generate random mask key and mask the data.
     let maskKey = genMaskKey()
     for i in 0..<data.len:
-      data[i] = (data[i].uint8 xor maskKey[i mod 4].uint8).char
+      data[i] = (data[i].uint8 xor maskKey[i mod 4].uint8)
     # Write mask key next.
     ret.write(maskKey)
 
@@ -206,7 +206,7 @@ proc encodeFrame(f: Frame): string =
   ret.setPosition(0)
   return ret.readAll()
 
-proc send*(ws: WebSocket, text: string, opcode = Opcode.Text): Future[void] {.async.} =
+proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[void] {.async.} =
   try:
     var frame = encodeFrame((
       fin: true,
@@ -215,14 +215,16 @@ proc send*(ws: WebSocket, text: string, opcode = Opcode.Text): Future[void] {.as
       rsv3: false,
       opcode: opcode,
       mask: ws.masked,
-      data: text
+      data: data
     ))
     const maxSize = 1024*1024
     # Send stuff in 1 megabyte chunks to prevent IOErrors.
     # This really large packets.
     var i = 0
+    debug "Encoding Frame:", len = frame.len
     while i < frame.len:
       let data = frame[i ..< min(frame.len, i + maxSize)]
+      debug "Writing to socket", data = data, len = data.len
       discard await ws.tcpSocket.write(data)
       i += maxSize
   except Defect, IOError, OSError, ValueError:
@@ -234,7 +236,7 @@ proc close*(ws: WebSocket) =
   ## Close the Socket, sends close packet.
   ws.readyState = Closed
   proc close() {.async.} =
-    await ws.send("", Close)
+    await ws.send(newSeq[byte](0), Close)
     ws.tcpSocket.close()
   asyncCheck close()
 
@@ -251,11 +253,13 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
     raise newException(WebSocketError, "Socket closed")
 
   # Grab the header.
-  var header: seq[byte]
+  var header = newSeq[byte](2)
   try:
-    header = await ws.tcpSocket.read(2)
+    await ws.tcpSocket.readExactly(addr header[0], 2)
   except:
     raise newException(WebSocketError, "Socket closed")
+
+  debug "Got a frame from the WebSocket"
 
   if header.len != 2:
     ws.readyState = Closed
@@ -282,16 +286,14 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   let headerLen = uint(b1 and 0x7f)
   if headerLen == 0x7e:
     # Length must be 7+16 bits.
-    var length = await ws.tcpSocket.read(2)
-    if length.len != 2:
-      raise newException(WebSocketError, "Socket closed")
+    var length = newSeq[byte](2)
+    await ws.tcpSocket.readExactly(addr length[0], 2)
     finalLen = cast[ptr uint16](length[0].addr)[].htons
 
   elif headerLen == 0x7f:
     # Length must be 7+64 bits.
-    var length = await ws.tcpSocket.read(8)
-    if length.len != 8:
-      raise newException(WebSocketError, "Socket closed")
+    var length = newSeq[byte](8)
+    await ws.tcpSocket.readExactly(addr length[0], 8)
     finalLen = cast[ptr uint32](length[4].addr)[].htonl
 
   else:
@@ -306,16 +308,16 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
     # Client sends masked but accepts only unmasked.
     raise newException(WebSocketError, "Socket mask mismatch")
 
-  var maskKey: seq[byte]
+  var maskKey = newSeq[byte](4)
   if result.mask:
     # Read the mask.
-    maskKey = await ws.tcpSocket.read(4)
-    if maskKey.len != 4:
-      raise newException(WebSocketError, "Socket closed")
+    await ws.tcpSocket.readExactly(addr maskKey[0], 4)
 
   # Read the data.
-  var data: seq[byte]
-  data = await ws.tcpSocket.read(int finalLen)
+  var data = newSeq[byte](finalLen)
+  debug "Reading length:" , length = finalLen
+  await ws.tcpSocket.readExactly(addr data[0], int finalLen)
+  debug "Done reading:" , length = finalLen
   result.data = data
   if result.data.len != int finalLen:
     raise newException(WebSocketError, "Socket closed")
@@ -323,16 +325,17 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   if result.mask:
     # Apply mask, if we need too.
     for i in 0 ..< result.data.len:
-      result.data[i] = (result.data[i].uint8 xor maskKey[i mod 4].uint8).char
+      result.data[i] = (result.data[i].uint8 xor maskKey[i mod 4].uint8)
 
 
-proc receivePacket*(ws: WebSocket): Future[(Opcode, string)] {.async.} =
+proc receivePacket*(ws: WebSocket): Future[(Opcode, seq[byte])] {.async.} =
   ## Wait for a string or binary packet to come in.
   var frame = await ws.receiveFrame()
   result[0] = frame.opcode
   result[1] = frame.data
   # If there are more parts read and wait for them
   while frame.fin != true:
+    debug "Receiving more frame"
     frame = await ws.receiveFrame()
     if frame.opcode != Cont:
       raise newException(WebSocketError, "Socket closed")
@@ -344,7 +347,7 @@ proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
   let (opcode, data) = await ws.receivePacket()
   case opcode:
     of Text:
-      return data
+      return string.fromBytes(data)
     of Binary:
       raise newException(WebSocketError,
         "Expected string packet, received binary packet")
