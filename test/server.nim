@@ -15,7 +15,7 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       while ws.readyState == Open:
         let recvData = await ws.receiveStrPacket()
         info "Client:", data = recvData
-        await ws.send(toBytes(recvData))
+        await ws.send(recvData)
     except WebSocketError:
       error "WebSocket error:", exception = getCurrentExceptionMsg()
 

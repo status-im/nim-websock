@@ -145,19 +145,19 @@ type
     rsv3: bool ## MUST be 0
     opcode: Opcode ## Defines the interpretation of the "Payload data".
     mask: bool ## Defines whether the "Payload data" is masked.
-    data: seq[byte] ## Payload data
+    data: string ## Payload data
 
-proc encodeFrame(f: Frame): string =
+proc encodeFrame(f: Frame): seq[byte] =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
 
-  var ret = newStringStream()
+  var ret = newSeqOfCap[byte](f.data.len + 14)
 
   var b0 = (f.opcode.uint8 and 0x0f) # 0th byte: opcodes and flags.
   if f.fin:
     b0 = b0 or 128u8
 
-  ret.write(b0)
+  ret.add(b0)
 
   # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
   # 1st byte: payload len start and mask bit.
@@ -173,23 +173,25 @@ proc encodeFrame(f: Frame): string =
   if f.mask:
     b1 = b1 or (1 shl 7)
 
-  ret.write(uint8 b1)
+  ret.add(uint8 b1)
 
   # Only need more bytes if data len is 7+16 bits, or 7+64 bits.
   if f.data.len > 125 and f.data.len <= 0xffff:
     # Data len is 7+16 bits.
-    ret.write(htons(f.data.len.uint16))
+    var len = f.data.len.uint16
+    ret.add ((len shr 8) and 255).uint8
+    ret.add (len and 255).uint8
   elif f.data.len > 0xffff:
     # Data len is 7+64 bits.
     var len = f.data.len
-    ret.write char((len shr 56) and 255)
-    ret.write char((len shr 48) and 255)
-    ret.write char((len shr 40) and 255)
-    ret.write char((len shr 32) and 255)
-    ret.write char((len shr 24) and 255)
-    ret.write char((len shr 16) and 255)
-    ret.write char((len shr 8) and 255)
-    ret.write char(len and 255)
+    ret.add ((len shr 56) and 255).uint8
+    ret.add ((len shr 48) and 255).uint8
+    ret.add ((len shr 40) and 255).uint8
+    ret.add ((len shr 32) and 255).uint8
+    ret.add ((len shr 24) and 255).uint8
+    ret.add ((len shr 16) and 255).uint8
+    ret.add ((len shr 8) and 255).uint8
+    ret.add (len and 255).uint8
 
   var data = f.data
 
@@ -197,16 +199,19 @@ proc encodeFrame(f: Frame): string =
     # If we need to mask it generate random mask key and mask the data.
     let maskKey = genMaskKey()
     for i in 0..<data.len:
-      data[i] = (data[i].uint8 xor maskKey[i mod 4].uint8)
+      data[i] = (data[i].uint8 xor maskKey[i mod 4].uint8).char
     # Write mask key next.
-    ret.write(maskKey)
+    ret.add(maskKey[0].uint8)
+    ret.add(maskKey[1].uint8)
+    ret.add(maskKey[2].uint8)
+    ret.add(maskKey[3].uint8)
 
   # Write the data.
-  ret.write(data)
-  ret.setPosition(0)
-  return ret.readAll()
+  ret.add(toBytes(data))
+  return ret
 
-proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[void] {.async.} =
+proc send*(ws: WebSocket, datastr: string, opcode = Opcode.Text): Future[
+    void] {.async.} =
   try:
     var frame = encodeFrame((
       fin: true,
@@ -215,16 +220,14 @@ proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[void] {
       rsv3: false,
       opcode: opcode,
       mask: ws.masked,
-      data: data
+      data: datastr
     ))
     const maxSize = 1024*1024
     # Send stuff in 1 megabyte chunks to prevent IOErrors.
     # This really large packets.
     var i = 0
-    debug "Encoding Frame:", len = frame.len
     while i < frame.len:
       let data = frame[i ..< min(frame.len, i + maxSize)]
-      debug "Writing to socket", data = data, len = data.len
       discard await ws.tcpSocket.write(data)
       i += maxSize
   except Defect, IOError, OSError, ValueError:
@@ -236,13 +239,9 @@ proc close*(ws: WebSocket) =
   ## Close the Socket, sends close packet.
   ws.readyState = Closed
   proc close() {.async.} =
-    await ws.send(newSeq[byte](0), Close)
+    await ws.send("", Close)
     ws.tcpSocket.close()
   asyncCheck close()
-
-proc toString(bytes: seq[byte]): string =
-  result = ""
-  for byte in bytes: result.add(char(byte))
 
 proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
@@ -315,20 +314,19 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
 
   # Read the data.
   var data = newSeq[byte](finalLen)
-  debug "Reading length:" , length = finalLen
+  debug "Reading length:", length = finalLen
   await ws.tcpSocket.readExactly(addr data[0], int finalLen)
-  debug "Done reading:" , length = finalLen
-  result.data = data
+  debug "Done reading:", length = finalLen
+  result.data = string.fromBytes(data)
   if result.data.len != int finalLen:
     raise newException(WebSocketError, "Socket closed")
 
   if result.mask:
     # Apply mask, if we need too.
     for i in 0 ..< result.data.len:
-      result.data[i] = (result.data[i].uint8 xor maskKey[i mod 4].uint8)
+      result.data[i] = (result.data[i].uint8 xor maskKey[i mod 4].uint8).char
 
-
-proc receivePacket*(ws: WebSocket): Future[(Opcode, seq[byte])] {.async.} =
+proc receivePacket*(ws: WebSocket): Future[(Opcode, string)] {.async.} =
   ## Wait for a string or binary packet to come in.
   var frame = await ws.receiveFrame()
   result[0] = frame.opcode
@@ -347,10 +345,9 @@ proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
   let (opcode, data) = await ws.receivePacket()
   case opcode:
     of Text:
-      return string.fromBytes(data)
+      return data
     of Binary:
-      raise newException(WebSocketError,
-        "Expected string packet, received binary packet")
+      raise newException(WebSocketError, "Expected string packet, received binary packet")
     of Ping:
       await ws.send(data, Pong)
     of Pong:
@@ -358,7 +355,6 @@ proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
     of Cont:
       discard
     of Close:
-      debug "Closing connection"
       ws.close()
 
 proc sendHTTPResponse*(transp: StreamTransport, version: HttpVersion, code: HttpCode,

@@ -7,7 +7,7 @@ info "Websocket client: ", State = wsClient.readyState
 for idx in 1 .. 5:
   debug "Sending Hello world"
   try:
-    waitFor wsClient.send(toBytes("Hello Server"))
+    waitFor wsClient.send("Hello Server")
     let recvData = waitFor wsClient.receiveStrPacket()
     info "Server:", data = recvData
   except WebSocketError:
