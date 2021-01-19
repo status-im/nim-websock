@@ -1,5 +1,5 @@
 import chronos, chronicles, httputils, strutils, base64, std/sha1, random,
-    streams, nativesockets, uri, times, chronos/timer, tables, stew/bitops2, stew/byteutils
+    nativesockets, uri, times, chronos/timer, tables, stew/bitops2, stew/byteutils
 
 const
   MaxHttpHeadersSize = 8192       # maximum size of HTTP headers in octets
@@ -9,6 +9,7 @@ const
   CRLF* = "\c\L"
   HeaderSep = @[byte('\c'), byte('\L'), byte('\c'), byte('\L')]
   SHA1DigestSize = 20
+  WSHeaderSize = 12
 
 type
   ReadyState* = enum
@@ -145,13 +146,13 @@ type
     rsv3: bool ## MUST be 0
     opcode: Opcode ## Defines the interpretation of the "Payload data".
     mask: bool ## Defines whether the "Payload data" is masked.
-    data: string ## Payload data
+    data: seq[byte] ## Payload data
 
 proc encodeFrame(f: Frame): seq[byte] =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
 
-  var ret = newSeqOfCap[byte](f.data.len + 14)
+  var ret = newSeqOfCap[byte](f.data.len + WSHeaderSize)
 
   var b0 = (f.opcode.uint8 and 0x0f) # 0th byte: opcodes and flags.
   if f.fin:
@@ -199,7 +200,7 @@ proc encodeFrame(f: Frame): seq[byte] =
     # If we need to mask it generate random mask key and mask the data.
     let maskKey = genMaskKey()
     for i in 0..<data.len:
-      data[i] = (data[i].uint8 xor maskKey[i mod 4].uint8).char
+      data[i] = (data[i].uint8 xor maskKey[i mod 4].uint8)
     # Write mask key next.
     ret.add(maskKey[0].uint8)
     ret.add(maskKey[1].uint8)
@@ -207,10 +208,10 @@ proc encodeFrame(f: Frame): seq[byte] =
     ret.add(maskKey[3].uint8)
 
   # Write the data.
-  ret.add(toBytes(data))
+  ret.add(data)
   return ret
 
-proc send*(ws: WebSocket, datastr: string, opcode = Opcode.Text): Future[
+proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[
     void] {.async.} =
   try:
     var frame = encodeFrame((
@@ -220,7 +221,7 @@ proc send*(ws: WebSocket, datastr: string, opcode = Opcode.Text): Future[
       rsv3: false,
       opcode: opcode,
       mask: ws.masked,
-      data: datastr
+      data: data
     ))
     const maxSize = 1024*1024
     # Send stuff in 1 megabyte chunks to prevent IOErrors.
@@ -235,11 +236,15 @@ proc send*(ws: WebSocket, datastr: string, opcode = Opcode.Text): Future[
     raise newException(WebSocketError, "Failed to send data: " &
         getCurrentExceptionMsg())
 
+proc sendStr*(ws: WebSocket, data: string, opcode = Opcode.Text): Future[
+                void] {.async.} =
+  await send(ws, toBytes(data), opcode)
+
 proc close*(ws: WebSocket) =
   ## Close the Socket, sends close packet.
   ws.readyState = Closed
   proc close() {.async.} =
-    await ws.send("", Close)
+    await ws.send(@[], Close)
     ws.tcpSocket.close()
   asyncCheck close()
 
@@ -267,15 +272,16 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   let b0 = header[0].uint8
   let b1 = header[1].uint8
 
+  var frame: Frame
   # Read the flags and fin from the header.
-  result.fin = b0[0]
-  result.rsv1 = b0[1]
-  result.rsv2 = b0[2]
-  result.rsv3 = b0[3]
-  result.opcode = (b0 and 0x0f).Opcode
+  frame.fin = b0[0]
+  frame.rsv1 = b0[1]
+  frame.rsv2 = b0[2]
+  frame.rsv3 = b0[3]
+  frame.opcode = (b0 and 0x0f).Opcode
 
   # If any of the rsv are set close the socket.
-  if result.rsv1 or result.rsv2 or result.rsv3:
+  if frame.rsv1 or frame.rsv2 or frame.rsv3:
     ws.readyState = Closed
     raise newException(WebSocketError, "WebSocket rsv mismatch")
 
@@ -288,27 +294,25 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
     var length = newSeq[byte](2)
     await ws.tcpSocket.readExactly(addr length[0], 2)
     finalLen = cast[ptr uint16](length[0].addr)[].htons
-
   elif headerLen == 0x7f:
     # Length must be 7+64 bits.
     var length = newSeq[byte](8)
     await ws.tcpSocket.readExactly(addr length[0], 8)
     finalLen = cast[ptr uint32](length[4].addr)[].htonl
-
   else:
     # Length must be 7 bits.
     finalLen = headerLen
 
   # Do we need to apply mask?
-  result.mask = (b1 and 0x80) == 0x80
+  frame.mask = (b1 and 0x80) == 0x80
 
-  if ws.masked == result.mask:
+  if ws.masked == frame.mask:
     # Server sends unmasked but accepts only masked.
     # Client sends masked but accepts only unmasked.
     raise newException(WebSocketError, "Socket mask mismatch")
 
   var maskKey = newSeq[byte](4)
-  if result.mask:
+  if frame.mask:
     # Read the mask.
     await ws.tcpSocket.readExactly(addr maskKey[0], 4)
 
@@ -317,28 +321,29 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   debug "Reading length:", length = finalLen
   await ws.tcpSocket.readExactly(addr data[0], int finalLen)
   debug "Done reading:", length = finalLen
-  result.data = string.fromBytes(data)
-  if result.data.len != int finalLen:
+  frame.data = data
+  if frame.data.len != int finalLen:
     raise newException(WebSocketError, "Socket closed")
 
-  if result.mask:
+  if frame.mask:
     # Apply mask, if we need too.
-    for i in 0 ..< result.data.len:
-      result.data[i] = (result.data[i].uint8 xor maskKey[i mod 4].uint8).char
+    for i in 0 ..< frame.data.len:
+      frame.data[i] = (frame.data[i].uint8 xor maskKey[i mod 4].uint8)
+  return frame
 
 proc receivePacket*(ws: WebSocket): Future[(Opcode, string)] {.async.} =
   ## Wait for a string or binary packet to come in.
   var frame = await ws.receiveFrame()
-  result[0] = frame.opcode
-  result[1] = frame.data
+
+  var packet = string.fromBytes(frame.data)
   # If there are more parts read and wait for them
   while frame.fin != true:
     debug "Receiving more frame"
     frame = await ws.receiveFrame()
     if frame.opcode != Cont:
       raise newException(WebSocketError, "Socket closed")
-    result[1].add frame.data
-  return
+    packet.add string.fromBytes(frame.data)
+  return (frame.opcode, packet)
 
 proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
   ## Wait only for a string packet to come. Errors out on Binary packets.
@@ -349,7 +354,7 @@ proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
     of Binary:
       raise newException(WebSocketError, "Expected string packet, received binary packet")
     of Ping:
-      await ws.send(data, Pong)
+      await ws.send(toBytes(data), Pong)
     of Pong:
       discard
     of Cont:
@@ -370,35 +375,31 @@ proc sendHTTPResponse*(transp: StreamTransport, version: HttpVersion, code: Http
   answer.add("\r\n")
   if len(data) > 0:
     answer.add(data)
-  try:
-    let res = await transp.write(answer)
-    if res != len(answer):
-      result = false
-    result = true
-  except:
-    result = false
+
+  let res = await transp.write(answer)
+  if res == len(answer):
+    return true
+  raise newException(IOError, "Failed to send http request.")
 
 proc validateRequest(transp: StreamTransport,
                      header: HttpRequestHeader): Future[ReqStatus] {.async.} =
   if header.meth notin {MethodGet}:
     debug "GET method is only allowed", address = transp.remoteAddress()
     if await transp.sendHTTPResponse(header.version, Http405):
-      result = Error
+      return Error
     else:
-      result = ErrorFailure
-    return
+      return ErrorFailure
 
   if header.contentLength() > MaxHttpRequestSize:
     # request length is more then `MaxHttpRequestSize`.
     debug "Maximum size of request body reached",
           address = transp.remoteAddress()
     if await transp.sendHTTPResponse(header.version, Http413):
-      result = Error
+      return Error
     else:
-      result = ErrorFailure
-    return
+      return ErrorFailure
 
-  result = Success
+  return Success
 
 proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
   ## Process transport data to the RPC server
@@ -429,47 +430,37 @@ proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
         discard await transp.sendHTTPResponse(HttpVersion11, Http400)
         await transp.closeWait()
         return
+      var vres = await validateRequest(transp, header)
+      if vres == Success:
+        info "Received valid RPC request", address = $transp.remoteAddress()
+        # Call the user's callback.
+        if httpServer.callback != nil:
+          await httpServer.callback(transp, header)
+      elif vres == ErrorFailure:
+        debug "Remote peer disconnected", address = transp.remoteAddress()
   except TransportLimitError:
     # size of headers exceeds `MaxHttpHeadersSize`
     debug "Maximum size of headers limit reached",
           address = transp.remoteAddress()
     discard await transp.sendHTTPResponse(HttpVersion11, Http413)
-    await transp.closeWait()
-    return
   except TransportIncompleteError:
     # remote peer disconnected
     debug "Remote peer disconnected", address = transp.remoteAddress()
-    await transp.closeWait()
-    return
   except TransportOsError as exc:
     debug "Problems with networking", address = transp.remoteAddress(),
           error = exc.msg
-    await transp.closeWait()
-    return
   except CatchableError as exc:
     debug "Unknown exception", address = transp.remoteAddress(),
           error = exc.msg
-    await transp.closeWait()
-    return
-
-  let vres = await validateRequest(transp, header)
-  if vres == Success:
-    info "Received valid RPC request", address = $transp.remoteAddress()
-    # Call the user's callback.
-    if httpServer.callback != nil:
-      await httpServer.callback(transp, header)
-    await transp.closeWait()
-  elif vres == ErrorFailure:
-    debug "Remote peer disconnected", address = transp.remoteAddress()
-    await transp.closeWait()
+  await transp.closeWait()
 
 proc newHttpServer*(address: string, handler: AsyncCallback,
               flags: set[ServerFlags] = {ReuseAddr}): HttpServer =
-  new result
   let address = initTAddress(address)
-  result.callback = handler
-  result = cast[HttpServer](createStreamServer(address, serveClient, flags,
-      child = cast[StreamServer](result)))
+  var server = HttpServer(callback : handler)
+  server = cast[HttpServer](createStreamServer(address, serveClient, flags,
+      child = cast[StreamServer](server)))
+  return server
 
 func toTitleCase(s: string): string =
   result = newString(len(s))
@@ -496,11 +487,10 @@ func newHttpHeaders*(keyValuePairs:
 
   for pair in keyValuePairs:
     let key = result.toCaseInsensitive(pair.key)
-    {.cast(noSideEffect).}:
-      if key in result.table:
-        result.table[key].add(pair.val)
-      else:
-        result.table[key] = @[pair.val]
+    if key in result.table:
+      result.table[key].add(pair.val)
+    else:
+      result.table[key] = @[pair.val]
 
 proc generateHeaders(requestUrl: Uri, httpMethod: string,
     headers: HttpHeaders): string =
@@ -551,8 +541,8 @@ proc validateWSClientHandshake*(transp: StreamTransport,
           httpcode = header.code,
           httpreason = header.reason(),
           address = transp.remoteAddress()
-
-  result = true
+    return false
+  return true
 
 proc recvData(transp: StreamTransport): Future[string] {.async.} =
   var buffer = newSeq[byte](MaxHttpHeadersSize)
