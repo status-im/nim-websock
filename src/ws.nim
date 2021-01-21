@@ -1,15 +1,11 @@
-import chronos, chronicles, httputils, strutils, base64, std/sha1, random,
-    nativesockets, uri, times, chronos/timer, tables, stew/bitops2, stew/byteutils
+import chronos, chronicles, httputils, strutils, base64, std/sha1, random, http,
+        uri, times, chronos/timer, tables, stew/bitops2,
+        stew/byteutils, eth/[keys], stew/endians2
 
 const
-  MaxHttpHeadersSize = 8192       # maximum size of HTTP headers in octets
-  MaxHttpRequestSize = 128 * 1024 # maximum size of HTTP body in octets
-  HttpHeadersTimeout = timer.seconds(120) # timeout for receiving headers (120 sec)
-  WebsocketUserAgent* = "nim-ws (https://github.com/status-im/nim-ws)"
-  CRLF* = "\c\L"
-  HeaderSep = @[byte('\c'), byte('\L'), byte('\c'), byte('\L')]
   SHA1DigestSize = 20
   WSHeaderSize = 12
+  WSOpCode = {0x00, 0x01, 0x02, 0x08, 0x09, 0x0a}
 
 type
   ReadyState* = enum
@@ -25,42 +21,37 @@ type
     protocol*: string
     readyState*: ReadyState
     masked*: bool # send masked packets
-
-  AsyncCallback = proc (transp: StreamTransport,
-      header: HttpRequestHeader): Future[void] {.closure, gcsafe.}
-  HttpServer* = ref object of StreamServer
-    callback: AsyncCallback
-
-  HttpHeaders* = ref object
-    table*: TableRef[string, seq[string]]
-
-  HttpClient* = ref object
-    connected: bool
-    currentURL: Uri      ## Where we are currently connected.
-    headers: HttpHeaders ## Headers to send in requests.
-    transp*: StreamTransport
-    buf: seq[byte]
-
-  ReqStatus = enum
-    Success, Error, ErrorFailure
+    rng*: ref BrHmacDrbgContext
 
   WebSocketError* = object of IOError
 
   Base16Error* = object of CatchableError
     ## Base16 specific exception type
 
+  HeaderFlag* {.size: sizeof(uint8).} = enum
+    rsv3
+    rsv2
+    rsv1
+    fin
+  HeaderFlags = set[HeaderFlag]
+
+  HttpCode* = enum
+    Http101 = 101 # Switching Protocols
+
 template `[]`(value: uint8, index: int): bool =
   ## Get bits from uint8, uint8[2] gets 3rd bit.
   getBitBE(value, index)
 
-proc genMaskKey(): array[4, char] =
-  ## Generates a random key of 4 random chars.
-  proc r(): char = char(rand(255))
-  [r(), r(), r(), r()]
-
 proc handshake*(ws: WebSocket, header: HttpRequestHeader) {.async.} =
   ## Handles the websocket handshake.
-  ws.version = parseInt(header["Sec-WebSocket-Version"])
+  try: ws.version = parseInt(header["Sec-WebSocket-Version"])
+  except ValueError:
+    raise newException(WebSocketError, "Invalid Websocket version")
+
+  if ws.version != 13:
+    raise newException(WebSocketError, "Websocket version not supported, Version: " &
+      header["Sec-WebSocket-Version"])
+
   ws.key = header["Sec-WebSocket-Key"].strip()
   if header.contains("Sec-WebSocket-Protocol"):
     let wantProtocol = header["Sec-WebSocket-Protocol"].strip()
@@ -69,18 +60,22 @@ proc handshake*(ws: WebSocket, header: HttpRequestHeader) {.async.} =
         "Protocol mismatch (expected: " & ws.protocol & ", got: " &
         wantProtocol & ")")
 
-  let
-    sh = secureHash(ws.key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+  var acceptKey: string
+  try:
+    let sh = secureHash(ws.key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
     acceptKey = base64.encode(hexToByteArray[SHA1DigestSize]($sh))
+  except ValueError:
+    raise newException(
+      WebSocketError, "Failed to generate accept key: " & getCurrentExceptionMsg())
 
-  var response = "HTTP/1.1 101 Web Socket Protocol Handshake\c\L"
-  response.add("Sec-WebSocket-Accept: " & acceptKey & "\c\L")
-  response.add("Connection: Upgrade\c\L")
-  response.add("Upgrade: webSocket\c\L")
+  var response = "HTTP/1.1 101 Web Socket Protocol Handshake" & CRLF
+  response.add("Sec-WebSocket-Accept: " & acceptKey & CRLF)
+  response.add("Connection: Upgrade" & CRLF)
+  response.add("Upgrade: webSocket" & CRLF)
 
   if ws.protocol != "":
-    response.add("Sec-WebSocket-Protocol: " & ws.protocol & "\c\L")
-  response.add "\c\L"
+    response.add("Sec-WebSocket-Protocol: " & ws.protocol & CRLF)
+  response.add CRLF
 
   let res = await ws.tcpSocket.write(response)
   if res != len(response):
@@ -93,10 +88,8 @@ proc newWebSocket*(header: HttpRequestHeader, transp: StreamTransport,
   try:
     if not header.contains("Sec-WebSocket-Version"):
       raise newException(WebSocketError, "Invalid WebSocket handshake")
-    var ws = WebSocket()
-    ws.masked = false
-    ws.protocol = protocol
-    ws.tcpSocket = transp
+    var ws = WebSocket(tcpSocket: transp, protocol: protocol, masked: false,
+        rng: newRng())
     await ws.handshake(header)
     return ws
   except ValueError, KeyError:
@@ -147,6 +140,7 @@ type
     opcode: Opcode ## Defines the interpretation of the "Payload data".
     mask: bool ## Defines whether the "Payload data" is masked.
     data: seq[byte] ## Payload data
+    maskKey: array[4, char] ## Masking key
 
 proc encodeFrame(f: Frame): seq[byte] =
   ## Encodes a frame into a string buffer.
@@ -198,14 +192,13 @@ proc encodeFrame(f: Frame): seq[byte] =
 
   if f.mask:
     # If we need to mask it generate random mask key and mask the data.
-    let maskKey = genMaskKey()
     for i in 0..<data.len:
-      data[i] = (data[i].uint8 xor maskKey[i mod 4].uint8)
+      data[i] = (data[i].uint8 xor f.maskKey[i mod 4].uint8)
     # Write mask key next.
-    ret.add(maskKey[0].uint8)
-    ret.add(maskKey[1].uint8)
-    ret.add(maskKey[2].uint8)
-    ret.add(maskKey[3].uint8)
+    ret.add(f.maskKey[0].uint8)
+    ret.add(f.maskKey[1].uint8)
+    ret.add(f.maskKey[2].uint8)
+    ret.add(f.maskKey[3].uint8)
 
   # Write the data.
   ret.add(data)
@@ -214,6 +207,9 @@ proc encodeFrame(f: Frame): seq[byte] =
 proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[
     void] {.async.} =
   try:
+    var maskKey: array[4, char]
+    if ws.masked:
+      maskKey = genMaskKey(ws.rng)
     var frame = encodeFrame((
       fin: true,
       rsv1: false,
@@ -221,15 +217,18 @@ proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[
       rsv3: false,
       opcode: opcode,
       mask: ws.masked,
-      data: data
+      data: data,
+      maskKey: maskKey
     ))
     const maxSize = 1024*1024
     # Send stuff in 1 megabyte chunks to prevent IOErrors.
     # This really large packets.
     var i = 0
     while i < frame.len:
-      let data = frame[i ..< min(frame.len, i + maxSize)]
-      discard await ws.tcpSocket.write(data)
+      let frameSize = min(frame.len, i + maxSize)
+      let res = await ws.tcpSocket.write(frame[i ..< frameSize])
+      if res != frameSize:
+        raise newException(ValueError, "Error while send websocket frame")
       i += maxSize
   except Defect, IOError, OSError, ValueError:
     # Wrap all exceptions in a WebSocketError so its easy to catch
@@ -252,33 +251,37 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
 
-  if cast[int](ws.tcpSocket.fd) == -1:
-    ws.readyState = Closed
-    raise newException(WebSocketError, "Socket closed")
-
   # Grab the header.
   var header = newSeq[byte](2)
   try:
     await ws.tcpSocket.readExactly(addr header[0], 2)
-  except:
+  except TransportUseClosedError:
+    ws.readyState = Closed
     raise newException(WebSocketError, "Socket closed")
-
-  debug "Got a frame from the WebSocket"
+  except CatchableError:
+    ws.readyState = Closed
+    raise newException(WebSocketError, "Failed to read websocket header")
 
   if header.len != 2:
     ws.readyState = Closed
-    raise newException(WebSocketError, "Socket closed")
+    raise newException(WebSocketError, "Invalid websocket header length")
 
   let b0 = header[0].uint8
   let b1 = header[1].uint8
 
   var frame: Frame
   # Read the flags and fin from the header.
-  frame.fin = b0[0]
-  frame.rsv1 = b0[1]
-  frame.rsv2 = b0[2]
-  frame.rsv3 = b0[3]
-  frame.opcode = (b0 and 0x0f).Opcode
+
+  var hf = cast[HeaderFlags](b0 shr 4)
+  frame.fin = fin in hf
+  frame.rsv1 = rsv1 in hf
+  frame.rsv2 = rsv2 in hf
+  frame.rsv3 = rsv3 in hf
+
+  var opcode = b0 and 0x0f
+  if opcode notin WSOpCode:
+    raise newException(WebSocketError, "Unexpected  websocket opcode")
+  frame.opcode = (opcode).Opcode
 
   # If any of the rsv are set close the socket.
   if frame.rsv1 or frame.rsv2 or frame.rsv3:
@@ -286,19 +289,19 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
     raise newException(WebSocketError, "WebSocket rsv mismatch")
 
   # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
-  var finalLen: uint = 0
+  var finalLen: uint64 = 0
 
   let headerLen = uint(b1 and 0x7f)
   if headerLen == 0x7e:
     # Length must be 7+16 bits.
     var length = newSeq[byte](2)
     await ws.tcpSocket.readExactly(addr length[0], 2)
-    finalLen = cast[ptr uint16](length[0].addr)[].htons
+    finalLen = cast[ptr uint16](length[0].addr)[].toBE
   elif headerLen == 0x7f:
     # Length must be 7+64 bits.
     var length = newSeq[byte](8)
     await ws.tcpSocket.readExactly(addr length[0], 8)
-    finalLen = cast[ptr uint32](length[4].addr)[].htonl
+    finalLen = cast[ptr uint64](length[0].addr)[].toBE
   else:
     # Length must be 7 bits.
     finalLen = headerLen
@@ -318,12 +321,10 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
 
   # Read the data.
   var data = newSeq[byte](finalLen)
-  debug "Reading length:", length = finalLen
   await ws.tcpSocket.readExactly(addr data[0], int finalLen)
-  debug "Done reading:", length = finalLen
   frame.data = data
   if frame.data.len != int finalLen:
-    raise newException(WebSocketError, "Socket closed")
+    raise newException(WebSocketError, "Failed to read websocket frame data")
 
   if frame.mask:
     # Apply mask, if we need too.
@@ -331,22 +332,21 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
       frame.data[i] = (frame.data[i].uint8 xor maskKey[i mod 4].uint8)
   return frame
 
-proc receivePacket*(ws: WebSocket): Future[(Opcode, string)] {.async.} =
+proc receivePacket*(ws: WebSocket): Future[(Opcode, seq[byte])] {.async.} =
   ## Wait for a string or binary packet to come in.
   var frame = await ws.receiveFrame()
 
-  var packet = string.fromBytes(frame.data)
+  var packet = frame.data
   # If there are more parts read and wait for them
   while frame.fin != true:
-    debug "Receiving more frame"
     frame = await ws.receiveFrame()
     if frame.opcode != Cont:
-      raise newException(WebSocketError, "Socket closed")
-    packet.add string.fromBytes(frame.data)
+      raise newException(WebSocketError, "Expected continuation frame")
+    packet.add frame.data
   return (frame.opcode, packet)
 
-proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
-  ## Wait only for a string packet to come. Errors out on Binary packets.
+proc receiveStrPacket*(ws: WebSocket): Future[seq[byte]] {.async.} =
+  ## Wait only for only string and control packet to come. Errors out on Binary packets.
   let (opcode, data) = await ws.receivePacket()
   case opcode:
     of Text:
@@ -354,7 +354,7 @@ proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
     of Binary:
       raise newException(WebSocketError, "Expected string packet, received binary packet")
     of Ping:
-      await ws.send(toBytes(data), Pong)
+      await ws.send(data, Pong)
     of Pong:
       discard
     of Cont:
@@ -362,253 +362,13 @@ proc receiveStrPacket*(ws: WebSocket): Future[string] {.async.} =
     of Close:
       ws.close()
 
-proc sendHTTPResponse*(transp: StreamTransport, version: HttpVersion, code: HttpCode,
-                data: string = ""): Future[bool] {.async.} =
-  var answer = $version
-  answer.add(" ")
-  answer.add($code)
-  answer.add("\r\n")
-  answer.add("Date: " & httpDate() & "\r\n")
-  if len(data) > 0:
-    answer.add("Content-Type: application/json\r\n")
-  answer.add("Content-Length: " & $len(data) & "\r\n")
-  answer.add("\r\n")
-  if len(data) > 0:
-    answer.add(data)
-
-  let res = await transp.write(answer)
-  if res == len(answer):
-    return true
-  raise newException(IOError, "Failed to send http request.")
-
-proc validateRequest(transp: StreamTransport,
-                     header: HttpRequestHeader): Future[ReqStatus] {.async.} =
-  if header.meth notin {MethodGet}:
-    debug "GET method is only allowed", address = transp.remoteAddress()
-    if await transp.sendHTTPResponse(header.version, Http405):
-      return Error
-    else:
-      return ErrorFailure
-
-  if header.contentLength() > MaxHttpRequestSize:
-    # request length is more then `MaxHttpRequestSize`.
-    debug "Maximum size of request body reached",
-          address = transp.remoteAddress()
-    if await transp.sendHTTPResponse(header.version, Http413):
-      return Error
-    else:
-      return ErrorFailure
-
-  return Success
-
-proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
-  ## Process transport data to the RPC server
-  var httpServer = cast[HttpServer](server)
-  var buffer = newSeq[byte](MaxHttpHeadersSize)
-  var header: HttpRequestHeader
-
-  info "Received connection", address = $transp.remoteAddress()
-  try: # MaxHttpHeadersSize
-    let hlenfut = transp.readUntil(addr buffer[0], MaxHttpHeadersSize,
-        sep = HeaderSep)
-    let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
-    if not ores:
-      # Timeout
-      debug "Timeout expired while receiving headers",
-            address = transp.remoteAddress()
-      discard await transp.sendHTTPResponse(HttpVersion11, Http408)
-      await transp.closeWait()
-      return
-    else:
-      let hlen = hlenfut.read()
-      buffer.setLen(hlen)
-      header = buffer.parseRequest()
-      if header.failed():
-        # Header could not be parsed
-        debug "Malformed header received",
-              address = transp.remoteAddress()
-        discard await transp.sendHTTPResponse(HttpVersion11, Http400)
-        await transp.closeWait()
-        return
-      var vres = await validateRequest(transp, header)
-      if vres == Success:
-        info "Received valid RPC request", address = $transp.remoteAddress()
-        # Call the user's callback.
-        if httpServer.callback != nil:
-          await httpServer.callback(transp, header)
-      elif vres == ErrorFailure:
-        debug "Remote peer disconnected", address = transp.remoteAddress()
-  except TransportLimitError:
-    # size of headers exceeds `MaxHttpHeadersSize`
-    debug "Maximum size of headers limit reached",
-          address = transp.remoteAddress()
-    discard await transp.sendHTTPResponse(HttpVersion11, Http413)
-  except TransportIncompleteError:
-    # remote peer disconnected
-    debug "Remote peer disconnected", address = transp.remoteAddress()
-  except TransportOsError as exc:
-    debug "Problems with networking", address = transp.remoteAddress(),
-          error = exc.msg
-  except CatchableError as exc:
-    debug "Unknown exception", address = transp.remoteAddress(),
-          error = exc.msg
-  await transp.closeWait()
-
-proc newHttpServer*(address: string, handler: AsyncCallback,
-              flags: set[ServerFlags] = {ReuseAddr}): HttpServer =
-  let address = initTAddress(address)
-  var server = HttpServer(callback : handler)
-  server = cast[HttpServer](createStreamServer(address, serveClient, flags,
-      child = cast[StreamServer](server)))
-  return server
-
-func toTitleCase(s: string): string =
-  result = newString(len(s))
-  var upper = true
-  for i in 0..len(s) - 1:
-    result[i] = if upper: toUpperAscii(s[i]) else: toLowerAscii(s[i])
-    upper = s[i] == '-'
-
-func toCaseInsensitive*(headers: HttpHeaders, s: string): string {.inline.} =
-  return toTitleCase(s)
-
-func newHttpHeaders*(): HttpHeaders =
-  ## Returns a new ``HttpHeaders`` object. if ``titleCase`` is set to true,
-  ## headers are passed to the server in title case (e.g. "Content-Length")
-  new result
-  result.table = newTable[string, seq[string]]()
-
-func newHttpHeaders*(keyValuePairs:
-    openArray[tuple[key: string, val: string]]): HttpHeaders =
-  ## Returns a new ``HttpHeaders`` object from an array. if ``titleCase`` is set to true,
-  ## headers are passed to the server in title case (e.g. "Content-Length")
-  new result
-  result.table = newTable[string, seq[string]]()
-
-  for pair in keyValuePairs:
-    let key = result.toCaseInsensitive(pair.key)
-    if key in result.table:
-      result.table[key].add(pair.val)
-    else:
-      result.table[key] = @[pair.val]
-
-proc generateHeaders(requestUrl: Uri, httpMethod: string,
-    headers: HttpHeaders): string =
-  # GET
-  let upperMethod = httpMethod.toUpperAscii()
-  result = upperMethod
-  result.add ' '
-
-  if not requestUrl.path.startsWith("/"): result.add '/'
-  result.add(requestUrl.path)
-
-  # HTTP/1.1\c\l
-  result.add(" HTTP/1.1" & CRLF)
-
-  for key, val in headers.table:
-    add(result, key & ": " & val.join(", ") & CRLF)
-  add(result, CRLF)
-
-proc newHttpClient*(headers = newHttpHeaders()): HttpClient =
-  new result
-  result.headers = headers
-
-proc close*(client: HttpClient) =
-  ## Closes any connections held by the HTTP client.
-  if client.connected:
-    client.transp.close()
-    client.connected = false
-
-proc newConnection(client: HttpClient, url: Uri) {.async.} =
-  if client.connected:
-    return
-
-  let port =
-    if url.port == "":
-        nativesockets.Port(80)
-    else: nativesockets.Port(url.port.parseInt)
-
-  client.transp = await connect(initTAddress(url.hostname, port))
-
-  # May be connected through proxy but remember actual URL being accessed
-  client.currentURL = url
-  client.connected = true
-
 proc validateWSClientHandshake*(transp: StreamTransport,
-                       header: HttpResponseHeader): bool =
-  if header.code != 101:
-    debug "Server did not reply with a websocket upgrade: ",
-          httpcode = header.code,
-          httpreason = header.reason(),
-          address = transp.remoteAddress()
-    return false
-  return true
-
-proc recvData(transp: StreamTransport): Future[string] {.async.} =
-  var buffer = newSeq[byte](MaxHttpHeadersSize)
-  var header: HttpResponseHeader
-  var error = false
-  try:
-    let hlenfut = transp.readUntil(addr buffer[0], MaxHttpHeadersSize,
-        sep = HeaderSep)
-    let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
-    if not ores:
-      # Timeout
-      debug "Timeout expired while receiving headers",
-             address = transp.remoteAddress()
-      error = true
-    else:
-      let hlen = hlenfut.read()
-      buffer.setLen(hlen)
-      header = buffer.parseResponse()
-      if header.failed():
-        # Header could not be parsed
-        debug "Malformed header received",
-              address = transp.remoteAddress()
-        error = true
-  except TransportLimitError:
-    # size of headers exceeds `MaxHttpHeadersSize`
-    debug "Maximum size of headers limit reached",
-          address = transp.remoteAddress()
-    error = true
-  except TransportIncompleteError:
-    # remote peer disconnected
-    debug "Remote peer disconnected", address = transp.remoteAddress()
-    error = true
-  except TransportOsError as exc:
-    debug "Problems with networking", address = transp.remoteAddress(),
-          error = exc.msg
-    error = true
-
-  if error or not transp.validateWSClientHandshake(header):
-    result = ""
-    return
-
-  if error:
-    result = ""
-  else:
-    result = cast[string](buffer)
-
-# Send request to the client. Currently only supports HTTP get method.
-proc request*(client: HttpClient, url, httpMethod: string,
-             body = "", headers: HttpHeaders = nil): Future[string]
-             {.async.} =
-  # Helper that actually makes the request. Does not handle redirects.
-  let requestUrl = parseUri(url)
-  if requestUrl.scheme == "":
-    raise newException(ValueError, "No uri scheme supplied.")
-
-  await newConnection(client, requestUrl)
-
-  let headerString = generateHeaders(requestUrl, httpMethod, headers)
-  let res = await client.transp.write(headerString)
-  if res != len(headerString):
-    raise newException(WebSocketError, "Error while send request to client.")
-
-  debug "Request sent for websocket handshake"
-  var value = await client.transp.recvData()
-  if value.len == 0:
-    raise newException(ValueError, "Empty response from server")
+    header: HttpResponseHeader): void =
+  if header.code != ord(Http101):
+    raise newException(WebSocketError, "Server did not reply with a websocket upgrade: " &
+          "Header code: " & $header.code &
+          "Header reason: " & header.reason() &
+          "Address: " & $transp.remoteAddress())
 
 proc newWebsocketClient*(uri: Uri, protocols: seq[string] = @[]): Future[
     WebSocket] {.async.} =
@@ -638,12 +398,17 @@ proc newWebsocketClient*(uri: Uri, protocols: seq[string] = @[]): Future[
     headers.table["Sec-WebSocket-Protocol"] = @[protocols.join(", ")]
 
   let client = newHttpClient(headers)
-  discard await client.request($uri, "GET", headers = headers)
+  var response = await client.request($uri, "GET", headers = headers)
+  var header = response.parseResponse()
+  if header.failed():
+    # Header could not be parsed
+    raise newException(WebSocketError, "Malformed header received: " &
+        $client.transp.remoteAddress())
+  client.transp.validateWSClientHandshake(header)
 
-  new(result)
-  result.tcpSocket = client.transp
-  result.readyState = Open
-  result.masked = true # Client data should be masked.
+  # Client data should be masked.
+  return WebSocket(tcpSocket: client.transp, readyState: Open, masked: true,
+      rng: newRng())
 
 proc newWebsocketClient*(host: string, port: Port, path: string,
     protocols: seq[string] = @[]): Future[WebSocket] {.async.} =
@@ -652,4 +417,4 @@ proc newWebsocketClient*(host: string, port: Port, path: string,
     uri.add path
   else:
     uri.add "/" & path
-  result = await newWebsocketClient(parseUri(uri), protocols)
+  return await newWebsocketClient(parseUri(uri), protocols)
