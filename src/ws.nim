@@ -251,8 +251,9 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
   except TransportUseClosedError:
     ws.readyState = Closed
     raise newException(WebSocketError, "Socket closed")
-
-  debug "Got a frame from the WebSocket"
+  except CatchableError:
+    ws.readyState = Closed
+    raise newException(WebSocketError, "Failed to read websocket header")
 
   if header.len != 2:
     ws.readyState = Closed
