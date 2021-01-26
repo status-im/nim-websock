@@ -1,6 +1,5 @@
 import chronos, httputils, strutils, base64, std/sha1, random, http,
-        uri, times, chronos/timer, tables, stew/bitops2,
-        stew/byteutils, eth/[keys], stew/endians2
+        uri, times, chronos/timer, tables, stew/byteutils, eth/[keys], stew/endians2
 
 const
   SHA1DigestSize = 20
