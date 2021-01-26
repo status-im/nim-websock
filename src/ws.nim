@@ -1,4 +1,4 @@
-import chronos, chronicles, httputils, strutils, base64, std/sha1, random, http,
+import chronos, httputils, strutils, base64, std/sha1, random, http,
         uri, times, chronos/timer, tables, stew/bitops2,
         stew/byteutils, eth/[keys], stew/endians2
 
@@ -37,10 +37,6 @@ type
 
   HttpCode* = enum
     Http101 = 101 # Switching Protocols
-
-template `[]`(value: uint8, index: int): bool =
-  ## Get bits from uint8, uint8[2] gets 3rd bit.
-  getBitBE(value, index)
 
 proc handshake*(ws: WebSocket, header: HttpRequestHeader) {.async.} =
   ## Handles the websocket handshake.
@@ -230,7 +226,7 @@ proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[
       if res != frameSize:
         raise newException(ValueError, "Error while send websocket frame")
       i += maxSize
-  except Defect, IOError, OSError, ValueError:
+  except IOError, OSError, ValueError:
     # Wrap all exceptions in a WebSocketError so its easy to catch
     raise newException(WebSocketError, "Failed to send data: " &
         getCurrentExceptionMsg())
