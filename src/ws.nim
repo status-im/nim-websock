@@ -303,6 +303,9 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
   # Do we need to apply mask?
   frame.mask = (b1 and 0x80) == 0x80
 
+  if finalLen == 0:
+    return frame
+
   if ws.masked == frame.mask:
     # Server sends unmasked but accepts only masked.
     # Client sends masked but accepts only unmasked.
@@ -398,6 +401,19 @@ proc nextMessageReader*(ws: WebSocket): MsgReader =
       msgReader.mask = frame.mask
       msgReader.maskKey = frame.maskKey
       return msgReader
+
+proc close*(ws: WebSocket, initiator: bool = true) {.async.} =
+  ## Close the Socket, sends close packet.
+  if ws.readyState == Closed:
+    discard ws.tcpSocket.closeWait()
+    return
+  ws.readyState = Closed
+  await ws.send(@[], Close)
+  if initiator == true:
+    let (opcode, data) = await ws.receivePacket()
+    if opcode != Close:
+      echo "Different packet type"
+  await ws.close()
 
 proc receiveStrPacket*(ws: WebSocket): Future[seq[byte]] {.async.} =
   # TODO: remove this once PR is approved.
