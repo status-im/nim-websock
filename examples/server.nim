@@ -1,4 +1,5 @@
-import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils
+import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils,
+    coverage, tables
 
 proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
   info "Handling request:", uri = header.uri()
@@ -12,9 +13,11 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
         error "Failed to open websocket connection."
         return
 
-      while ws.readyState == Open:
+      while true:
         let recvData = await ws.receiveStrPacket()
         info "Client:", data = string.fromBytes(recvData)
+        if ws.readyState == ReadyState.Closed:
+          return
         await ws.send(recvData)
     except WebSocketError:
       error "WebSocket error:", exception = getCurrentExceptionMsg()

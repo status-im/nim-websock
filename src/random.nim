@@ -14,4 +14,4 @@ proc rand*(rng: var BrHmacDrbgContext, max: Natural): int =
 proc genMaskKey*(rng: ref BrHmacDrbgContext): array[4, char] =
   ## Generates a random key of 4 random chars.
   proc r(): char = char(rand(rng[], 255))
-  [r(), r(), r(), r()]
+  return [r(), r(), r(), r()]

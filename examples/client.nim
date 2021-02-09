@@ -16,6 +16,6 @@ for idx in 1 .. 5:
     error "WebSocket error:", exception = getCurrentExceptionMsg()
   os.sleep(1000)
 
-# Gracefully close the websocket
-wsClient.close()
+# close the websocket
+waitFor wsClient.close()
 
