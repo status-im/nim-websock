@@ -1,4 +1,4 @@
-import chronos, httputils, strutils, base64, std/sha1, random, http,
+import chronos, httputils, strutils, base64, std/sha1, ../src/random, http,
         uri, times, chronos/timer, tables, stew/byteutils, eth/[keys], stew/endians2
 
 const
@@ -234,14 +234,6 @@ proc sendStr*(ws: WebSocket, data: string, opcode = Opcode.Text): Future[
                 void] {.async.} =
   await send(ws, toBytes(data), opcode)
 
-proc close*(ws: WebSocket) =
-  ## Close the Socket, sends close packet.
-  ws.readyState = Closed
-  proc close() {.async.} =
-    await ws.send(@[], Close)
-    ws.tcpSocket.close()
-  asyncCheck close()
-
 proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
@@ -304,6 +296,9 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   # Do we need to apply mask?
   frame.mask = (b1 and 0x80) == 0x80
 
+  if finalLen == 0:
+    return frame
+
   if ws.masked == frame.mask:
     # Server sends unmasked but accepts only masked.
     # Client sends masked but accepts only unmasked.
@@ -340,6 +335,19 @@ proc receivePacket*(ws: WebSocket): Future[(Opcode, seq[byte])] {.async.} =
     packet.add frame.data
   return (frame.opcode, packet)
 
+proc close*(ws: WebSocket, initiator: bool = true) {.async.} =
+  ## Close the Socket, sends close packet.
+  if ws.readyState == Closed:
+    discard ws.tcpSocket.closeWait()
+    return
+  ws.readyState = Closed
+  await ws.send(@[], Close)
+  if initiator == true:
+    let (opcode, data) = await ws.receivePacket()
+    if opcode != Close:
+      echo "Different packet type"
+  await ws.close()
+
 proc receiveStrPacket*(ws: WebSocket): Future[seq[byte]] {.async.} =
   ## Wait only for only string and control packet to come. Errors out on Binary packets.
   let (opcode, data) = await ws.receivePacket()
@@ -355,7 +363,7 @@ proc receiveStrPacket*(ws: WebSocket): Future[seq[byte]] {.async.} =
     of Cont:
       discard
     of Close:
-      ws.close()
+      await ws.close(false)
 
 proc validateWSClientHandshake*(transp: StreamTransport,
     header: HttpResponseHeader): void =
