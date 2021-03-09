@@ -1,5 +1,4 @@
-import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils,
-    coverage, tables
+import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils
 
 proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
   info "Handling request:", uri = header.uri()
@@ -14,11 +13,20 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
         return
 
       while true:
-        let recvData = await ws.receiveStrPacket()
-        info "Client:", data = string.fromBytes(recvData)
-        if ws.readyState == ReadyState.Closed:
-          return
+        # Only reads header for data frame.
+        let msgReader = await ws.nextMessageReader()
+
+        # Read the frame payload in buffer.
+        let buffer = newSeq[byte](100)
+        var recvData :seq[byte]
+        while msgReader.error != EOFError:
+          msgReader.readMessage(buffer)
+          recvData.add buffer
+          if ws.readyState == ReadyState.Closed:
+            return
+        info "Response: ",  data = recvData
         await ws.send(recvData)
+
     except WebSocketError:
       error "WebSocket error:", exception = getCurrentExceptionMsg()
 
@@ -29,4 +37,5 @@ when isMainModule:
   let address = "127.0.0.1:8888"
   var httpServer = newHttpServer(address, cb)
   httpServer.start()
+  echo "Server started..."
   waitFor httpServer.join()

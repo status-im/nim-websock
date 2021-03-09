@@ -1,5 +1,6 @@
-import chronos, httputils, strutils, base64, std/sha1, ../src/random, http,
-        uri, times, chronos/timer, tables, stew/byteutils, eth/[keys], stew/endians2
+import httputils, strutils, base64, std/sha1, ./random, http, uri,
+  chronos/timer, tables, stew/byteutils, eth/[keys], stew/endians2,
+  parseutils, stew/base64 as stewBase,chronos
 
 const
   SHA1DigestSize = 20
@@ -37,12 +38,12 @@ type
   HttpCode* = enum
     Http101 = 101 # Switching Protocols
 
+# Forward declare
+proc close*(ws: WebSocket, initiator: bool = true)  {.async.}
+
 proc handshake*(ws: WebSocket, header: HttpRequestHeader) {.async.} =
   ## Handles the websocket handshake.
-  try: ws.version = parseInt(header["Sec-WebSocket-Version"])
-  except ValueError:
-    raise newException(WebSocketError, "Invalid Websocket version")
-
+  discard parseSaturatedNatural(header["Sec-WebSocket-Version"], ws.version)
   if ws.version != 13:
     raise newException(WebSocketError, "Websocket version not supported, Version: " &
       header["Sec-WebSocket-Version"])
@@ -58,7 +59,7 @@ proc handshake*(ws: WebSocket, header: HttpRequestHeader) {.async.} =
   var acceptKey: string
   try:
     let sh = secureHash(ws.key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-    acceptKey = base64.encode(hexToByteArray[SHA1DigestSize]($sh))
+    acceptKey = stewBase.Base64.encode(hexToByteArray[SHA1DigestSize]($sh))
   except ValueError:
     raise newException(
       WebSocketError, "Failed to generate accept key: " & getCurrentExceptionMsg())
@@ -127,7 +128,18 @@ type
   |                     Payload Data continued ...                |
   +---------------------------------------------------------------+
   ]#
-  Frame = tuple
+
+  MsgReader = ref object
+    tcpSocket: StreamTransport
+    readErr: IOError
+    readLen: uint64
+    readRemaining: uint64
+    readFinal:     bool  ## true the current message has more frames.
+    opcode: Opcode ## Defines the interpretation of the "Payload data".
+    maskKey: array[4, char] ## Masking key
+    mask: bool ## Defines whether the "Payload data" is masked.
+
+  Frame = ref object
     fin: bool ## Indicates that this is the final fragment in a message.
     rsv1: bool ## MUST be 0 unless negotiated that defines meanings
     rsv2: bool ## MUST be 0
@@ -136,6 +148,7 @@ type
     mask: bool ## Defines whether the "Payload data" is masked.
     data: seq[byte] ## Payload data
     maskKey: array[4, char] ## Masking key
+    length: uint64 ## Message size.
 
 proc encodeFrame(f: Frame): seq[byte] =
   ## Encodes a frame into a string buffer.
@@ -174,14 +187,7 @@ proc encodeFrame(f: Frame): seq[byte] =
   elif f.data.len > 0xffff:
     # Data len is 7+64 bits.
     var len = f.data.len
-    ret.add ((len shr 56) and 255).uint8
-    ret.add ((len shr 48) and 255).uint8
-    ret.add ((len shr 40) and 255).uint8
-    ret.add ((len shr 32) and 255).uint8
-    ret.add ((len shr 24) and 255).uint8
-    ret.add ((len shr 16) and 255).uint8
-    ret.add ((len shr 8) and 255).uint8
-    ret.add (len and 255).uint8
+    ret.add(f.data.len.uint64.toBE().toBytesBE())
 
   var data = f.data
 
@@ -205,16 +211,17 @@ proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[
     var maskKey: array[4, char]
     if ws.masked:
       maskKey = genMaskKey(ws.rng)
-    var frame = encodeFrame((
-      fin: true,
-      rsv1: false,
-      rsv2: false,
-      rsv3: false,
-      opcode: opcode,
-      mask: ws.masked,
-      data: data,
-      maskKey: maskKey
-    ))
+
+    var inFrame = Frame(
+       fin: true,
+       rsv1: false,
+       rsv2: false,
+       rsv3: false,
+       opcode: opcode,
+       mask: ws.masked,
+       data: data,
+       maskKey: maskKey)
+    var frame = encodeFrame(inFrame)
     const maxSize = 1024*1024
     # Send stuff in 1 megabyte chunks to prevent IOErrors.
     # This really large packets.
@@ -225,16 +232,15 @@ proc send*(ws: WebSocket, data: seq[byte], opcode = Opcode.Text): Future[
       if res != frameSize:
         raise newException(ValueError, "Error while send websocket frame")
       i += maxSize
-  except IOError, OSError, ValueError:
+  except OSError, ValueError:
     # Wrap all exceptions in a WebSocketError so its easy to catch
     raise newException(WebSocketError, "Failed to send data: " &
         getCurrentExceptionMsg())
 
-proc sendStr*(ws: WebSocket, data: string, opcode = Opcode.Text): Future[
-                void] {.async.} =
-  await send(ws, toBytes(data), opcode)
+proc sendStr*(ws: WebSocket, data: string, opcode = Opcode.Text): Future[void] =
+  send(ws, toBytes(data), opcode)
 
-proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
+proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
 
@@ -245,9 +251,6 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   except TransportUseClosedError:
     ws.readyState = Closed
     raise newException(WebSocketError, "Socket closed")
-  except CatchableError:
-    ws.readyState = Closed
-    raise newException(WebSocketError, "Failed to read websocket header")
 
   if header.len != 2:
     ws.readyState = Closed
@@ -292,12 +295,10 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   else:
     # Length must be 7 bits.
     finalLen = headerLen
+  frame.length = finalLen
 
   # Do we need to apply mask?
   frame.mask = (b1 and 0x80) == 0x80
-
-  if finalLen == 0:
-    return frame
 
   if ws.masked == frame.mask:
     # Server sends unmasked but accepts only masked.
@@ -308,32 +309,30 @@ proc receiveFrame(ws: WebSocket): Future[Frame] {.async.} =
   if frame.mask:
     # Read the mask.
     await ws.tcpSocket.readExactly(addr maskKey[0], 4)
+    for i in 0..<maskKey.len:
+      frame.maskKey[i] = cast[char](maskKey[i])
 
-  # Read the data.
+  if (frame.opcode == Text) or (frame.opcode == Opcode.Cont) or (frame.opcode == Opcode.Binary) :
+    return frame
+
+  # TODO: Add check for max size for control frames.
   var data = newSeq[byte](finalLen)
-  await ws.tcpSocket.readExactly(addr data[0], int finalLen)
-  frame.data = data
-  if frame.data.len != int finalLen:
-    raise newException(WebSocketError, "Failed to read websocket frame data")
 
-  if frame.mask:
-    # Apply mask, if we need too.
-    for i in 0 ..< frame.data.len:
-      frame.data[i] = (frame.data[i].uint8 xor maskKey[i mod 4].uint8)
+  # Read control frame payload.
+  if frame.length > 0 :
+    # Read the data.
+    await ws.tcpSocket.readExactly(addr data[0], int finalLen)
+    frame.data = data
+
+  # Process control frame payload.
+  if frame.opcode == Ping:
+    await ws.send(data, Pong)
+  elif frame.opcode == Pong:
+    discard
+  elif frame.opcode == Close:
+    await ws.close(false)
+
   return frame
-
-proc receivePacket*(ws: WebSocket): Future[(Opcode, seq[byte])] {.async.} =
-  ## Wait for a string or binary packet to come in.
-  var frame = await ws.receiveFrame()
-
-  var packet = frame.data
-  # If there are more parts read and wait for them
-  while frame.fin != true:
-    frame = await ws.receiveFrame()
-    if frame.opcode != Cont:
-      raise newException(WebSocketError, "Expected continuation frame")
-    packet.add frame.data
-  return (frame.opcode, packet)
 
 proc close*(ws: WebSocket, initiator: bool = true) {.async.} =
   ## Close the Socket, sends close packet.
@@ -343,27 +342,63 @@ proc close*(ws: WebSocket, initiator: bool = true) {.async.} =
   ws.readyState = Closed
   await ws.send(@[], Close)
   if initiator == true:
-    let (opcode, data) = await ws.receivePacket()
-    if opcode != Close:
+    let frame = await ws.readFrame()
+    if frame.opcode != Close:
       echo "Different packet type"
   await ws.close()
 
+proc readMessage*(msgReader: MsgReader,data: seq[byte]): MsgReader {.async.} =
+  while msgReader.readErr == nil:
+    if msgReader.readRemaining > 0 :
+      len = size(data)
+      if len > msgReader.readRemaining:
+        len = msgReader.readRemaining
+
+      await msgReader.tcpSocket.readExactly(addr data, len)
+      msgReader.readRemaining = msgReader.readRemaining - len
+      msgReader.readLen = len
+
+      if msgReader.mask:
+        # Apply mask, if we need too.
+        for i in 0 ..< len:
+          data[i] = (data[i].uint8 xor msgReader.maskKey[i mod 4].uint8)
+
+      if msgReader.readRemaining == 0:
+        msgReader.readErr = EOFError
+
+      return msgReader
+
+    if msgReader.readFinal:
+      msgReader.readLen = 0
+      msgReader.readErr = EOFError
+      return msgReader
+
+    var frame = await ws.readFrame()
+    if frame.fin:
+      msgReader.readFinal = true
+    msgReader.readRemaining = frame.length
+
+    # Non-control frames cannot occur in the middle of a fragmented non-control frame.
+    if frame.Opcode in Text || Binary:
+      raise newException("websocket: internal error, unexpected text or binary in Reader")
+  return msgReader
+
+proc nextMessageReader*(ws: WebSocket): MsgReader =
+  while true:
+    # Handle control frames and return only on non control frames.
+    var frame = await ws.readFrame()
+    if frame.Opcode in Text || Binary:
+      var msgReader: MsgReader
+      msgReader.readFinal =  frame.fin
+      msgReader.readRemaining = frame.readRemaining
+      msgReader.tcpSocket = ws.tcpSocket
+      msgReader.mask = frame.mask
+      msgReader.maskKey = frame.maskKey
+      return msgReader
+
 proc receiveStrPacket*(ws: WebSocket): Future[seq[byte]] {.async.} =
-  ## Wait only for only string and control packet to come. Errors out on Binary packets.
-  let (opcode, data) = await ws.receivePacket()
-  case opcode:
-    of Text:
-      return data
-    of Binary:
-      raise newException(WebSocketError, "Expected string packet, received binary packet")
-    of Ping:
-      await ws.send(data, Pong)
-    of Pong:
-      discard
-    of Cont:
-      discard
-    of Close:
-      await ws.close(false)
+  # TODO: remove this once PR is approved.
+  return nil
 
 proc validateWSClientHandshake*(transp: StreamTransport,
     header: HttpResponseHeader): void =
@@ -375,14 +410,7 @@ proc validateWSClientHandshake*(transp: StreamTransport,
 
 proc newWebsocketClient*(uri: Uri, protocols: seq[string] = @[]): Future[
     WebSocket] {.async.} =
-  let
-    keyDec = align(
-      when declared(toUnix):
-        $getTime().toUnix
-      else:
-        $getTime().toSeconds.int64, 16, '#')
-    key = encode(keyDec)
-
+  var key = encode(genWebSecKey(newRng()))
   var uri = uri
   case uri.scheme
   of "ws":

@@ -15,3 +15,11 @@ proc genMaskKey*(rng: ref BrHmacDrbgContext): array[4, char] =
   ## Generates a random key of 4 random chars.
   proc r(): char = char(rand(rng[], 255))
   return [r(), r(), r(), r()]
+
+proc genWebSecKey*(rng: ref BrHmacDrbgContext): seq[char] =
+  var key = newSeq[char](16)
+  proc r(): char = char(rand(rng[], 255))
+  ## Generates a random key of 16 random chars.
+  for i in 0..15:
+    key.add(r())
+  return key

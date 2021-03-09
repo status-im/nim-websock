@@ -12,6 +12,7 @@ requires "urlly >= 0.2.0"
 requires "stew >= 0.1.0"
 requires "eth"
 requires "asynctest >= 0.2.0 & < 0.3.0"
+requires "nimcrypto"
 
 task lint, "format source files according to the official style guide":
   exec "./lint.nims"

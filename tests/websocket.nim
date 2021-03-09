@@ -2,39 +2,14 @@ import helpers, unittest, ../src/http, chronos, ../src/ws,../src/random,
     stew/byteutils, os, strutils
 
 var httpServer: HttpServer
-proc startServer() {.async.} =
+
+proc startServer() {.async, gcsafe.} =
   httpServer = newHttpServer("127.0.0.1:8888", cb)
   httpServer.start()
 
-proc closeServer() {.async.} =
+proc closeServer() {.async, gcsafe.} =
   httpServer.stop()
   waitFor httpServer.closeWait()
-
-suite "Test web socket communication":
-
-  setup:
-    waitFor startServer()
-    let wsClient = waitFor newWebsocketClient("127.0.0.1", Port(8888),
-            path = "/ws", protocols = @["myfancyprotocol"])
-
-  teardown:
-     waitFor closeServer()
-
-  test "Websocket conversation between client and server":
-    waitFor sendRecvClientData(wsClient, "Hello Server")
-
-  test "Test for small message ":
-    let msg = string.fromBytes(generateData(100))
-    waitFor sendRecvClientData(wsClient, msg)
-
-  test "Test for medium message ":
-    let msg = string.fromBytes(generateData(1000))
-    waitFor sendRecvClientData(wsClient, msg)
-
-  test "Test for large message ":
-    let msg = string.fromBytes(generateData(1000000))
-    waitFor sendRecvClientData(wsClient, msg)
-
 
 suite "Test websocket error cases":
     teardown:
@@ -83,3 +58,30 @@ suite "Misc Test":
     test "Test for toCaseInsensitive":
       let headers = newHttpHeaders()
       require toCaseInsensitive(headers, "webSocket") == "Websocket"
+
+
+suite "Test web socket communication":
+
+  setup:
+    waitFor startServer()
+    let wsClient = waitFor newWebsocketClient("127.0.0.1", Port(8888),
+            path = "/ws", protocols = @["myfancyprotocol"])
+
+  teardown:
+     waitFor closeServer()
+
+  test "Websocket conversation between client and server":
+    waitFor sendRecvClientData(wsClient, "Hello Server")
+
+  test "Test for small message ":
+    let msg = string.fromBytes(generateData(100))
+    waitFor sendRecvClientData(wsClient, msg)
+
+  test "Test for medium message ":
+    let msg = string.fromBytes(generateData(1000))
+    waitFor sendRecvClientData(wsClient, msg)
+
+  test "Test for large message ":
+    let msg = string.fromBytes(generateData(10000))
+    waitFor sendRecvClientData(wsClient, msg)
+

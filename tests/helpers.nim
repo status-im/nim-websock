@@ -1,4 +1,4 @@
-import ../src/ws, chronos, chronicles, httputils, stew/byteutils, os,
+import ../src/ws, chronos, chronicles, httputils, stew/byteutils,
     ../src/http, unittest, strutils
 
 proc cb*(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
@@ -15,7 +15,6 @@ proc cb*(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
 
       while ws.readyState == Open:
         let recvData = await ws.receiveStrPacket()
-        let msg = string.fromBytes(recvData)
         info "Server:", state = ws.readyState
         await ws.send(recvData)
     except WebSocketError:
@@ -32,7 +31,6 @@ proc sendRecvClientData*(wsClient: WebSocket, msg: string) {.async.} =
 
   except WebSocketError:
     error "WebSocket error:", exception = getCurrentExceptionMsg()
-  await wsClient.close()
 
 proc incorrectProtocolCB*(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
     info "Handling request:", uri = header.uri()
