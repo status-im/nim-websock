@@ -251,9 +251,6 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
   except TransportUseClosedError:
     ws.readyState = Closed
     raise newException(WebSocketError, "Socket closed")
-  except CatchableError:
-    ws.readyState = Closed
-    raise newException(WebSocketError, "Failed to read websocket header")
 
   if header.len != 2:
     ws.readyState = Closed
@@ -302,9 +299,6 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
 
   # Do we need to apply mask?
   frame.mask = (b1 and 0x80) == 0x80
-
-  if finalLen == 0:
-    return frame
 
   if ws.masked == frame.mask:
     # Server sends unmasked but accepts only masked.
@@ -410,10 +404,59 @@ proc close*(ws: WebSocket, initiator: bool = true) {.async.} =
   ws.readyState = Closed
   await ws.send(@[], Close)
   if initiator == true:
-    let (opcode, data) = await ws.receivePacket()
-    if opcode != Close:
+    let frame = await ws.readFrame()
+    if frame.opcode != Close:
       echo "Different packet type"
   await ws.close()
+
+proc readMessage*(msgReader: MsgReader,data: seq[byte]): MsgReader {.async.} =
+  while msgReader.readErr == nil:
+    if msgReader.readRemaining > 0 :
+      len = size(data)
+      if len > msgReader.readRemaining:
+        len = msgReader.readRemaining
+
+      await msgReader.tcpSocket.readExactly(addr data, len)
+      msgReader.readRemaining = msgReader.readRemaining - len
+      msgReader.readLen = len
+
+      if msgReader.mask:
+        # Apply mask, if we need too.
+        for i in 0 ..< len:
+          data[i] = (data[i].uint8 xor msgReader.maskKey[i mod 4].uint8)
+
+      if msgReader.readRemaining == 0:
+        msgReader.readErr = EOFError
+
+      return msgReader
+
+    if msgReader.readFinal:
+      msgReader.readLen = 0
+      msgReader.readErr = EOFError
+      return msgReader
+
+    var frame = await ws.readFrame()
+    if frame.fin:
+      msgReader.readFinal = true
+    msgReader.readRemaining = frame.length
+
+    # Non-control frames cannot occur in the middle of a fragmented non-control frame.
+    if frame.Opcode in Text || Binary:
+      raise newException("websocket: internal error, unexpected text or binary in Reader")
+  return msgReader
+
+proc nextMessageReader*(ws: WebSocket): MsgReader =
+  while true:
+    # Handle control frames and return only on non control frames.
+    var frame = await ws.readFrame()
+    if frame.Opcode in Text || Binary:
+      var msgReader: MsgReader
+      msgReader.readFinal =  frame.fin
+      msgReader.readRemaining = frame.readRemaining
+      msgReader.tcpSocket = ws.tcpSocket
+      msgReader.mask = frame.mask
+      msgReader.maskKey = frame.maskKey
+      return msgReader
 
 proc receiveStrPacket*(ws: WebSocket): Future[seq[byte]] {.async.} =
   # TODO: remove this once PR is approved.

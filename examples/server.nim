@@ -1,5 +1,4 @@
-import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils,
-    coverage, tables
+import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils
 
 proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
   info "Handling request:", uri = header.uri()
