@@ -210,16 +210,8 @@ proc newHttpServer*(address: string, handler: AsyncCallback,
       child = cast[StreamServer](server)))
   return server
 
-func toTitleCase(s: string): string =
-  var tcstr = newString(len(s))
-  var upper = true
-  for i in 0..len(s) - 1:
-    tcstr[i] = if upper: toUpperAscii(s[i]) else: toLowerAscii(s[i])
-    upper = s[i] == '-'
-  return tcstr
-
 func toCaseInsensitive*(headers: HttpHeaders, s: string): string {.inline.} =
-  return toTitleCase(s)
+  return toUpperAscii(s)
 
 func newHttpHeaders*(): HttpHeaders =
   ## Returns a new ``HttpHeaders`` object. if ``titleCase`` is set to true,
