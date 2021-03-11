@@ -113,7 +113,7 @@ type
     onPing: ControlCb
     onPong: ControlCb
 
-func remainder(frame: Frame): uint64 =
+func remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
 
 # Forward declare
@@ -181,7 +181,7 @@ proc createServer*(
   await ws.handshake(header)
   return ws
 
-proc encodeFrame(f: Frame): seq[byte] =
+proc encodeFrame*(f: Frame): seq[byte] =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
 
@@ -247,27 +247,25 @@ proc send*(
   if ws.masked:
     maskKey = genMaskKey(ws.rng)
 
-  var inFrame = Frame(
-      fin: true,
-      rsv1: false,
-      rsv2: false,
-      rsv3: false,
-      opcode: opcode,
-      mask: ws.masked,
-      data: data,
-      maskKey: maskKey)
-
-  var frame = encodeFrame(inFrame)
-  const maxSize = 1024*1024
+  let maxSize = ws.frameSize
   # Send stuff in 1 megabyte chunks to prevent IOErrors.
   # This really large packets.
   var i = 0
-  while i < frame.len:
-    let frameSize = min(frame.len, i + maxSize)
-    let res = await ws.tcpSocket.write(frame[i ..< frameSize])
-    if res != frameSize:
-      raise newException(WSSendError, "Error while sending websocket frame")
-    i += maxSize
+  while i < data.len:
+    let len = min(data.len, (maxSize + i))
+    let inFrame = Frame(
+        # fin: if (i + len >= data.len): true else: false,
+        fin: true,
+        rsv1: false,
+        rsv2: false,
+        rsv3: false,
+        opcode: opcode,
+        mask: ws.masked,
+        data: data[i ..< len],
+        maskKey: maskKey)
+
+    discard await ws.tcpSocket.write(encodeFrame(inFrame))
+    i += len
 
 proc send*(ws: WebSocket, data: string): Future[void] =
   send(ws, toBytes(data), Opcode.Text)
@@ -297,9 +295,10 @@ proc handleControl(ws: WebSocket, frame: Frame) {.async.} =
   elif frame.opcode == Close:
     await ws.close(false)
 
-proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
+proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
+  ##
 
   while true: # read until a data frame arrives
     # Grab the header.
@@ -420,11 +419,12 @@ proc recv*(
       let offset = ws.frame.consumed.int + i
       castData[i] = (castData[offset].uint8 xor ws.frame.maskKey[offset mod 4].uint8)
 
-    ws.frame.consumed += read.uint64 # yayks
+    ws.frame.consumed += read.uint64
 
   return read
 
 proc recv*(ws: WebSocket, size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  var res: seq[byte]
   while true:
     var buf = newSeq[byte](ws.frameSize)
     let read = await ws.recv(addr buf[0], buf.len)
@@ -432,15 +432,16 @@ proc recv*(ws: WebSocket, size = WSMaxMessageSize): Future[seq[byte]] {.async.} 
       break
 
     buf.setLen(read)
-
-    if result.len + buf.len > size:
+    if res.len + buf.len > size:
       raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
-    result.add(buf)
+    res.add(buf)
 
     # we got the last frame in the sequence, exit
     if ws.frame.fin:
-      return
+      break
+
+  return res
 
 proc connect*(
   uri: Uri,
