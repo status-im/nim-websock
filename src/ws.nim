@@ -410,13 +410,15 @@ proc ping*(ws: WebSocket): Future[void] =
 proc recv*(
   ws: WebSocket,
   data: pointer,
-  max: int): Future[int] {.async.} =
-  ## Attempts to read up to `max` bytes
-  ## otherwise, returns what it could read.
+  size: int): Future[int] {.async.} =
+  ## Attempts to read up to `size` bytes
   ##
-  ## If no data is available in the pipe,
-  ## it will await until at least 1 byte
-  ## is available
+  ## Will read as many frames as necesary
+  ## to fill the buffer until either
+  ## the message ends (frame.fin) or
+  ## the buffer is full. If no data is on
+  ## the pipe will await until at least
+  ## one byte is available
   ##
 
   try:
@@ -426,51 +428,73 @@ proc recv*(
       (not isNil(ws.frame) and ws.frame.remainder() <= 0): # all has been consumed
       ws.frame = await ws.readFrame()
 
-    var read = 0
-    if ws.frame.remainder > 0:
-      let length = min(max, ws.frame.remainder().int)
-      read = await ws.tcpSocket.readOnce(data, length)
-
+    var consumed = 0.uint64
+    while consumed < size.uint64:
+      let len = min(size, ws.frame.remainder().int)
+      let read = await ws.tcpSocket.readOnce(data, len)
+      consumed += read.uint64
       var castData = cast[ptr UncheckedArray[byte]](data)
+
+      # unmask data using offset
       for i in 0 ..< read:
-        let offset = ws.frame.consumed.int + i
+        let offset = ws.frame.consumed.int + i # offset is per frame as masks are per frame also
         castData[i] = (castData[offset].uint8 xor ws.frame.maskKey[offset mod 4].uint8)
 
-      ws.frame.consumed += read.uint64
+      if ws.frame.fin:
+        break
 
-    return read
+      ws.frame.consumed += consumed.uint64
+
+    return consumed.int
   except CancelledError as exc:
     trace "Cancelling reading", exc = exc.msg
   except CatchableError as exc:
     trace "Exception reading frames", exc = exc.msg
 
-proc recv*(ws: WebSocket, size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
-    var res: seq[byte]
-    try:
-      while true:
-        var buf = newSeq[byte](ws.frameSize)
-        let read = await ws.recv(addr buf[0], buf.len)
-        if read <= 0:
-          break
+proc recv*(
+  ws: WebSocket,
+  size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  ## Attempt to read a full message up
+  ## to max `size` bytes in `frameSize`
+  ## chunks.
+  ##
+  ## If no `fin` flag ever arrives it will
+  ## await until either cancelled or the
+  ## `fin` flag arrives.
+  ##
+  ## If message is larger than `size` a
+  ## `WSMaxMessageSizeError` exception
+  ## is thrown.
+  ##
+  ## In all other cases it awaits a full
+  ## message.
+  ##
+  var res: seq[byte]
+  try:
+    while true:
+      var buf = newSeq[byte](ws.frameSize)
+      let read = await ws.recv(addr buf[0], buf.len)
+      if read <= 0:
+        break
 
-        buf.setLen(read)
-        if res.len + buf.len > size:
-          raise newException(WSMaxMessageSizeError, "Max message size exceeded")
+      buf.setLen(read)
+      if res.len + buf.len > size:
+        raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
-        res.add(buf)
+      res.add(buf)
 
-        # we got the last frame in the sequence, exit
-        if ws.frame.fin:
-          break
-    except WSMaxMessageSizeError as exc:
-      raise exc
-    except CancelledError as exc:
-      trace "Cancelling reading", exc = exc.msg
-      raise exc
-    except CatchableError as exc:
-      trace "Exception reading frames", exc = exc.msg
+      # we got the last frame in the sequence, exit
+      if ws.frame.fin:
+        break
+  except WSMaxMessageSizeError as exc:
+    raise exc
+  except CancelledError as exc:
+    trace "Cancelling reading", exc = exc.msg
+    raise exc
+  except CatchableError as exc:
+    trace "Exception reading frames", exc = exc.msg
 
-    return res
+  return res
 
 proc close*(ws: WebSocket, data: seq[byte] = @[]) {.async.} =
   ## Close the Socket, sends close packet.
