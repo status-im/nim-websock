@@ -88,6 +88,24 @@ type
     Pong = 0xa   ## Denotes a pong.
     # B-F are reserved for further control frames.
 
+  Status* {.pure.} = enum
+    # 0-999 not used
+    Fulfilled = 1000
+    GoingAway = 1001
+    ProtocolError = 1002
+    CannotAccept = 1003
+    # 1004 reserved
+    NoStatus = 1005         # reserved for applications use
+    ClosedAbnormally = 1006 # reserved for applications use
+    Inconsistent = 1007
+    PolicyError = 1008
+    TooBig = 1009
+    NoExtensions = 1010
+    UnexpectedError = 1011
+    TlsError                # reserved for application use
+    # 3000-3999 reserved for libs
+    # 4000-4999 reserved for applications
+
   Frame = ref object
     fin: bool                 ## Indicates that this is the final fragment in a message.
     rsv1: bool                ## MUST be 0 unless negotiated that defines meanings
@@ -101,6 +119,14 @@ type
     consumed: uint64          ## how much has been consumed from the frame
 
   ControlCb* = proc(ws: WebSocket) {.gcsafe.}
+
+  CloseResult* = tuple
+    code: Status
+    reason: string
+
+  CloseCb* = proc(ws: WebSocket, code: Status, reason: string):
+    CloseResult {.gcsafe.}
+
   WebSocket* = ref object
     tcpSocket*: StreamTransport
     version*: int
@@ -113,9 +139,25 @@ type
     frame: Frame
     onPing: ControlCb
     onPong: ControlCb
+    onClose: CloseCb
 
 func remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
+
+proc unmask*(
+  data: var openArray[byte],
+  maskKey: array[4, char],
+  offset = 0) =
+  ## Unmask a data payload using key
+  ##
+
+  for i in 0 ..< data.len:
+    data[i] = (data[offset + i].uint8 xor maskKey[(offset + i) mod 4].uint8)
+
+proc prepareCloseBody(code: Status, reason: string): seq[byte] =
+  result = reason.toBytes
+  if ord(code) > 999:
+    result = @(ord(code).uint16.toBytesBE()) & result
 
 proc handshake*(
   ws: WebSocket,
@@ -162,7 +204,8 @@ proc createServer*(
   protocol: string = "",
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
-  onPong: ControlCb = nil): Future[WebSocket] {.async.} =
+  onPong: ControlCb = nil,
+  onClose: CloseCb = nil): Future[WebSocket] {.async.} =
   ## Creates a new socket from a request.
   ##
 
@@ -176,7 +219,8 @@ proc createServer*(
     rng: newRng(),
     frameSize: frameSize,
     onPing: onPing,
-    onPong: onPong)
+    onPong: onPong,
+    onClose: onClose)
 
   await ws.handshake(header)
   return ws
@@ -217,7 +261,7 @@ proc encodeFrame*(f: Frame): seq[byte] =
   elif f.data.len > 0xffff:
     # Data len is 7+64 bits.
     var len = f.data.len.uint64
-    ret.add(len.toBE().toBytesBE())
+    ret.add(len.toBytesBE())
 
   var data = f.data
 
@@ -281,43 +325,71 @@ proc send*(
 proc send*(ws: WebSocket, data: string): Future[void] =
   send(ws, toBytes(data), Opcode.Text)
 
+proc handleClose*(ws: WebSocket, frame: Frame) {.async.} =
+  logScope:
+    fin = frame.fin
+    masked = frame.mask
+    opcode = frame.opcode
+    serverState = ws.readyState
+
+  debug "Handling close sequence"
+  if ws.readyState == ReadyState.Open or ws.readyState == ReadyState.Closing:
+    # Read control frame payload.
+    var data = newSeq[byte](frame.length)
+    if frame.length > 0:
+      # Read the data.
+      await ws.tcpSocket.readExactly(addr data[0], int frame.length)
+      unmask(data.toOpenArray(0, data.high), frame.maskKey)
+
+    var code: Status
+    if data.len > 0:
+      let ccode = uint16.fromBytesBE(data[0..<2]) # first two bytes are the status
+      doAssert(ccode > 999, "No valid code in close message!")
+      code = Status(ccode)
+      data = data[0..<2]
+
+    var rcode = Status.Fulfilled
+    var reason = ""
+    if not isNil(ws.onClose):
+      try:
+        (rcode, reason) = ws.onClose(ws, code, string.fromBytes(data))
+      except CatchableError as exc:
+        trace "Exception in Close callback, this is most likelly a bug", exc = exc.msg
+
+    # don't respong to a terminated connection
+    if ws.readyState != ReadyState.Closing:
+      await ws.send(prepareCloseBody(rcode, reason), Opcode.Close)
+
+    await ws.tcpSocket.closeWait()
+    ws.readyState = ReadyState.Closed
+  else:
+    raiseAssert("Invalid state during close!")
+
 proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
   ## handle control frames
   ##
-  var data = newSeq[byte](frame.length)
 
   try:
     # Process control frame payload.
-    if frame.opcode == Opcode.Ping:
+    case frame.opcode:
+    of Opcode.Ping:
       if not isNil(ws.onPing):
-        ws.onPing(ws)
+        try:
+          ws.onPing(ws)
+        except CatchableError as exc:
+          trace "Exception in Ping callback, this is most likelly a bug", exc = exc.msg
 
-      await ws.send(data, Opcode.Pong)
-    elif frame.opcode == Opcode.Pong:
+      await ws.send(@[], Opcode.Pong)
+    of Opcode.Pong:
       if not isNil(ws.onPong):
-        ws.onPong(ws)
-
-      discard
-    elif frame.opcode == Opcode.Close:
-      case ws.readyState:
-      of ReadyState.Closing:
-        # Finish close flow
-
-        await ws.tcpSocket.closeWait()
-        ws.readyState = ReadyState.Closed
-      of ReadyState.Open:
-        # Handle close flow
-
-        # Read control frame payload.
-        if frame.length > 0:
-          # Read the data.
-          await ws.tcpSocket.readExactly(addr data[0], int frame.length)
-          frame.data = data
-
-        await ws.send(data, Opcode.Close)
-        ws.readyState = ReadyState.Closed
-      else:
-        raiseAssert("Invalid state during close!")
+        try:
+          ws.onPong(ws)
+        except CatchableError as exc:
+          trace "Exception in Pong callback, this is most likelly a bug", exc = exc.msg
+    of Opcode.Close:
+      await ws.handleClose(frame)
+    else:
+      raiseAssert("Invalid control opcode")
   except CatchableError as exc:
     trace "Exception handling control messages", exc = exc.msg
     ws.readyState = ReadyState.Closed
@@ -364,12 +436,12 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
         # Length must be 7+16 bits.
         var length = newSeq[byte](2)
         await ws.tcpSocket.readExactly(addr length[0], 2)
-        finalLen = cast[ptr uint16](length[0].addr)[].toBE
+        finalLen = uint16.fromBytesBE(length)
       elif headerLen == 0x7f:
         # Length must be 7+64 bits.
         var length = newSeq[byte](8)
         await ws.tcpSocket.readExactly(addr length[0], 8)
-        finalLen = cast[ptr uint64](length[0].addr)[].toBE
+        finalLen = uint64.fromBytesBE(length)
       else:
         # Length must be 7 bits.
         finalLen = headerLen
@@ -430,19 +502,21 @@ proc recv*(
     while consumed < size.uint64:
       let len = min(size, ws.frame.remainder().int)
       let read = await ws.tcpSocket.readOnce(data, len)
+
       consumed += read.uint64
       var castData = cast[ptr UncheckedArray[byte]](data)
 
       # unmask data using offset
-      for i in 0 ..< read:
-        let offset = ws.frame.consumed.int + i # offset is per frame as masks are per frame also
-        castData[i] = (castData[offset].uint8 xor ws.frame.maskKey[offset mod 4].uint8)
+      unmask(
+        castData.toOpenArray(0, read - 1),
+        ws.frame.maskKey,
+        ws.frame.consumed.int)
+
+      ws.frame.consumed += consumed.uint64
 
       if ws.frame.fin:
         ws.frame = nil
         break
-
-      ws.frame.consumed += consumed.uint64
 
     return consumed.int
   except CancelledError as exc:
@@ -496,7 +570,10 @@ proc recv*(
 
   return res
 
-proc close*(ws: WebSocket, data: seq[byte] = @[]) {.async.} =
+proc close*(
+  ws: WebSocket,
+  code: Status = Status.Fulfilled,
+  reason: string = "") {.async.} =
   ## Close the Socket, sends close packet.
   ##
 
@@ -505,11 +582,14 @@ proc close*(ws: WebSocket, data: seq[byte] = @[]) {.async.} =
 
   try:
     ws.readyState = ReadyState.Closing
-    await ws.send(data, opcode = Opcode.Close)
+    await ws.send(
+      prepareCloseBody(code, reason),
+      opcode = Opcode.Close)
 
     # read frames until closed
     while ws.readyState != ReadyState.Closed:
       discard await ws.recv()
+
   except CatchableError as exc:
     debug "Exception closing", exc = exc.msg
 
@@ -519,7 +599,8 @@ proc connect*(
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
-  onPong: ControlCb = nil): Future[WebSocket] {.async.} =
+  onPong: ControlCb = nil,
+  onClose: CloseCb = nil): Future[WebSocket] {.async.} =
   ## create a new websockets client
   ##
 
@@ -565,7 +646,8 @@ proc connect*(
     rng: newRng(),
     frameSize: frameSize,
     onPing: onPing,
-    onPong: onPong)
+    onPong: onPong,
+    onClose: onClose)
 
 proc connect*(
   host: string,
@@ -575,7 +657,8 @@ proc connect*(
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
-  onPong: ControlCb = nil): Future[WebSocket] {.async.} =
+  onPong: ControlCb = nil,
+  onClose: CloseCb = nil): Future[WebSocket] {.async.} =
   ## Create a new websockets client
   ## using a string path
   ##
@@ -592,4 +675,5 @@ proc connect*(
     version,
     frameSize,
     onPing,
-    onPong)
+    onPong,
+    onClose)
