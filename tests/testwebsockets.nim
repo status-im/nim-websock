@@ -142,9 +142,8 @@ suite "Test ping-pong":
     httpServer.stop()
     await httpServer.closeWait()
 
-  test "Client - test ping-pong control messages":
-    var ping = false
-    var pong = false
+  test "Server - test ping-pong control messages":
+    var ping, pong = false
     proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       check header.uri() == "/ws"
 
@@ -178,8 +177,7 @@ suite "Test ping-pong":
       pong
 
   test "Client - test ping-pong control messages":
-    var ping = false
-    var pong = false
+    var ping, pong = false
     proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       check header.uri() == "/ws"
 
@@ -211,7 +209,6 @@ suite "Test ping-pong":
     check:
       ping
       pong
-
 
 suite "Test framing":
   teardown:
@@ -299,7 +296,49 @@ suite "Test Closing":
     discard await ws.recv()
     check ws.readyState == ReadyState.Closed
 
-  test "Client - test reading simple frame":
+  test "Server closing with status":
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
+
+      proc closeServer(
+        ws: WebSocket,
+        status: Status,
+        reason: string): CloseResult {.gcsafe.} =
+        check status == Status.TooBig
+        check reason == "Message too big!"
+
+        return (Status.Fulfilled, "")
+
+      let ws = await createServer(
+        header,
+        transp,
+        "proto",
+        onClose = closeServer)
+
+      await ws.close()
+
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
+
+    proc clientClose(
+      ws: WebSocket,
+      status: Status,
+      reason: string): CloseResult {.gcsafe.} =
+      check status == Status.Fulfilled
+
+      return (Status.TooBig, "Message too big!")
+
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"],
+      onClose = clientClose)
+
+    discard await ws.recv()
+    check ws.readyState == ReadyState.Closed
+
+  test "Client closing":
     proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       check header.uri() == "/ws"
 
