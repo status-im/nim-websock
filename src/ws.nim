@@ -116,9 +116,6 @@ type
 func remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
 
-# Forward declare
-proc close*(ws: WebSocket, initiator: bool = true) {.async.}
-
 proc handshake*(
   ws: WebSocket,
   header: HttpRequestHeader,
@@ -176,7 +173,9 @@ proc createServer*(
     protocol: protocol,
     masked: false,
     rng: newRng(),
-    frameSize: frameSize)
+    frameSize: frameSize,
+    onPing: onPing,
+    onPong: onPong)
 
   await ws.handshake(header)
   return ws
@@ -247,6 +246,19 @@ proc send*(
   if ws.masked:
     maskKey = genMaskKey(ws.rng)
 
+  if opcode notin {Opcode.Text, Opcode.Binary}:
+    discard await ws.tcpSocket.write(encodeFrame(Frame(
+        fin: true,
+        rsv1: false,
+        rsv2: false,
+        rsv3: false,
+        opcode: opcode,
+        mask: ws.masked,
+        data: data, # allow sending data with close messages
+        maskKey: maskKey)))
+
+    return
+
   let maxSize = ws.frameSize
   # Send stuff in 1 megabyte chunks to prevent IOErrors.
   # This really large packets.
@@ -254,8 +266,7 @@ proc send*(
   while i < data.len:
     let len = min(data.len, (maxSize + i))
     let inFrame = Frame(
-        # fin: if (i + len >= data.len): true else: false,
-        fin: true,
+        fin: if (i + len >= data.len): true else: false,
         rsv1: false,
         rsv2: false,
         rsv3: false,
@@ -270,30 +281,43 @@ proc send*(
 proc send*(ws: WebSocket, data: string): Future[void] =
   send(ws, toBytes(data), Opcode.Text)
 
-proc handleControl(ws: WebSocket, frame: Frame) {.async.} =
+proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
   ## handle control frames
   ##
   var data = newSeq[byte](frame.length)
 
-  # Read control frame payload.
-  if frame.length > 0:
-    # Read the data.
-    await ws.tcpSocket.readExactly(addr data[0], int frame.length)
-    frame.data = data
-
   # Process control frame payload.
-  if frame.opcode == Ping:
+  if frame.opcode == Opcode.Ping:
     if not isNil(ws.onPing):
+      echo $frame.opcode
       ws.onPing(ws)
 
-    await ws.send(data, Pong)
-  elif frame.opcode == Pong:
+    await ws.send(data, Opcode.Pong)
+  elif frame.opcode == Opcode.Pong:
     if not isNil(ws.onPong):
       ws.onPong(ws)
 
     discard
-  elif frame.opcode == Close:
-    await ws.close(false)
+  elif frame.opcode == Opcode.Close:
+    case ws.readyState:
+    of ReadyState.Closing:
+      # Finish close flow
+
+      await ws.tcpSocket.closeWait()
+      ws.readyState = ReadyState.Closed
+    of ReadyState.Open:
+      # Handle close flow
+
+      # Read control frame payload.
+      if frame.length > 0:
+        # Read the data.
+        await ws.tcpSocket.readExactly(addr data[0], int frame.length)
+        frame.data = data
+
+      await ws.send(data, Opcode.Close)
+      ws.readyState = ReadyState.Closed
+    else:
+      raiseAssert("Invalid closing flow!")
 
 proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
@@ -373,20 +397,15 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
 
     return frame
 
-proc close*(ws: WebSocket, initiator: bool = true) {.async.} =
+proc close*(ws: WebSocket, data: seq[byte] = @[]) {.async.} =
   ## Close the Socket, sends close packet.
-  if ws.readyState == ReadyState.Closed:
-    discard ws.tcpSocket.closeWait()
+  ##
+
+  if ws.readyState != ReadyState.Open:
     return
 
-  ws.readyState = ReadyState.Closed
-  await ws.send(opcode = Close)
-  if initiator == true:
-    let frame = await ws.readFrame()
-    if frame.opcode != Opcode.Close:
-      raise newException(WSOpcodeMismatchError, "Different packet type")
-
-  await ws.close()
+  ws.readyState = ReadyState.Closing
+  await ws.send(data, opcode = Opcode.Close)
 
 proc ping*(ws: WebSocket): Future[void] =
   ws.send(opcode = Opcode.Ping)
@@ -493,7 +512,9 @@ proc connect*(
     readyState: Open,
     masked: true,
     rng: newRng(),
-    frameSize: frameSize)
+    frameSize: frameSize,
+    onPing: onPing,
+    onPong: onPong)
 
 proc connect*(
   host: string,

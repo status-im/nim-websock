@@ -28,6 +28,8 @@ suite "Test handshake":
         Http200,
         "Connection established")
 
+      await transp.closeWait()
+
     httpServer = newHttpServer("127.0.0.1:8888", cb)
     httpServer.start()
 
@@ -50,6 +52,8 @@ suite "Test handshake":
         HttpVersion11,
         Http200,
         "Connection established")
+
+      await transp.closeWait()
 
     httpServer = newHttpServer("127.0.0.1:8888", cb)
     httpServer.start()
@@ -132,6 +136,43 @@ suite "Test transmission":
 
     let res = await ws.recv()
     check string.fromBytes(res) == testString
+
+  # test "Client - test ping-pong control messages":
+  #   var ping = false
+  #   var pong = false
+  #   proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+  #     check header.uri() == "/ws"
+
+  #     let ws = await createServer(
+  #       header,
+  #       transp,
+  #       "proto",
+  #       onPing = proc(ws: WebSocket) =
+  #         echo "PING"
+  #         ping = true
+  #       )
+
+  #     discard await ws.recv()
+
+  #   httpServer = newHttpServer("127.0.0.1:8888", cb)
+  #   httpServer.start()
+
+  #   let ws = await connect(
+  #     "127.0.0.1",
+  #     Port(8888),
+  #     path = "/ws",
+  #     protocols = @["proto"],
+  #     onPong = proc(ws: WebSocket) =
+  #       echo "PONG"
+  #       pong = true
+  #     )
+
+  #   await ws.ping()
+  #   discard await ws.recv()
+
+  #   check:
+  #     ping
+  #     pong
 
 suite "Test framing":
   teardown:
