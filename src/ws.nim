@@ -410,10 +410,6 @@ proc recv*(
     (not isNil(ws.frame) and ws.frame.remainder() <= 0): # all has been consumed
     ws.frame = await ws.readFrame()
 
-  # we're at the end, exit
-  if ws.frame.fin:
-    return
-
   var read = 0
   if ws.frame.remainder > 0:
     let length = min(max, ws.frame.remainder().int)
@@ -441,6 +437,10 @@ proc recv*(ws: WebSocket, size = WSMaxMessageSize): Future[seq[byte]] {.async.} 
       raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
     result.add(buf)
+
+    # we got the last frame in the sequence, exit
+    if ws.frame.fin:
+      return
 
 proc connect*(
   uri: Uri,
