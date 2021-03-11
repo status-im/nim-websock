@@ -446,6 +446,7 @@ proc recv*(
     return consumed.int
   except CancelledError as exc:
     trace "Cancelling reading", exc = exc.msg
+    raise exc
   except CatchableError as exc:
     trace "Exception reading frames", exc = exc.msg
 
