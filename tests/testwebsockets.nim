@@ -10,15 +10,7 @@ import ./helpers
 
 var httpServer: HttpServer
 
-proc startServer() {.async, gcsafe.} =
-  httpServer = newHttpServer("127.0.0.1:8888", echoCb)
-  httpServer.start()
-
-proc closeServer() {.async, gcsafe.} =
-  httpServer.stop()
-  await httpServer.closeWait()
-
-suite "Test websocket error cases":
+suite "Test handshake":
   teardown:
     httpServer.stop()
     await httpServer.closeWait()
@@ -92,3 +84,51 @@ suite "Test websocket error cases":
         Port(8888),
         path = "/ws",
         protocols = @["proto"])
+
+suite "Test transmission":
+  teardown:
+    httpServer.stop()
+    await httpServer.closeWait()
+
+  test "Server - test reading simple frame":
+    let testString = "Hello!"
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
+
+      let ws = await createServer(header, transp, "proto")
+      let res = await ws.recv()
+
+      check string.fromBytes(res) == testString
+      await transp.closeWait()
+
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
+
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+
+    await ws.send(testString)
+
+  test "Client - test reading simple frame":
+    let testString = "Hello!"
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
+
+      let ws = await createServer(header, transp, "proto")
+      await ws.send(testString)
+      await transp.closeWait()
+
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
+
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+
+    let res = await ws.recv()
+    check string.fromBytes(res) == testString
