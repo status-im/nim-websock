@@ -23,6 +23,7 @@ type
 
   AsyncCallback = proc (transp: StreamTransport,
       header: HttpRequestHeader): Future[void] {.closure, gcsafe.}
+
   HttpServer* = ref object of StreamServer
     callback: AsyncCallback
 
@@ -59,7 +60,7 @@ proc recvData(transp: StreamTransport): Future[seq[byte]] {.async.} =
     buffer.setLen(0)
   return buffer
 
-proc newConnection(client: HttpClient, url: Uri) {.async.} =
+proc connect(client: HttpClient, url: Uri) {.async.} =
   if client.connected:
     return
 
@@ -73,8 +74,10 @@ proc newConnection(client: HttpClient, url: Uri) {.async.} =
   client.currentURL = url
   client.connected = true
 
-proc generateHeaders(requestUrl: Uri, httpMethod: string,
-    additionalHeaders: HttpHeaders): string =
+proc generateHeaders(
+  requestUrl: Uri,
+  httpMethod: string,
+  additionalHeaders: HttpHeaders): string =
   # GET
   var headers = httpMethod.toUpperAscii()
   headers.add ' '
@@ -91,15 +94,19 @@ proc generateHeaders(requestUrl: Uri, httpMethod: string,
   return headers
 
 # Send request to the client. Currently only supports HTTP get method.
-proc request*(client: HttpClient, url, httpMethod: string,
-             body = "", headers: HttpHeaders): Future[seq[byte]]
-             {.async.} =
+proc request*(
+  client: HttpClient,
+  url,
+  httpMethod: string,
+  body = "",
+  headers: HttpHeaders): Future[seq[byte]] {.async.} =
   # Helper that actually makes the request. Does not handle redirects.
+
   let requestUrl = parseUri(url)
   if requestUrl.scheme == "":
     raise newException(ValueError, "No uri scheme supplied.")
 
-  await newConnection(client, requestUrl)
+  await connect(client, requestUrl)
 
   let headerString = generateHeaders(requestUrl, httpMethod, headers)
   let res = await client.transp.write(headerString)
@@ -111,8 +118,12 @@ proc request*(client: HttpClient, url, httpMethod: string,
     raise newException(ValueError, "Empty response from server")
   return value
 
-proc sendHTTPResponse*(transp: StreamTransport, version: HttpVersion, code: HttpCode,
-                data: string = ""): Future[bool] {.async.} =
+proc sendHTTPResponse*(
+  transp: StreamTransport,
+  version: HttpVersion,
+  code: HttpCode,
+  data: string = ""): Future[bool] {.async.} =
+
   var answer = $version
   answer.add(" ")
   answer.add($code)
@@ -128,10 +139,13 @@ proc sendHTTPResponse*(transp: StreamTransport, version: HttpVersion, code: Http
   let res = await transp.write(answer)
   if res == len(answer):
     return true
+
   raise newException(IOError, "Failed to send http request.")
 
-proc validateRequest(transp: StreamTransport,
-                     header: HttpRequestHeader): Future[ReqStatus] {.async.} =
+proc validateRequest(
+  transp: StreamTransport,
+  header: HttpRequestHeader): Future[ReqStatus] {.async.} =
+
   if header.meth notin {MethodGet}:
     debug "GET method is only allowed", address = transp.remoteAddress()
     if await transp.sendHTTPResponse(header.version, Http405):
@@ -210,9 +224,6 @@ proc newHttpServer*(address: string, handler: AsyncCallback,
       child = cast[StreamServer](server)))
   return server
 
-func toCaseInsensitive*(headers: HttpHeaders, s: string): string {.inline.} =
-  return toUpperAscii(s)
-
 func newHttpHeaders*(): HttpHeaders =
   ## Returns a new ``HttpHeaders`` object. if ``titleCase`` is set to true,
   ## headers are passed to the server in title case (e.g. "Content-Length")
@@ -225,7 +236,7 @@ func newHttpHeaders*(keyValuePairs:
   var headers = newHttpHeaders()
 
   for pair in keyValuePairs:
-    let key = headers.toCaseInsensitive(pair.key)
+    let key = toUpperAscii(pair.key)
     if key in headers.table:
       headers.table[key].add(pair.val)
     else:
