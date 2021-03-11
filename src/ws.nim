@@ -291,7 +291,6 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
     # Process control frame payload.
     if frame.opcode == Opcode.Ping:
       if not isNil(ws.onPing):
-        echo $frame.opcode
         ws.onPing(ws)
 
       await ws.send(data, Opcode.Pong)
