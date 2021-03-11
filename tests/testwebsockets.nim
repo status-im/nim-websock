@@ -116,6 +116,41 @@ suite "Test transmission":
 
     await ws.send(testString)
 
+  test "Client - test ping-pong control messages":
+    var ping = false
+    var pong = false
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
+
+      let ws = await createServer(
+        header,
+        transp,
+        "proto",
+        onPong = proc(ws: WebSocket) =
+          pong = true
+        )
+
+      await ws.ping()
+      await ws.close()
+
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
+
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"],
+      onPing = proc(ws: WebSocket) =
+        ping = true
+      )
+
+    discard await ws.recv()
+
+    check:
+      ping
+      pong
+
   test "Client - test reading simple frame":
     let testString = "Hello!"
     proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
@@ -137,42 +172,40 @@ suite "Test transmission":
     let res = await ws.recv()
     check string.fromBytes(res) == testString
 
-  # test "Client - test ping-pong control messages":
-  #   var ping = false
-  #   var pong = false
-  #   proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-  #     check header.uri() == "/ws"
+  test "Client - test ping-pong control messages":
+    var ping = false
+    var pong = false
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
 
-  #     let ws = await createServer(
-  #       header,
-  #       transp,
-  #       "proto",
-  #       onPing = proc(ws: WebSocket) =
-  #         echo "PING"
-  #         ping = true
-  #       )
+      let ws = await createServer(
+        header,
+        transp,
+        "proto",
+        onPing = proc(ws: WebSocket) =
+          ping = true
+        )
 
-  #     discard await ws.recv()
+      discard await ws.recv()
 
-  #   httpServer = newHttpServer("127.0.0.1:8888", cb)
-  #   httpServer.start()
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
 
-  #   let ws = await connect(
-  #     "127.0.0.1",
-  #     Port(8888),
-  #     path = "/ws",
-  #     protocols = @["proto"],
-  #     onPong = proc(ws: WebSocket) =
-  #       echo "PONG"
-  #       pong = true
-  #     )
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"],
+      onPong = proc(ws: WebSocket) =
+        pong = true
+      )
 
-  #   await ws.ping()
-  #   discard await ws.recv()
+    await ws.ping()
+    await ws.close()
 
-  #   check:
-  #     ping
-  #     pong
+    check:
+      ping
+      pong
 
 suite "Test framing":
   teardown:
@@ -235,3 +268,48 @@ suite "Test framing":
 
     expect WSMaxMessageSizeError:
       discard await ws.recv(5)
+
+suite "Test Closing":
+  teardown:
+    httpServer.stop()
+    await httpServer.closeWait()
+
+  test "Server closing":
+    let testString = "Hello!"
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
+
+      let ws = await createServer(header, transp, "proto")
+      await ws.close()
+
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
+
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+
+    await ws.send(testString)
+    discard await ws.recv()
+    check ws.readyState == ReadyState.Closed
+
+  test "Client - test reading simple frame":
+    let testString = "Hello!"
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
+
+      let ws = await createServer(header, transp, "proto")
+      discard await ws.recv()
+
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
+
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+
+    await ws.close()
