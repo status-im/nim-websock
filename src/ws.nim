@@ -185,8 +185,7 @@ proc encodeFrame*(f: Frame): seq[byte] =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
 
-  var ret = newSeqOfCap[byte](f.data.len + WSHeaderSize)
-
+  var ret: seq[byte]
   var b0 = (f.opcode.uint8 and 0x0f) # 0th byte: opcodes and flags.
   if f.fin:
     b0 = b0 or 128'u8
@@ -217,8 +216,8 @@ proc encodeFrame*(f: Frame): seq[byte] =
     ret.add (len and 255).uint8
   elif f.data.len > 0xffff:
     # Data len is 7+64 bits.
-    var len = f.data.len
-    ret.add(f.data.len.uint64.toBE().toBytesBE())
+    var len = f.data.len.uint64
+    ret.add(len.toBE().toBytesBE())
 
   var data = f.data
 
@@ -453,20 +452,16 @@ proc recv*(
 proc recv*(
   ws: WebSocket,
   size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
-  ## Attempt to read a full message up
-  ## to max `size` bytes in `frameSize`
-  ## chunks.
+  ## Attempt to read a full message up to max `size`
+  ## bytes in `frameSize` chunks.
   ##
-  ## If no `fin` flag ever arrives it will
-  ## await until either cancelled or the
-  ## `fin` flag arrives.
+  ## If no `fin` flag ever arrives it will await until
+  ## either cancelled or the `fin` flag arrives.
   ##
-  ## If message is larger than `size` a
-  ## `WSMaxMessageSizeError` exception
-  ## is thrown.
+  ## If message is larger than `size` a `WSMaxMessageSizeError`
+  ## exception is thrown.
   ##
-  ## In all other cases it awaits a full
-  ## message.
+  ## In all other cases it awaits a full message.
   ##
   var res: seq[byte]
   try:
