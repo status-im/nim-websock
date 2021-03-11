@@ -5,6 +5,7 @@ import std/[tables,
             parseutils]
 
 import pkg/[chronos,
+            chronicles,
             httputils,
             stew/byteutils,
             stew/endians2,
@@ -286,126 +287,122 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
   ##
   var data = newSeq[byte](frame.length)
 
-  # Process control frame payload.
-  if frame.opcode == Opcode.Ping:
-    if not isNil(ws.onPing):
-      echo $frame.opcode
-      ws.onPing(ws)
+  try:
+    # Process control frame payload.
+    if frame.opcode == Opcode.Ping:
+      if not isNil(ws.onPing):
+        echo $frame.opcode
+        ws.onPing(ws)
 
-    await ws.send(data, Opcode.Pong)
-  elif frame.opcode == Opcode.Pong:
-    if not isNil(ws.onPong):
-      ws.onPong(ws)
+      await ws.send(data, Opcode.Pong)
+    elif frame.opcode == Opcode.Pong:
+      if not isNil(ws.onPong):
+        ws.onPong(ws)
 
-    discard
-  elif frame.opcode == Opcode.Close:
-    case ws.readyState:
-    of ReadyState.Closing:
-      # Finish close flow
+      discard
+    elif frame.opcode == Opcode.Close:
+      case ws.readyState:
+      of ReadyState.Closing:
+        # Finish close flow
 
-      await ws.tcpSocket.closeWait()
-      ws.readyState = ReadyState.Closed
-    of ReadyState.Open:
-      # Handle close flow
+        await ws.tcpSocket.closeWait()
+        ws.readyState = ReadyState.Closed
+      of ReadyState.Open:
+        # Handle close flow
 
-      # Read control frame payload.
-      if frame.length > 0:
-        # Read the data.
-        await ws.tcpSocket.readExactly(addr data[0], int frame.length)
-        frame.data = data
+        # Read control frame payload.
+        if frame.length > 0:
+          # Read the data.
+          await ws.tcpSocket.readExactly(addr data[0], int frame.length)
+          frame.data = data
 
-      await ws.send(data, Opcode.Close)
-      ws.readyState = ReadyState.Closed
-    else:
-      raiseAssert("Invalid closing flow!")
+        await ws.send(data, Opcode.Close)
+        ws.readyState = ReadyState.Closed
+      else:
+        raiseAssert("Invalid state during close!")
+  except CatchableError as exc:
+    trace "Exception handling control messages", exc = exc.msg
+    ws.readyState = ReadyState.Closed
+    await ws.tcpSocket.closeWait()
 
 proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
   ##
 
-  while true: # read until a data frame arrives
-    # Grab the header.
-    var header = newSeq[byte](2)
-    try:
+  try:
+    while ws.readyState != ReadyState.Closed: # read until a data frame arrives
+      # Grab the header.
+      var header = newSeq[byte](2)
       await ws.tcpSocket.readExactly(addr header[0], 2)
-    except TransportUseClosedError:
-      ws.readyState = ReadyState.Closed
-      raise newException(WSClosedError, "Socket closed")
 
-    if header.len != 2:
-      ws.readyState = ReadyState.Closed
-      raise newException(WSMalformedHeaderError, "Invalid websocket header length")
+      if header.len != 2:
+        raise newException(WSMalformedHeaderError, "Invalid websocket header length")
 
-    let b0 = header[0].uint8
-    let b1 = header[1].uint8
+      let b0 = header[0].uint8
+      let b1 = header[1].uint8
 
-    var frame = Frame()
-    # Read the flags and fin from the header.
+      var frame = Frame()
+      # Read the flags and fin from the header.
 
-    var hf = cast[HeaderFlags](b0 shr 4)
-    frame.fin = fin in hf
-    frame.rsv1 = rsv1 in hf
-    frame.rsv2 = rsv2 in hf
-    frame.rsv3 = rsv3 in hf
+      var hf = cast[HeaderFlags](b0 shr 4)
+      frame.fin = fin in hf
+      frame.rsv1 = rsv1 in hf
+      frame.rsv2 = rsv2 in hf
+      frame.rsv3 = rsv3 in hf
 
-    frame.opcode = (b0 and 0x0f).Opcode
+      frame.opcode = (b0 and 0x0f).Opcode
 
-    # If any of the rsv are set close the socket.
-    if frame.rsv1 or frame.rsv2 or frame.rsv3:
-      ws.readyState = ReadyState.Closed
-      raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")
+      # If any of the rsv are set close the socket.
+      if frame.rsv1 or frame.rsv2 or frame.rsv3:
+        ws.readyState = ReadyState.Closed
+        raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")
 
-    # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
-    var finalLen: uint64 = 0
+      # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
+      var finalLen: uint64 = 0
 
-    let headerLen = uint(b1 and 0x7f)
-    if headerLen == 0x7e:
-      # Length must be 7+16 bits.
-      var length = newSeq[byte](2)
-      await ws.tcpSocket.readExactly(addr length[0], 2)
-      finalLen = cast[ptr uint16](length[0].addr)[].toBE
-    elif headerLen == 0x7f:
-      # Length must be 7+64 bits.
-      var length = newSeq[byte](8)
-      await ws.tcpSocket.readExactly(addr length[0], 8)
-      finalLen = cast[ptr uint64](length[0].addr)[].toBE
-    else:
-      # Length must be 7 bits.
-      finalLen = headerLen
-    frame.length = finalLen
+      let headerLen = uint(b1 and 0x7f)
+      if headerLen == 0x7e:
+        # Length must be 7+16 bits.
+        var length = newSeq[byte](2)
+        await ws.tcpSocket.readExactly(addr length[0], 2)
+        finalLen = cast[ptr uint16](length[0].addr)[].toBE
+      elif headerLen == 0x7f:
+        # Length must be 7+64 bits.
+        var length = newSeq[byte](8)
+        await ws.tcpSocket.readExactly(addr length[0], 8)
+        finalLen = cast[ptr uint64](length[0].addr)[].toBE
+      else:
+        # Length must be 7 bits.
+        finalLen = headerLen
+      frame.length = finalLen
 
-    # Do we need to apply mask?
-    frame.mask = (b1 and 0x80) == 0x80
+      # Do we need to apply mask?
+      frame.mask = (b1 and 0x80) == 0x80
 
-    if ws.masked == frame.mask:
-      # Server sends unmasked but accepts only masked.
-      # Client sends masked but accepts only unmasked.
-      raise newException(WSMaskMismatchError, "Socket mask mismatch")
+      if ws.masked == frame.mask:
+        # Server sends unmasked but accepts only masked.
+        # Client sends masked but accepts only unmasked.
+        raise newException(WSMaskMismatchError, "Socket mask mismatch")
 
-    var maskKey = newSeq[byte](4)
-    if frame.mask:
-      # Read the mask.
-      await ws.tcpSocket.readExactly(addr maskKey[0], 4)
-      for i in 0..<maskKey.len:
-        frame.maskKey[i] = cast[char](maskKey[i])
+      var maskKey = newSeq[byte](4)
+      if frame.mask:
+        # Read the mask.
+        await ws.tcpSocket.readExactly(addr maskKey[0], 4)
+        for i in 0..<maskKey.len:
+          frame.maskKey[i] = cast[char](maskKey[i])
 
-    # return the current frame if it's not one of the control frames
-    if frame.opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
-      asyncSpawn ws.handleControl(frame) # process control frames
-      continue
+      # return the current frame if it's not one of the control frames
+      if frame.opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
+        asyncSpawn ws.handleControl(frame) # process control frames
+        continue
 
-    return frame
-
-proc close*(ws: WebSocket, data: seq[byte] = @[]) {.async.} =
-  ## Close the Socket, sends close packet.
-  ##
-
-  if ws.readyState != ReadyState.Open:
-    return
-
-  ws.readyState = ReadyState.Closing
-  await ws.send(data, opcode = Opcode.Close)
+      return frame
+  except CatchableError as exc:
+    trace "Exception reading frame, dropping socket", exc = exc.msg
+    ws.readyState = ReadyState.Closed
+    await ws.tcpSocket.closeWait()
+    raise exc
 
 proc ping*(ws: WebSocket): Future[void] =
   ws.send(opcode = Opcode.Ping)
@@ -422,45 +419,75 @@ proc recv*(
   ## is available
   ##
 
-  # we might have to read more
-  # than one frame to fill the buffer
-  if isNil(ws.frame) or # no previous frame
-    (not isNil(ws.frame) and ws.frame.remainder() <= 0): # all has been consumed
-    ws.frame = await ws.readFrame()
+  try:
+    # we might have to read more
+    # than one frame to fill the buffer
+    if isNil(ws.frame) or # no previous frame
+      (not isNil(ws.frame) and ws.frame.remainder() <= 0): # all has been consumed
+      ws.frame = await ws.readFrame()
 
-  var read = 0
-  if ws.frame.remainder > 0:
-    let length = min(max, ws.frame.remainder().int)
-    read = await ws.tcpSocket.readOnce(data, length)
+    var read = 0
+    if ws.frame.remainder > 0:
+      let length = min(max, ws.frame.remainder().int)
+      read = await ws.tcpSocket.readOnce(data, length)
 
-    var castData = cast[ptr UncheckedArray[byte]](data)
-    for i in 0 ..< read:
-      let offset = ws.frame.consumed.int + i
-      castData[i] = (castData[offset].uint8 xor ws.frame.maskKey[offset mod 4].uint8)
+      var castData = cast[ptr UncheckedArray[byte]](data)
+      for i in 0 ..< read:
+        let offset = ws.frame.consumed.int + i
+        castData[i] = (castData[offset].uint8 xor ws.frame.maskKey[offset mod 4].uint8)
 
-    ws.frame.consumed += read.uint64
+      ws.frame.consumed += read.uint64
 
-  return read
+    return read
+  except CancelledError as exc:
+    trace "Cancelling reading", exc = exc.msg
+  except CatchableError as exc:
+    trace "Exception reading frames", exc = exc.msg
 
 proc recv*(ws: WebSocket, size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
-  var res: seq[byte]
-  while true:
-    var buf = newSeq[byte](ws.frameSize)
-    let read = await ws.recv(addr buf[0], buf.len)
-    if read <= 0:
-      break
+    var res: seq[byte]
+    try:
+      while true:
+        var buf = newSeq[byte](ws.frameSize)
+        let read = await ws.recv(addr buf[0], buf.len)
+        if read <= 0:
+          break
 
-    buf.setLen(read)
-    if res.len + buf.len > size:
-      raise newException(WSMaxMessageSizeError, "Max message size exceeded")
+        buf.setLen(read)
+        if res.len + buf.len > size:
+          raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
-    res.add(buf)
+        res.add(buf)
 
-    # we got the last frame in the sequence, exit
-    if ws.frame.fin:
-      break
+        # we got the last frame in the sequence, exit
+        if ws.frame.fin:
+          break
+    except WSMaxMessageSizeError as exc:
+      raise exc
+    except CancelledError as exc:
+      trace "Cancelling reading", exc = exc.msg
+      raise exc
+    except CatchableError as exc:
+      trace "Exception reading frames", exc = exc.msg
 
-  return res
+    return res
+
+proc close*(ws: WebSocket, data: seq[byte] = @[]) {.async.} =
+  ## Close the Socket, sends close packet.
+  ##
+
+  if ws.readyState != ReadyState.Open:
+    return
+
+  try:
+    ws.readyState = ReadyState.Closing
+    await ws.send(data, opcode = Opcode.Close)
+
+    # read frames until closed
+    while ws.readyState != ReadyState.Closed:
+      discard await ws.recv()
+  except CatchableError as exc:
+    debug "Exception closing", exc = exc.msg
 
 proc connect*(
   uri: Uri,
