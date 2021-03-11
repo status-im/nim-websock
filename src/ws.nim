@@ -246,7 +246,7 @@ proc send*(
   if ws.masked:
     maskKey = genMaskKey(ws.rng)
 
-  if opcode notin {Opcode.Text, Opcode.Binary}:
+  if opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
     discard await ws.tcpSocket.write(encodeFrame(Frame(
         fin: true,
         rsv1: false,
@@ -270,7 +270,7 @@ proc send*(
         rsv1: false,
         rsv2: false,
         rsv3: false,
-        opcode: opcode,
+        opcode: if i > 0: Opcode.Cont else: opcode, # fragments have to be `Continuation` frames
         mask: ws.masked,
         data: data[i ..< len],
         maskKey: maskKey)
@@ -439,6 +439,7 @@ proc recv*(
         castData[i] = (castData[offset].uint8 xor ws.frame.maskKey[offset mod 4].uint8)
 
       if ws.frame.fin:
+        ws.frame = nil
         break
 
       ws.frame.consumed += consumed.uint64
@@ -477,6 +478,10 @@ proc recv*(
         raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
       res.add(buf)
+
+      # no more frames
+      if isNil(ws.frame):
+        break
 
       # we got the last frame in the sequence, exit
       if ws.frame.fin:
