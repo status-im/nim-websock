@@ -36,19 +36,32 @@ import ./random, ./http
   ]#
 
 const
-  SHA1DigestSize = 20
-  WSHeaderSize = 12
-  WSDefaultVersion = 13
-  WSDefaultFrameSize* = 1024 * 1024 # 1kb
+  SHA1DigestSize* = 20
+  WSHeaderSize* = 12
+  WSDefaultVersion* = 13
+  WSDefaultFrameSize* = 256 # bytes
+  WSMaxMessageSize* = 1 shl 20 # 1mb
 
 type
-  ReadyState* = enum
+  ReadyState* {.pure.} = enum
     Connecting = 0 # The connection is not yet open.
     Open = 1       # The connection is open and ready to communicate.
     Closing = 2    # The connection is in the process of closing.
     Closed = 3     # The connection is closed or couldn't be opened.
 
-  WebSocketError* = object of IOError
+  WebSocketError* = object of CatchableError
+  WSMalformedHeaderError* = object of WebSocketError
+  WSFailedUpgradeError* = object of WebSocketError
+  WSVersionError* = object of WebSocketError
+  WSProtoMismatchError* = object of WebSocketError
+  WSMaskMismatchError* = object of WebSocketError
+  WSHandshakeError* = object of WebSocketError
+  WSOpcodeMismatchError* = object of WebSocketError
+  WSRsvMismatchError* = object of WebSocketError
+  WSWrongUriSchemeError* = object of WebSocketError
+  WSMaxMessageSizeError* = object of WebSocketError
+  WSClosedError* = object of WebSocketError
+  WSSendError* = object of WebSocketError
 
   Base16Error* = object of CatchableError
     ## Base16 specific exception type
@@ -86,6 +99,7 @@ type
     length: uint64            ## Message size.
     consumed: uint64          ## how much has been consumed from the frame
 
+  ControlCb* = proc(ws: WebSocket) {.gcsafe.}
   WebSocket* = ref object
     tcpSocket*: StreamTransport
     version*: int
@@ -94,7 +108,10 @@ type
     readyState*: ReadyState
     masked*: bool # send masked packets
     rng*: ref BrHmacDrbgContext
+    frameSize: int
     frame: Frame
+    onPing: ControlCb
+    onPong: ControlCb
 
 func remainder(frame: Frame): uint64 =
   frame.length - frame.consumed
@@ -111,7 +128,7 @@ proc handshake*(
 
   discard parseSaturatedNatural(header["Sec-WebSocket-Version"], ws.version)
   if ws.version != version:
-    raise newException(WebSocketError,
+    raise newException(WSVersionError,
       "Websocket version not supported, Version: " &
       header["Sec-WebSocket-Version"])
 
@@ -119,18 +136,13 @@ proc handshake*(
   if header.contains("Sec-WebSocket-Protocol"):
     let wantProtocol = header["Sec-WebSocket-Protocol"].strip()
     if ws.protocol != wantProtocol:
-      raise newException(WebSocketError,
+      raise newException(WSProtoMismatchError,
         "Protocol mismatch (expected: " & ws.protocol & ", got: " &
         wantProtocol & ")")
 
   var acceptKey: string
-  try:
-    let sh = secureHash(ws.key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-    acceptKey = Base64.encode(hexToByteArray[SHA1DigestSize]($sh))
-  except ValueError:
-    raise newException(
-      WebSocketError,
-      "Failed to generate accept key: " & getCurrentExceptionMsg())
+  let sh = secureHash(ws.key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+  acceptKey = Base64.encode(hexToByteArray[SHA1DigestSize]($sh))
 
   var response = "HTTP/1.1 101 Web Socket Protocol Handshake" & CRLF
   response.add("Sec-WebSocket-Accept: " & acceptKey & CRLF)
@@ -143,33 +155,31 @@ proc handshake*(
 
   let res = await ws.tcpSocket.write(response)
   if res != len(response):
-    raise newException(WebSocketError, "Failed to send handshake response to client")
-  ws.readyState = Open
+    raise newException(WSSendError, "Failed to send handshake response to client")
+  ws.readyState = ReadyState.Open
 
 proc createServer*(
   header: HttpRequestHeader,
   transp: StreamTransport,
-  protocol: string = ""): Future[WebSocket] {.async.} =
+  protocol: string = "",
+  frameSize = WSDefaultFrameSize,
+  onPing: ControlCb = nil,
+  onPong: ControlCb = nil): Future[WebSocket] {.async.} =
   ## Creates a new socket from a request.
   ##
 
   if not header.contains("Sec-WebSocket-Version"):
-    raise newException(WebSocketError, "Invalid WebSocket handshake")
+    raise newException(WSHandshakeError, "Missing version header")
 
-  try:
-    var ws = WebSocket(
-      tcpSocket: transp,
-      protocol: protocol,
-      masked: false,
-      rng: newRng())
-    await ws.handshake(header)
-    return ws
-  except ValueError, KeyError:
-    # Wrap all exceptions in a WebSocketError so its easy to catch.
-    raise newException(
-      WebSocketError,
-      "Failed to create WebSocket from request: " & getCurrentExceptionMsg()
-    )
+  var ws = WebSocket(
+    tcpSocket: transp,
+    protocol: protocol,
+    masked: false,
+    rng: newRng(),
+    frameSize: frameSize)
+
+  await ws.handshake(header)
+  return ws
 
 proc encodeFrame(f: Frame): seq[byte] =
   ## Encodes a frame into a string buffer.
@@ -228,41 +238,36 @@ proc encodeFrame(f: Frame): seq[byte] =
 
 proc send*(
   ws: WebSocket,
-  data: seq[byte],
+  data: seq[byte] = @[],
   opcode = Opcode.Text): Future[void] {.async.} =
   ## Send a frame
   ##
 
-  try:
-    var maskKey: array[4, char]
-    if ws.masked:
-      maskKey = genMaskKey(ws.rng)
+  var maskKey: array[4, char]
+  if ws.masked:
+    maskKey = genMaskKey(ws.rng)
 
-    var inFrame = Frame(
-       fin: true,
-       rsv1: false,
-       rsv2: false,
-       rsv3: false,
-       opcode: opcode,
-       mask: ws.masked,
-       data: data,
-       maskKey: maskKey)
+  var inFrame = Frame(
+      fin: true,
+      rsv1: false,
+      rsv2: false,
+      rsv3: false,
+      opcode: opcode,
+      mask: ws.masked,
+      data: data,
+      maskKey: maskKey)
 
-    var frame = encodeFrame(inFrame)
-    const maxSize = 1024*1024
-    # Send stuff in 1 megabyte chunks to prevent IOErrors.
-    # This really large packets.
-    var i = 0
-    while i < frame.len:
-      let frameSize = min(frame.len, i + maxSize)
-      let res = await ws.tcpSocket.write(frame[i ..< frameSize])
-      if res != frameSize:
-        raise newException(ValueError, "Error while send websocket frame")
-      i += maxSize
-  except OSError, ValueError:
-    # Wrap all exceptions in a WebSocketError so its easy to catch
-    raise newException(WebSocketError, "Failed to send data: " &
-        getCurrentExceptionMsg())
+  var frame = encodeFrame(inFrame)
+  const maxSize = 1024*1024
+  # Send stuff in 1 megabyte chunks to prevent IOErrors.
+  # This really large packets.
+  var i = 0
+  while i < frame.len:
+    let frameSize = min(frame.len, i + maxSize)
+    let res = await ws.tcpSocket.write(frame[i ..< frameSize])
+    if res != frameSize:
+      raise newException(WSSendError, "Error while sending websocket frame")
+    i += maxSize
 
 proc send*(ws: WebSocket, data: string): Future[void] =
   send(ws, toBytes(data), Opcode.Text)
@@ -280,8 +285,14 @@ proc handleControl(ws: WebSocket, frame: Frame) {.async.} =
 
   # Process control frame payload.
   if frame.opcode == Ping:
+    if not isNil(ws.onPing):
+      ws.onPing(ws)
+
     await ws.send(data, Pong)
   elif frame.opcode == Pong:
+    if not isNil(ws.onPong):
+      ws.onPong(ws)
+
     discard
   elif frame.opcode == Close:
     await ws.close(false)
@@ -296,12 +307,12 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
     try:
       await ws.tcpSocket.readExactly(addr header[0], 2)
     except TransportUseClosedError:
-      ws.readyState = Closed
-      raise newException(WebSocketError, "Socket closed")
+      ws.readyState = ReadyState.Closed
+      raise newException(WSClosedError, "Socket closed")
 
     if header.len != 2:
-      ws.readyState = Closed
-      raise newException(WebSocketError, "Invalid websocket header length")
+      ws.readyState = ReadyState.Closed
+      raise newException(WSMalformedHeaderError, "Invalid websocket header length")
 
     let b0 = header[0].uint8
     let b1 = header[1].uint8
@@ -319,8 +330,8 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
 
     # If any of the rsv are set close the socket.
     if frame.rsv1 or frame.rsv2 or frame.rsv3:
-      ws.readyState = Closed
-      raise newException(WebSocketError, "WebSocket rsv mismatch")
+      ws.readyState = ReadyState.Closed
+      raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")
 
     # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
     var finalLen: uint64 = 0
@@ -347,7 +358,7 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
     if ws.masked == frame.mask:
       # Server sends unmasked but accepts only masked.
       # Client sends masked but accepts only unmasked.
-      raise newException(WebSocketError, "Socket mask mismatch")
+      raise newException(WSMaskMismatchError, "Socket mask mismatch")
 
     var maskKey = newSeq[byte](4)
     if frame.mask:
@@ -365,15 +376,17 @@ proc readFrame(ws: WebSocket): Future[Frame] {.async.} =
 
 proc close*(ws: WebSocket, initiator: bool = true) {.async.} =
   ## Close the Socket, sends close packet.
-  if ws.readyState == Closed:
+  if ws.readyState == ReadyState.Closed:
     discard ws.tcpSocket.closeWait()
     return
-  ws.readyState = Closed
-  await ws.send(@[], Close)
+
+  ws.readyState = ReadyState.Closed
+  await ws.send(opcode = Close)
   if initiator == true:
     let frame = await ws.readFrame()
-    if frame.opcode != Close:
-      echo "Different packet type"
+    if frame.opcode != Opcode.Close:
+      raise newException(WSOpcodeMismatchError, "Different packet type")
+
   await ws.close()
 
 proc readMessage*(msgReader: MsgReader,data: seq[byte]): MsgReader {.async.} =
@@ -493,20 +506,27 @@ proc receiveStrPacket*(ws: WebSocket): Future[seq[byte]] {.async.} =
 
   return read
 
-proc validateWSClientHandshake(
-  transp: StreamTransport,
-  header: HttpResponseHeader): void =
-  if header.code != ord(Http101):
-    raise newException(WebSocketError,
-          "Server did not reply with a websocket upgrade: " &
-          "Header code: " & $header.code &
-          "Header reason: " & header.reason() &
-          "Address: " & $transp.remoteAddress())
+proc recv*(ws: WebSocket, size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  while true:
+    var buf = newSeq[byte](ws.frameSize)
+    let read = await ws.recv(addr buf[0], buf.len)
+    if read <= 0:
+      break
+
+    buf.setLen(read)
+
+    if result.len + buf.len > size:
+      raise newException(WSMaxMessageSizeError, "Max message size exceeded")
+
+    result.add(buf)
 
 proc connect*(
   uri: Uri,
   protocols: seq[string] = @[],
-  version = WSDefaultVersion): Future[WebSocket] {.async.} =
+  version = WSDefaultVersion,
+  frameSize = WSDefaultFrameSize,
+  onPing: ControlCb = nil,
+  onPong: ControlCb = nil): Future[WebSocket] {.async.} =
   ## create a new websockets client
   ##
 
@@ -516,7 +536,7 @@ proc connect*(
   of "ws":
     uri.scheme = "http"
   else:
-    raise newException(WebSocketError, "uri scheme has to be 'ws'")
+    raise newException(WSWrongUriSchemeError, "uri scheme has to be 'ws'")
 
   var headers = newHttpHeaders({
     "Connection": "Upgrade",
@@ -534,27 +554,47 @@ proc connect*(
   var header = response.parseResponse()
   if header.failed():
     # Header could not be parsed
-    raise newException(WebSocketError, "Malformed header received: " &
+    raise newException(WSMalformedHeaderError, "Malformed header received: " &
         $client.transp.remoteAddress())
 
-  client.transp.validateWSClientHandshake(header)
+  if header.code != ord(Http101):
+    raise newException(WSFailedUpgradeError,
+          "Server did not reply with a websocket upgrade: " &
+          "Header code: " & $header.code &
+          "Header reason: " & header.reason() &
+          "Address: " & $client.transp.remoteAddress())
 
   # Client data should be masked.
   return WebSocket(
     tcpSocket: client.transp,
     readyState: Open,
     masked: true,
-    rng: newRng())
+    rng: newRng(),
+    frameSize: frameSize)
 
 proc connect*(
   host: string,
   port: Port,
   path: string,
-  protocols: seq[string] = @[]): Future[WebSocket] {.async.} =
+  protocols: seq[string] = @[],
+  version = WSDefaultVersion,
+  frameSize = WSDefaultFrameSize,
+  onPing: ControlCb = nil,
+  onPong: ControlCb = nil): Future[WebSocket] {.async.} =
+  ## Create a new websockets client
+  ## using a string path
+  ##
+
   var uri = "ws://" & host & ":" & $port
   if path.startsWith("/"):
     uri.add path
   else:
     uri.add "/" & path
 
-  return await connect(parseUri(uri), protocols)
+  return await connect(
+    parseUri(uri),
+    protocols,
+    version,
+    frameSize,
+    onPing,
+    onPong)
