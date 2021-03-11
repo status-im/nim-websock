@@ -1,30 +1,29 @@
 import ../src/ws, chronos, chronicles, httputils, stew/byteutils,
     ../src/http, unittest, strutils
 
-proc cb*(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+proc echoCb*(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
   info "Handling request:", uri = header.uri()
   if header.uri() == "/ws":
     info "Initiating web socket connection."
     try:
-      var ws = await newWebSocket(header, transp, "myfancyprotocol")
+      var ws = await createServer(header, transp, "myfancyprotocol")
       if ws.readyState == Open:
         info "Websocket handshake completed."
       else:
         error "Failed to open websocket connection."
         return
 
-      while ws.readyState == Open:
-        let recvData = await ws.receiveStrPacket()
-        info "Server:", state = ws.readyState
-        await ws.send(recvData)
+      let recvData = await ws.recv()
+      info "Server:", state = ws.readyState
+      await ws.send(recvData)
     except WebSocketError:
       error "WebSocket error:", exception = getCurrentExceptionMsg()
   discard await transp.sendHTTPResponse(HttpVersion11, Http200, "Connection established")
 
 proc sendRecvClientData*(wsClient: WebSocket, msg: string) {.async.} =
   try:
-    waitFor wsClient.sendStr(msg)
-    let recvData = waitFor wsClient.receiveStrPacket()
+    await wsClient.send(msg)
+    let recvData = await wsClient.recv()
     info "Websocket client state: ", state = wsClient.readyState
     let dataStr = string.fromBytes(recvData)
     require dataStr == msg
@@ -38,7 +37,7 @@ proc incorrectProtocolCB*(transp: StreamTransport, header: HttpRequestHeader) {.
     if header.uri() == "/ws":
         info "Initiating web socket connection."
         try:
-            var ws = await newWebSocket(header, transp, "myfancyprotocol")
+            var ws = await createServer(header, transp, "myfancyprotocol")
             require ws.readyState == ReadyState.Closed
         except WebSocketError:
             isErr = true;
