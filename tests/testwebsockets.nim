@@ -116,6 +116,32 @@ suite "Test transmission":
 
     await ws.send(testString)
 
+  test "Client - test reading simple frame":
+    let testString = "Hello!"
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
+
+      let ws = await createServer(header, transp, "proto")
+      await ws.send(testString)
+      await transp.closeWait()
+
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
+
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+
+    let res = await ws.recv()
+    check string.fromBytes(res) == testString
+
+suite "Test ping-pong":
+  teardown:
+    httpServer.stop()
+    await httpServer.closeWait()
+
   test "Client - test ping-pong control messages":
     var ping = false
     var pong = false
@@ -151,27 +177,6 @@ suite "Test transmission":
       ping
       pong
 
-  test "Client - test reading simple frame":
-    let testString = "Hello!"
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
-      let ws = await createServer(header, transp, "proto")
-      await ws.send(testString)
-      await transp.closeWait()
-
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
-
-    let ws = await connect(
-      "127.0.0.1",
-      Port(8888),
-      path = "/ws",
-      protocols = @["proto"])
-
-    let res = await ws.recv()
-    check string.fromBytes(res) == testString
-
   test "Client - test ping-pong control messages":
     var ping = false
     var pong = false
@@ -206,6 +211,7 @@ suite "Test transmission":
     check:
       ping
       pong
+
 
 suite "Test framing":
   teardown:
@@ -275,7 +281,6 @@ suite "Test Closing":
     await httpServer.closeWait()
 
   test "Server closing":
-    let testString = "Hello!"
     proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       check header.uri() == "/ws"
 
@@ -291,12 +296,10 @@ suite "Test Closing":
       path = "/ws",
       protocols = @["proto"])
 
-    await ws.send(testString)
     discard await ws.recv()
     check ws.readyState == ReadyState.Closed
 
   test "Client - test reading simple frame":
-    let testString = "Hello!"
     proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       check header.uri() == "/ws"
 

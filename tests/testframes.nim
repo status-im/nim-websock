@@ -1,10 +1,8 @@
+import unittest
+
 include ../src/ws
 include ../src/http
 include ../src/random
-#import chronos, chronicles, httputils, strutils, base64, std/sha1,
-#    streams, nativesockets, uri, times, chronos/timer, tables
-
-import unittest
 
 # TODO: Fix Test.
 
