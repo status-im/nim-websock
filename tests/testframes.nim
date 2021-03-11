@@ -185,16 +185,16 @@ suite "tests for encodeFrame()":
       maskKey: maskKey
     )) == toBytes("\130\127\34\169\1\0\0\0\0\0" & data)
 
-  # test "# masking":
-  #   let data = encodeFrame(Frame(
-  #     fin: true,
-  #     rsv1: false,
-  #     rsv2: false,
-  #     rsv3: false,
-  #     opcode: Opcode.Text,
-  #     mask: true,
-  #     data: toBytes("hi there"),
-  #     maskKey: ['\xCF', '\xD8', '\x05', 'e']
-  #   ))
+  test "# masking":
+    let data = encodeFrame(Frame(
+      fin: true,
+      rsv1: false,
+      rsv2: false,
+      rsv3: false,
+      opcode: Opcode.Text,
+      mask: true,
+      data: toBytes("hi there"),
+      maskKey: ['\xCF', '\xD8', '\x05', 'e']
+    ))
 
-  #   check data == toBytes("\129\136\207\216\5e\167\177%\17\167\189w\0")
+    check data == toBytes("\129\136\207\216\5e\167\177%\17\167\189w\0")
