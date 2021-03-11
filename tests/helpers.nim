@@ -2,19 +2,19 @@ import ../src/ws, chronos, chronicles, httputils, stew/byteutils,
     ../src/http, unittest, strutils
 
 proc echoCb*(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-  info "Handling request:", uri = header.uri()
+  debug "Handling request:", uri = header.uri()
   if header.uri() == "/ws":
-    info "Initiating web socket connection."
+    debug "Initiating web socket connection."
     try:
       var ws = await createServer(header, transp, "myfancyprotocol")
       if ws.readyState == Open:
-        info "Websocket handshake completed."
+        debug "Websocket handshake completed."
       else:
         error "Failed to open websocket connection."
         return
 
       let recvData = await ws.recv()
-      info "Server:", state = ws.readyState
+      debug "Server:", state = ws.readyState
       await ws.send(recvData)
     except WebSocketError:
       error "WebSocket error:", exception = getCurrentExceptionMsg()
@@ -24,7 +24,7 @@ proc sendRecvClientData*(wsClient: WebSocket, msg: string) {.async.} =
   try:
     await wsClient.send(msg)
     let recvData = await wsClient.recv()
-    info "Websocket client state: ", state = wsClient.readyState
+    debug "Websocket client state: ", state = wsClient.readyState
     let dataStr = string.fromBytes(recvData)
     require dataStr == msg
 
@@ -32,10 +32,10 @@ proc sendRecvClientData*(wsClient: WebSocket, msg: string) {.async.} =
     error "WebSocket error:", exception = getCurrentExceptionMsg()
 
 proc incorrectProtocolCB*(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-    info "Handling request:", uri = header.uri()
+    debug "Handling request:", uri = header.uri()
     var isErr = false;
     if header.uri() == "/ws":
-        info "Initiating web socket connection."
+        debug "Initiating web socket connection."
         try:
             var ws = await createServer(header, transp, "myfancyprotocol")
             require ws.readyState == ReadyState.Closed

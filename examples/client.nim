@@ -6,7 +6,7 @@ proc main() {.async.} =
     path = "/ws",
     protocols = @["myfancyprotocol"])
 
-  info "Websocket client: ", State = ws.readyState
+  debug "Websocket client: ", State = ws.readyState
 
   let reqData = "Hello Server"
   while true:
@@ -19,7 +19,7 @@ proc main() {.async.} =
 
       buff.setLen(read) # truncate buffer to size of read data
       let dataStr = string.fromBytes(buff)
-      info "Server:", data = dataStr
+      debug "Server:", data = dataStr
 
       assert dataStr == reqData
       return # bail out

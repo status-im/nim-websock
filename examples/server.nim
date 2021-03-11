@@ -1,16 +1,16 @@
 import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils
 
 proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-  info "Handling request:", uri = header.uri()
+  debug "Handling request:", uri = header.uri()
   if header.uri() == "/ws":
-    info "Initiating web socket connection."
+    debug "Initiating web socket connection."
     try:
       var ws = await createServer(header, transp, "myfancyprotocol")
       if ws.readyState != Open:
         error "Failed to open websocket connection."
         return
 
-      info "Websocket handshake completed."
+      debug "Websocket handshake completed."
       while true:
         # Only reads header for data frame.
         var buffer = newSeq[byte](100)
@@ -24,7 +24,7 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
           return
 
         recvData.setLen(read)
-        info "Response: ", data = string.fromBytes(recvData)
+        debug "Response: ", data = string.fromBytes(recvData)
         await ws.send(recvData)
 
     except WebSocketError:

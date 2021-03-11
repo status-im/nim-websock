@@ -164,12 +164,14 @@ proc validateRequest(
   return Success
 
 proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
-  ## Process transport data to the RPC server
+  ## Process transport data to the HTTP server
+  ##
+
   var httpServer = cast[HttpServer](server)
   var buffer = newSeq[byte](MaxHttpHeadersSize)
   var header: HttpRequestHeader
 
-  info "Received connection", address = $transp.remoteAddress()
+  debug "Received connection", address = $transp.remoteAddress()
   try:
     let hlenfut = transp.readUntil(addr buffer[0], MaxHttpHeadersSize,
         sep = HeaderSep)
@@ -194,7 +196,7 @@ proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
         return
       var vres = await validateRequest(transp, header)
       if vres == Success:
-        info "Received valid RPC request", address = $transp.remoteAddress()
+        debug "Received valid HTTP request", address = $transp.remoteAddress()
         # Call the user's callback.
         if httpServer.callback != nil:
           await httpServer.callback(transp, header)
