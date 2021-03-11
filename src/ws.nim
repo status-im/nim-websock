@@ -346,7 +346,7 @@ proc handleClose*(ws: WebSocket, frame: Frame) {.async.} =
       let ccode = uint16.fromBytesBE(data[0..<2]) # first two bytes are the status
       doAssert(ccode > 999, "No valid code in close message!")
       code = Status(ccode)
-      data = data[0..<2]
+      data = data[2..data.high]
 
     var rcode = Status.Fulfilled
     var reason = ""

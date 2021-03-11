@@ -355,3 +355,45 @@ suite "Test Closing":
       protocols = @["proto"])
 
     await ws.close()
+
+  test "Client closing with status":
+    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
+      check header.uri() == "/ws"
+
+      proc closeServer(
+        ws: WebSocket,
+        status: Status,
+        reason: string): CloseResult {.gcsafe.} =
+        check status == Status.Fulfilled
+
+        return (Status.TooBig, "Message too big!")
+
+      let ws = await createServer(
+        header,
+        transp,
+        "proto",
+        onClose = closeServer)
+
+      discard await ws.recv()
+
+    httpServer = newHttpServer("127.0.0.1:8888", cb)
+    httpServer.start()
+
+    proc clientClose(
+      ws: WebSocket,
+      status: Status,
+      reason: string): CloseResult {.gcsafe.} =
+      check status == Status.TooBig
+      check reason == "Message too big!"
+
+      return (Status.Fulfilled, "")
+
+    let ws = await connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"],
+      onClose = clientClose)
+
+    await ws.close()
+    check ws.readyState == ReadyState.Closed
