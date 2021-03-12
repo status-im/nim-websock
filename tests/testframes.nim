@@ -253,6 +253,28 @@ suite "Test control frames":
       rsv3: false,
       opcode: Opcode.Close,
       mask: false,
-      data: toBytes("hi there"),
+      data: @[3'u8, 232'u8] & toBytes("hi there"),
       maskKey: maskKey
-    )) == toBytes("\8\8hi there")
+    )) == toBytes("\136\10\3\232hi there")
+
+  test "Ping":
+    check encodeFrame(Frame(
+      fin: false,
+      rsv1: false,
+      rsv2: false,
+      rsv3: false,
+      opcode: Opcode.Ping,
+      mask: false,
+      maskKey: maskKey
+    )) == toBytes("\9\0")
+
+  test "Pong":
+    check encodeFrame(Frame(
+      fin: false,
+      rsv1: false,
+      rsv2: false,
+      rsv3: false,
+      opcode: Opcode.Pong,
+      mask: false,
+      maskKey: maskKey
+    )) == toBytes("\10\0")
