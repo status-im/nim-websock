@@ -118,13 +118,13 @@ type
     length: uint64            ## Message size.
     consumed: uint64          ## how much has been consumed from the frame
 
-  ControlCb* = proc(ws: WebSocket) {.gcsafe.}
+  ControlCb* = proc() {.gcsafe.}
 
   CloseResult* = tuple
     code: Status
     reason: string
 
-  CloseCb* = proc(ws: WebSocket, code: Status, reason: string):
+  CloseCb* = proc(code: Status, reason: string):
     CloseResult {.gcsafe.}
 
   WebSocket* = ref object
@@ -352,7 +352,7 @@ proc handleClose*(ws: WebSocket, frame: Frame) {.async.} =
     var reason = ""
     if not isNil(ws.onClose):
       try:
-        (rcode, reason) = ws.onClose(ws, code, string.fromBytes(data))
+        (rcode, reason) = ws.onClose(code, string.fromBytes(data))
       except CatchableError as exc:
         trace "Exception in Close callback, this is most likelly a bug", exc = exc.msg
 
@@ -375,7 +375,7 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
     of Opcode.Ping:
       if not isNil(ws.onPing):
         try:
-          ws.onPing(ws)
+          ws.onPing()
         except CatchableError as exc:
           trace "Exception in Ping callback, this is most likelly a bug", exc = exc.msg
 
@@ -383,7 +383,7 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
     of Opcode.Pong:
       if not isNil(ws.onPong):
         try:
-          ws.onPong(ws)
+          ws.onPong()
         except CatchableError as exc:
           trace "Exception in Pong callback, this is most likelly a bug", exc = exc.msg
     of Opcode.Close:

@@ -151,7 +151,7 @@ suite "Test ping-pong":
         header,
         transp,
         "proto",
-        onPong = proc(ws: WebSocket) =
+        onPong = proc() =
           pong = true
         )
 
@@ -166,7 +166,7 @@ suite "Test ping-pong":
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
-      onPing = proc(ws: WebSocket) =
+      onPing = proc() =
         ping = true
       )
 
@@ -185,7 +185,7 @@ suite "Test ping-pong":
         header,
         transp,
         "proto",
-        onPing = proc(ws: WebSocket) =
+        onPing = proc() =
           ping = true
         )
 
@@ -199,7 +199,7 @@ suite "Test ping-pong":
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
-      onPong = proc(ws: WebSocket) =
+      onPong = proc() =
         pong = true
       )
 
@@ -300,10 +300,7 @@ suite "Test Closing":
     proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       check header.uri() == "/ws"
 
-      proc closeServer(
-        ws: WebSocket,
-        status: Status,
-        reason: string): CloseResult {.gcsafe.} =
+      proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
         check status == Status.TooBig
         check reason == "Message too big!"
 
@@ -320,10 +317,7 @@ suite "Test Closing":
     httpServer = newHttpServer("127.0.0.1:8888", cb)
     httpServer.start()
 
-    proc clientClose(
-      ws: WebSocket,
-      status: Status,
-      reason: string): CloseResult {.gcsafe.} =
+    proc clientClose(status: Status, reason: string): CloseResult {.gcsafe.} =
       check status == Status.Fulfilled
 
       return (Status.TooBig, "Message too big!")
@@ -360,10 +354,7 @@ suite "Test Closing":
     proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       check header.uri() == "/ws"
 
-      proc closeServer(
-        ws: WebSocket,
-        status: Status,
-        reason: string): CloseResult {.gcsafe.} =
+      proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
         check status == Status.Fulfilled
 
         return (Status.TooBig, "Message too big!")
@@ -379,10 +370,7 @@ suite "Test Closing":
     httpServer = newHttpServer("127.0.0.1:8888", cb)
     httpServer.start()
 
-    proc clientClose(
-      ws: WebSocket,
-      status: Status,
-      reason: string): CloseResult {.gcsafe.} =
+    proc clientClose(status: Status, reason: string): CloseResult {.gcsafe.} =
       check status == Status.TooBig
       check reason == "Message too big!"
 
