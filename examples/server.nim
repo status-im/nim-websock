@@ -5,30 +5,25 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
   if header.uri() == "/ws":
     debug "Initiating web socket connection."
     try:
-      var ws = await createServer(header, transp, "myfancyprotocol")
+      var ws = await createServer(header, transp, "")
       if ws.readyState != Open:
         error "Failed to open websocket connection."
         return
 
       debug "Websocket handshake completed."
-      while true:
+      while ws.readyState == Open:
         # Only reads header for data frame.
-        var buffer = newSeq[byte](100)
-        var recvData: seq[byte]
-        let read = await ws.recv(addr buffer[0], buffer.len)
-        recvData.add(buffer)
-        if read <= 0:
+        var recvData = await ws.recv()
+        if recvData.len <= 0:
+          debug "Empty messages"
           break
 
-        if ws.readyState == ReadyState.Closed:
-          return
-
-        recvData.setLen(read)
-        debug "Response: ", data = string.fromBytes(recvData)
+        # debug "Response: ", data = string.fromBytes(recvData), size = recvData.len
+        debug "Response: ", size = recvData.len
         await ws.send(recvData)
 
-    except WebSocketError:
-      error "WebSocket error:", exception = getCurrentExceptionMsg()
+    except WebSocketError as exc:
+      error "WebSocket error:", exception = exc.msg
 
   discard await transp.sendHTTPResponse(HttpVersion11, Http200, "Hello World")
   await transp.closeWait()

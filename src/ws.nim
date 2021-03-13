@@ -1,7 +1,6 @@
 import std/[tables,
             strutils,
             uri,
-            sha1,
             parseutils]
 
 import pkg/[chronos,
@@ -11,6 +10,8 @@ import pkg/[chronos,
             stew/endians2,
             stew/base64,
             eth/keys]
+
+import pkg/nimcrypto/sha
 
 import ./random, ./http
 
@@ -40,8 +41,9 @@ const
   SHA1DigestSize* = 20
   WSHeaderSize* = 12
   WSDefaultVersion* = 13
-  WSDefaultFrameSize* = 256 # bytes
-  WSMaxMessageSize* = 1 shl 20 # 1mb
+  WSDefaultFrameSize* = 1 shl 20 # 1mb
+  WSMaxMessageSize* = 5 shl 20 # 5mb
+  WSGuid* = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 type
   ReadyState* {.pure.} = enum
@@ -95,14 +97,14 @@ type
     ProtocolError = 1002
     CannotAccept = 1003
     # 1004 reserved
-    NoStatus = 1005         # reserved for applications use
-    ClosedAbnormally = 1006 # reserved for applications use
+    NoStatus = 1005         # use by clients
+    ClosedAbnormally = 1006 # use by clients
     Inconsistent = 1007
     PolicyError = 1008
     TooBig = 1009
     NoExtensions = 1010
     UnexpectedError = 1011
-    TlsError                # reserved for application use
+    TlsError                # use by clients
     # 3000-3999 reserved for libs
     # 4000-4999 reserved for applications
 
@@ -141,7 +143,7 @@ type
     onPong: ControlCb
     onClose: CloseCb
 
-func remainder*(frame: Frame): uint64 =
+template remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
 
 proc unmask*(
@@ -152,7 +154,7 @@ proc unmask*(
   ##
 
   for i in 0 ..< data.len:
-    data[i] = (data[offset + i].uint8 xor maskKey[(offset + i) mod 4].uint8)
+    data[i] = (data[i].uint8 xor maskKey[(offset + i) mod 4].uint8)
 
 proc prepareCloseBody(code: Status, reason: string): seq[byte] =
   result = reason.toBytes
@@ -180,9 +182,8 @@ proc handshake*(
         "Protocol mismatch (expected: " & ws.protocol & ", got: " &
         wantProtocol & ")")
 
-  var acceptKey: string
-  let sh = secureHash(ws.key & "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-  acceptKey = Base64.encode(hexToByteArray[SHA1DigestSize]($sh))
+  let cKey = ws.key & WSGuid
+  let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
 
   var response = "HTTP/1.1 101 Web Socket Protocol Handshake" & CRLF
   response.add("Sec-WebSocket-Accept: " & acceptKey & CRLF)
@@ -286,6 +287,12 @@ proc send*(
   ## Send a frame
   ##
 
+  logScope:
+    opcode = opcode
+    dataSize = data.len
+
+  debug "Sending data to remote"
+
   var maskKey: array[4, char]
   if ws.masked:
     maskKey = genMaskKey(ws.rng)
@@ -354,7 +361,7 @@ proc handleClose*(ws: WebSocket, frame: Frame) {.async.} =
       try:
         (rcode, reason) = ws.onClose(code, string.fromBytes(data))
       except CatchableError as exc:
-        trace "Exception in Close callback, this is most likelly a bug", exc = exc.msg
+        debug "Exception in Close callback, this is most likelly a bug", exc = exc.msg
 
     # don't respong to a terminated connection
     if ws.readyState != ReadyState.Closing:
@@ -377,7 +384,7 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
         try:
           ws.onPing()
         except CatchableError as exc:
-          trace "Exception in Ping callback, this is most likelly a bug", exc = exc.msg
+          debug "Exception in Ping callback, this is most likelly a bug", exc = exc.msg
 
       await ws.send(@[], Opcode.Pong)
     of Opcode.Pong:
@@ -385,13 +392,13 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
         try:
           ws.onPong()
         except CatchableError as exc:
-          trace "Exception in Pong callback, this is most likelly a bug", exc = exc.msg
+          debug "Exception in Pong callback, this is most likelly a bug", exc = exc.msg
     of Opcode.Close:
       await ws.handleClose(frame)
     else:
       raiseAssert("Invalid control opcode")
   except CatchableError as exc:
-    trace "Exception handling control messages", exc = exc.msg
+    debug "Exception handling control messages", exc = exc.msg
     ws.readyState = ReadyState.Closed
     await ws.tcpSocket.closeWait()
 
@@ -407,6 +414,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       await ws.tcpSocket.readExactly(addr header[0], 2)
 
       if header.len != 2:
+        debug "Invalid websocket header length"
         raise newException(WSMalformedHeaderError, "Invalid websocket header length")
 
       let b0 = header[0].uint8
@@ -421,11 +429,14 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       frame.rsv2 = rsv2 in hf
       frame.rsv3 = rsv3 in hf
 
-      frame.opcode = (b0 and 0x0f).Opcode
+      let opcode = (b0 and 0x0f)
+      if opcode > ord(Opcode.high):
+        raise newException(WSOpcodeMismatchError, "Wrong opcode!")
+
+      frame.opcode = (opcode).Opcode
 
       # If any of the rsv are set close the socket.
       if frame.rsv1 or frame.rsv2 or frame.rsv3:
-        ws.readyState = ReadyState.Closed
         raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")
 
       # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
@@ -449,7 +460,6 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
 
       # Do we need to apply mask?
       frame.mask = (b1 and 0x80) == 0x80
-
       if ws.masked == frame.mask:
         # Server sends unmasked but accepts only masked.
         # Client sends masked but accepts only unmasked.
@@ -467,9 +477,11 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
         asyncSpawn ws.handleControl(frame) # process control frames
         continue
 
+      debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
+
       return frame
   except CatchableError as exc:
-    trace "Exception reading frame, dropping socket", exc = exc.msg
+    debug "Exception reading frame, dropping socket", exc = exc.msg
     ws.readyState = ReadyState.Closed
     await ws.tcpSocket.closeWait()
     raise exc
@@ -491,39 +503,42 @@ proc recv*(
   ## one byte is available
   ##
 
+  var consumed = 0
+  var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
-    # we might have to read more
-    # than one frame to fill the buffer
-    if isNil(ws.frame) or # no previous frame
-      (not isNil(ws.frame) and ws.frame.remainder() <= 0): # all has been consumed
-      ws.frame = await ws.readFrame()
+    while consumed < size:
+      # we might have to read more than
+      # one frame to fill the buffer
+      if isNil(ws.frame):
+        ws.frame = await ws.readFrame()
 
-    var consumed = 0.uint64
-    while consumed < size.uint64:
-      let len = min(size, ws.frame.remainder().int)
-      let read = await ws.tcpSocket.readOnce(data, len)
+      # all has been consumed from the frame
+      # read the next frame
+      if ws.frame.remainder() <= 0:
+        ws.frame = await ws.readFrame()
 
-      consumed += read.uint64
-      var castData = cast[ptr UncheckedArray[byte]](data)
+      let len = min(ws.frame.remainder().int, size - consumed)
+      let read = await ws.tcpSocket.readOnce(addr pbuffer[consumed], len)
+
+      if read <= 0:
+        continue
 
       # unmask data using offset
       unmask(
-        castData.toOpenArray(0, read - 1),
-        ws.frame.maskKey,
-        ws.frame.consumed.int)
+        pbuffer.toOpenArray(consumed, size - 1),
+        ws.frame.maskKey, consumed)
 
-      ws.frame.consumed += consumed.uint64
-
-      if ws.frame.fin:
-        ws.frame = nil
+      consumed += read
+      ws.frame.consumed += read.uint64
+      if ws.frame.fin and ws.frame.remainder().int <= 0:
         break
 
     return consumed.int
   except CancelledError as exc:
-    trace "Cancelling reading", exc = exc.msg
+    debug "Cancelling reading", exc = exc.msg
     raise exc
   except CatchableError as exc:
-    trace "Exception reading frames", exc = exc.msg
+    debug "Exception reading frames", exc = exc.msg
 
 proc recv*(
   ws: WebSocket,
@@ -557,16 +572,16 @@ proc recv*(
       if isNil(ws.frame):
         break
 
-      # we got the last frame in the sequence, exit
-      if ws.frame.fin:
+      # read the entire message, exit
+      if ws.frame.fin and ws.frame.remainder().int <= 0:
         break
   except WSMaxMessageSizeError as exc:
     raise exc
   except CancelledError as exc:
-    trace "Cancelling reading", exc = exc.msg
+    debug "Cancelling reading", exc = exc.msg
     raise exc
   except CatchableError as exc:
-    trace "Exception reading frames", exc = exc.msg
+    debug "Exception reading frames", exc = exc.msg
 
   return res
 
