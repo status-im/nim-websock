@@ -65,6 +65,7 @@ type
   WSMaxMessageSizeError* = object of WebSocketError
   WSClosedError* = object of WebSocketError
   WSSendError* = object of WebSocketError
+  WSPayloadTooLarge = object of WebSocketError
 
   Base16Error* = object of CatchableError
     ## Base16 specific exception type
@@ -101,7 +102,7 @@ type
     ClosedAbnormally = 1006 # use by clients
     Inconsistent = 1007
     PolicyError = 1008
-    TooBig = 1009
+    TooLarge = 1009
     NoExtensions = 1010
     UnexpectedError = 1011
     TlsError                # use by clients
@@ -287,6 +288,9 @@ proc send*(
   ## Send a frame
   ##
 
+  if ws.readyState == ReadyState.Closed:
+    raise newException(WSClosedError, "Socket is closed!")
+
   logScope:
     opcode = opcode
     dataSize = data.len
@@ -311,8 +315,6 @@ proc send*(
     return
 
   let maxSize = ws.frameSize
-  # Send stuff in 1 megabyte chunks to prevent IOErrors.
-  # This really large packets.
   var i = 0
   while i < data.len:
     let len = min(data.len, (maxSize + i))
@@ -376,6 +378,10 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
   ## handle control frames
   ##
 
+  if frame.length > 125:
+    raise newException(WSPayloadTooLarge,
+      "Control message payload is freater than 125 bytes!")
+
   try:
     # Process control frame payload.
     case frame.opcode:
@@ -386,6 +392,7 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
         except CatchableError as exc:
           debug "Exception in Ping callback, this is most likelly a bug", exc = exc.msg
 
+      # send pong to remote
       await ws.send(@[], Opcode.Pong)
     of Opcode.Pong:
       if not isNil(ws.onPong):
@@ -523,10 +530,11 @@ proc recv*(
       if read <= 0:
         continue
 
-      # unmask data using offset
-      unmask(
-        pbuffer.toOpenArray(consumed, size - 1),
-        ws.frame.maskKey, consumed)
+      if ws.frame.mask:
+        # unmask data using offset
+        unmask(
+          pbuffer.toOpenArray(consumed, size - 1),
+          ws.frame.maskKey, consumed)
 
       consumed += read
       ws.frame.consumed += read.uint64

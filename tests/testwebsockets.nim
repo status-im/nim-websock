@@ -301,7 +301,7 @@ suite "Test Closing":
       check header.uri() == "/ws"
 
       proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
-        check status == Status.TooBig
+        check status == Status.TooLarge
         check reason == "Message too big!"
 
         return (Status.Fulfilled, "")
@@ -320,7 +320,7 @@ suite "Test Closing":
     proc clientClose(status: Status, reason: string): CloseResult {.gcsafe.} =
       check status == Status.Fulfilled
 
-      return (Status.TooBig, "Message too big!")
+      return (Status.TooLarge, "Message too big!")
 
     let ws = await connect(
       "127.0.0.1",
@@ -357,7 +357,7 @@ suite "Test Closing":
       proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
         check status == Status.Fulfilled
 
-        return (Status.TooBig, "Message too big!")
+        return (Status.TooLarge, "Message too big!")
 
       let ws = await createServer(
         header,
@@ -371,7 +371,7 @@ suite "Test Closing":
     httpServer.start()
 
     proc clientClose(status: Status, reason: string): CloseResult {.gcsafe.} =
-      check status == Status.TooBig
+      check status == Status.TooLarge
       check reason == "Message too big!"
 
       return (Status.Fulfilled, "")

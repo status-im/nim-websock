@@ -3,8 +3,7 @@ import ../src/ws, nativesockets, chronos, os, chronicles, stew/byteutils
 proc main() {.async.} =
   let ws = await connect(
     "127.0.0.1", Port(8888),
-    path = "/ws",
-    protocols = @["myfancyprotocol"])
+    path = "/ws")
 
   debug "Websocket client: ", State = ws.readyState
 
