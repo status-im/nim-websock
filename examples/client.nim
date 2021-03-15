@@ -11,12 +11,10 @@ proc main() {.async.} =
   while true:
     try:
       await ws.send(reqData)
-      var buff = newSeq[byte](100)
-      let read = await ws.recv(addr buff[0], buff.len)
-      if read <= 0:
+      let buff = await ws.recv()
+      if buff.len <= 0:
         break
 
-      buff.setLen(read) # truncate buffer to size of read data
       let dataStr = string.fromBytes(buff)
       debug "Server:", data = dataStr
 
