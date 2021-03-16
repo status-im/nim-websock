@@ -14,6 +14,10 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
       while ws.readyState == Open:
         # Only reads header for data frame.
         var recvData = await ws.recv()
+        if ws.readyState == ReadyState.Closed:
+          debug "Websockets closed"
+          break
+
         if recvData.len <= 0:
           debug "Empty messages"
           break
