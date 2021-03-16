@@ -533,8 +533,9 @@ proc recv*(
       if ws.frame.mask:
         # unmask data using offset
         unmask(
-          pbuffer.toOpenArray(consumed, size - 1),
-          ws.frame.maskKey, consumed)
+          pbuffer.toOpenArray(consumed, (consumed + read) - 1),
+          ws.frame.maskKey,
+          consumed)
 
       consumed += read
       ws.frame.consumed += read.uint64
