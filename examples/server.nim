@@ -11,13 +11,9 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
         return
 
       debug "Websocket handshake completed."
-      while ws.readyState == Open:
+      while ws.readyState != ReadyState.Closed:
         # Only reads header for data frame.
         var recvData = await ws.recv()
-        if ws.readyState == ReadyState.Closed:
-          debug "Websockets closed"
-          break
-
         if recvData.len <= 0:
           debug "Empty messages"
           break
@@ -25,6 +21,7 @@ proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
         # debug "Response: ", data = string.fromBytes(recvData), size = recvData.len
         debug "Response: ", size = recvData.len
         await ws.send(recvData)
+        # await ws.close()
 
     except WebSocketError as exc:
       error "WebSocket error:", exception = exc.msg

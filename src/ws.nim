@@ -42,7 +42,7 @@ const
   WSHeaderSize* = 12
   WSDefaultVersion* = 13
   WSDefaultFrameSize* = 1 shl 20 # 1mb
-  WSMaxMessageSize* = 5 shl 20 # 5mb
+  WSMaxMessageSize* = 20 shl 20 # 20mb
   WSGuid* = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 type
@@ -565,7 +565,7 @@ proc recv*(
   ##
   var res: seq[byte]
   try:
-    while true:
+    while ws.readyState != ReadyState.Closed:
       var buf = newSeq[byte](ws.frameSize)
       let read = await ws.recv(addr buf[0], buf.len)
       if read <= 0:
