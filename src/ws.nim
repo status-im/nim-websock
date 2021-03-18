@@ -666,7 +666,6 @@ proc initiateHandshake(
   if resHeader.failed():
     # Header could not be parsed
     raise newException(WSMalformedHeaderError, "Malformed header received.")
-
   if resHeader.code != ord(Http101):
     raise newException(WSFailedUpgradeError,
           "Server did not reply with a websocket upgrade:" &

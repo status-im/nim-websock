@@ -12,7 +12,6 @@ let address = initTAddress("127.0.0.1:8888")
 suite "Test handshake":
   teardown:
     await server.closeWait()
-
   test "Test for incorrect protocol":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
@@ -214,13 +213,12 @@ suite "Test framing":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-
       let frame1 = await ws.readFrame()
       check not isNil(frame1)
       var data1 = newSeq[byte](frame1.remainder().int)
       let read1 = await ws.stream.reader.readOnce(addr data1[0], data1.len)
       check read1 == 5
-
+#
       let frame2 = await ws.readFrame()
       check not isNil(frame2)
       var data2 = newSeq[byte](frame2.remainder().int)
@@ -229,7 +227,6 @@ suite "Test framing":
 
       await ws.stream.closeWait()
       done.complete()
-
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -241,7 +238,6 @@ suite "Test framing":
       path = "/ws",
       protocols = @["proto"],
       frameSize = 5)
-
     await wsClient.send(testString)
     await done
 
@@ -268,7 +264,6 @@ suite "Test framing":
 
     expect WSMaxMessageSizeError:
       discard await wsClient.recv(5)
-
 suite "Test Closing":
   teardown:
     await server.closeWait()
@@ -338,6 +333,11 @@ suite "Test Closing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       discard await ws.recv()
+
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
     let res = HttpServerRef.new(
       address, cb)
