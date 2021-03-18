@@ -360,6 +360,11 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
+
     let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
