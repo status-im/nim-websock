@@ -14,5 +14,5 @@ requires "eth"
 requires "asynctest >= 0.2.0 & < 0.3.0"
 requires "nimcrypto"
 
-task lint, "format source files according to the official style guide":
-  exec "./lint.nims"
+task test, "run tests":
+  exec "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off ./tests/testall.nim"

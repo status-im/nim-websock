@@ -1,34 +1,30 @@
 import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils
 
 proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-  info "Handling request:", uri = header.uri()
+  debug "Handling request:", uri = header.uri()
   if header.uri() == "/ws":
-    info "Initiating web socket connection."
+    debug "Initiating web socket connection."
     try:
-      var ws = await newWebSocket(header, transp, "myfancyprotocol")
-      if ws.readyState == Open:
-        info "Websocket handshake completed."
-      else:
+      var ws = await createServer(header, transp, "")
+      if ws.readyState != Open:
         error "Failed to open websocket connection."
         return
 
-      while true:
+      debug "Websocket handshake completed."
+      while ws.readyState != ReadyState.Closed:
         # Only reads header for data frame.
-        let msgReader = await ws.nextMessageReader()
+        var recvData = await ws.recv()
+        if recvData.len <= 0:
+          debug "Empty messages"
+          break
 
-        # Read the frame payload in buffer.
-        let buffer = newSeq[byte](100)
-        var recvData :seq[byte]
-        while msgReader.error != EOFError:
-          msgReader.readMessage(buffer)
-          recvData.add buffer
-          if ws.readyState == ReadyState.Closed:
-            return
-        info "Response: ",  data = recvData
+        # debug "Response: ", data = string.fromBytes(recvData), size = recvData.len
+        debug "Response: ", size = recvData.len
         await ws.send(recvData)
+        # await ws.close()
 
-    except WebSocketError:
-      error "WebSocket error:", exception = getCurrentExceptionMsg()
+    except WebSocketError as exc:
+      error "WebSocket error:", exception = exc.msg
 
   discard await transp.sendHTTPResponse(HttpVersion11, Http200, "Hello World")
   await transp.closeWait()

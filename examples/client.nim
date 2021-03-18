@@ -1,21 +1,31 @@
 import ../src/ws, nativesockets, chronos, os, chronicles, stew/byteutils
 
-let wsClient = waitFor newWebsocketClient("127.0.0.1", Port(8888), path = "/ws",
-    protocols = @["myfancyprotocol"])
-info "Websocket client: ", State = wsClient.readyState
+proc main() {.async.} =
+  let ws = await connect(
+    "127.0.0.1", Port(8888),
+    path = "/ws")
 
-let reqData = "Hello Server"
-for idx in 1 .. 5:
-  try:
-    waitFor wsClient.sendStr(reqData)
-    let recvData = waitFor wsClient.receiveStrPacket()
-    let dataStr = string.fromBytes(recvData)
-    info "Server:", data = dataStr
-    assert dataStr == reqData
-  except WebSocketError:
-    error "WebSocket error:", exception = getCurrentExceptionMsg()
-  os.sleep(1000)
+  debug "Websocket client: ", State = ws.readyState
 
-# close the websocket
-waitFor wsClient.close()
+  let reqData = "Hello Server"
+  while true:
+    try:
+      await ws.send(reqData)
+      let buff = await ws.recv()
+      if buff.len <= 0:
+        break
 
+      let dataStr = string.fromBytes(buff)
+      debug "Server:", data = dataStr
+
+      assert dataStr == reqData
+      return # bail out
+    except WebSocketError as exc:
+      error "WebSocket error:", exception = exc.msg
+
+    await sleepAsync(100.millis)
+
+  # close the websocket
+  await ws.close()
+
+waitFor(main())
