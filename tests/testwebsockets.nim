@@ -1,65 +1,57 @@
-import std/strutils
-import pkg/[asynctest, chronos, httputils]
-import pkg/stew/byteutils
+import std/strutils,httputils
 
-import ../src/http,
-       ../src/ws,
-       ../src/random
+import pkg/[asynctest, 
+            chronos,
+            chronos/apps/http/httpserver, 
+            stew/byteutils]
+import  ../src/ws, ../src/stream
 
-import ./helpers
-
-var httpServer: HttpServer
+var server: HttpServerRef
+let address = initTAddress("127.0.0.1:8888")
 
 suite "Test handshake":
   teardown:
-    httpServer.stop()
-    await httpServer.closeWait()
-
+    await server.closeWait()
+    
   test "Test for incorrect protocol":
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
       expect WSProtoMismatchError:
-        var ws = await createServer(header, transp, "proto")
+        var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-      check await transp.sendHTTPResponse(
-        HttpVersion11,
-        Http200,
-        "Connection established")
-
-      await transp.closeWait()
-
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
+      discard await request.respond(Http200, "Connection established")
+    let res = HttpServerRef.new(
+    address, cb)
+    server = res.get()
+    server.start()
 
     expect WSFailedUpgradeError:
-      discard await connect(
+      discard await wsConnect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
         protocols = @["wrongproto"])
 
   test "Test for incorrect version":
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
       expect WSVersionError:
-        var ws = await createServer(header, transp, "proto")
+        var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-      check await transp.sendHTTPResponse(
-        HttpVersion11,
-        Http200,
-        "Connection established")
-
-      await transp.closeWait()
-
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
+      discard await request.respond( Http200,"Connection established")
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
     expect WSFailedUpgradeError:
-      discard await connect(
+      discard await wsConnect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
@@ -67,23 +59,25 @@ suite "Test handshake":
         version = 14)
 
   test "Test for client headers":
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      check request.headers.getString("Connection").toUpperAscii() == "Upgrade".toUpperAscii()
+      check request.headers.getString("Upgrade").toUpperAscii() == "websocket".toUpperAscii()
+      check request.headers.getString("Cache-Control").toUpperAscii() == "no-cache".toUpperAscii()
+      check request.headers.getString("Sec-WebSocket-Version") == $WSDefaultVersion
 
-      check header["Connection"].toUpperAscii() == "Upgrade".toUpperAscii()
-      check header["Upgrade"].toUpperAscii() == "websocket".toUpperAscii()
-      check header["Cache-Control"].toUpperAscii() == "no-cache".toUpperAscii()
-      check header["Sec-WebSocket-Version"] == $WSDefaultVersion
+      check request.headers.contains("Sec-WebSocket-Key")
 
-      check "Sec-WebSocket-Key" in header
+      discard await request.respond( Http200,"Connection established")
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
-      await transp.closeWait()
-
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
-
-    expect ValueError:
-      discard await connect(
+    expect WSFailedUpgradeError:
+      discard await wsConnect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
@@ -91,77 +85,79 @@ suite "Test handshake":
 
 suite "Test transmission":
   teardown:
-    httpServer.stop()
-    await httpServer.closeWait()
-
+    await server.closeWait()
   test "Server - test reading simple frame":
     let testString = "Hello!"
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(request, "proto")
+      let servRes = await ws.recv()
 
-      let ws = await createServer(header, transp, "proto")
-      let res = await ws.recv()
+      check string.fromBytes(servRes) == testString
+      await ws.close()
 
-      check string.fromBytes(res) == testString
-      await transp.closeWait()
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
-
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
-
-    await ws.send(testString)
+    await wsClient.send(testString)
 
   test "Client - test reading simple frame":
     let testString = "Hello!"
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
-      let ws = await createServer(header, transp, "proto")
+    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(request, "proto")
       await ws.send(testString)
-      await transp.closeWait()
+      await ws.stream.closeWait()
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
-
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
 
-    let res = await ws.recv()
-    check string.fromBytes(res) == testString
+    var clientRes = await wsClient.recv()
+    check string.fromBytes(clientRes) == testString
 
 suite "Test ping-pong":
   teardown:
-    httpServer.stop()
-    await httpServer.closeWait()
+    await server.closeWait()
 
   test "Server - test ping-pong control messages":
     var ping, pong = false
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
+    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
       let ws = await createServer(
-        header,
-        transp,
+        request,
         "proto",
         onPong = proc() =
           pong = true
         )
-
-      await ws.ping()
+      await ws.ping()  
       await ws.close()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -170,31 +166,31 @@ suite "Test ping-pong":
         ping = true
       )
 
-    discard await ws.recv()
-
+    discard await wsClient.recv()
     check:
       ping
       pong
 
   test "Client - test ping-pong control messages":
     var ping, pong = false
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
+    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
       let ws = await createServer(
-        header,
-        transp,
+        request,
         "proto",
         onPing = proc() =
           ping = true
         )
 
       discard await ws.recv()
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
-
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -203,103 +199,109 @@ suite "Test ping-pong":
         pong = true
       )
 
-    await ws.ping()
-    await ws.close()
-
+    await wsClient.ping()
+    await wsClient.close()
     check:
       ping
       pong
 
 suite "Test framing":
   teardown:
-    httpServer.stop()
-    await httpServer.closeWait()
+    await server.closeWait()
 
   test "should split message into frames":
     let testString = "1234567890"
     var done = newFuture[void]()
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
-      let ws = await createServer(header, transp, "proto")
-
+    proc cb(r: RequestFence): Future[HttpResponseRef]{.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(request, "proto")
+# 
       let frame1 = await ws.readFrame()
       check not isNil(frame1)
       var data1 = newSeq[byte](frame1.remainder().int)
-      let read1 = await ws.tcpSocket.readOnce(addr data1[0], data1.len)
+      let read1 = await ws.stream.reader.readOnce(addr data1[0], data1.len)
       check read1 == 5
-
+# 
       let frame2 = await ws.readFrame()
       check not isNil(frame2)
       var data2 = newSeq[byte](frame2.remainder().int)
-      let read2 = await ws.tcpSocket.readOnce(addr data2[0], data2.len)
+      let read2 = await ws.stream.reader.readOnce(addr data2[0], data2.len)
       check read2 == 5
 
-      await transp.closeWait()
+      await ws.stream.closeWait()
       done.complete()
-
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
-
-    let ws = await connect(
+#     
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
+# 
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
       frameSize = 5)
-
-    await ws.send(testString)
+# 
+    await wsClient.send(testString)
     await done
 
   test "should fail to read past max message size":
     let testString = "1234567890"
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
-      let ws = await createServer(header, transp, "proto")
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(request, "proto")
       await ws.send(testString)
-      await transp.closeWait()
+      await ws.stream.closeWait()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
 
     expect WSMaxMessageSizeError:
-      discard await ws.recv(5)
-
+      discard await wsClient.recv(5)
+    
 suite "Test Closing":
   teardown:
-    httpServer.stop()
-    await httpServer.closeWait()
+    await server.closeWait()
 
   test "Server closing":
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
-      let ws = await createServer(header, transp, "proto")
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(request, "proto")
       await ws.close()
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
-
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
 
-    discard await ws.recv()
-    check ws.readyState == ReadyState.Closed
+    discard await wsClient.recv()
+    check wsClient.readyState == ReadyState.Closed
 
   test "Server closing with status":
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
       proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
         check status == Status.TooLarge
         check reason == "Message too big!"
@@ -307,81 +309,82 @@ suite "Test Closing":
         return (Status.Fulfilled, "")
 
       let ws = await createServer(
-        header,
-        transp,
+        request,
         "proto",
         onClose = closeServer)
 
       await ws.close()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
     proc clientClose(status: Status, reason: string): CloseResult {.gcsafe.} =
       check status == Status.Fulfilled
-
       return (Status.TooLarge, "Message too big!")
 
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
       onClose = clientClose)
 
-    discard await ws.recv()
-    check ws.readyState == ReadyState.Closed
+    discard await wsClient.recv()
+    check wsClient.readyState == ReadyState.Closed
 
   test "Client closing":
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
-      let ws = await createServer(header, transp, "proto")
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(request, "proto")
       discard await ws.recv()
+      
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
-
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
-
-    await ws.close()
+    await wsClient.close()  
 
   test "Client closing with status":
-    proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-      check header.uri() == "/ws"
-
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
       proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
         check status == Status.Fulfilled
-
         return (Status.TooLarge, "Message too big!")
 
       let ws = await createServer(
-        header,
-        transp,
+        request,
         "proto",
         onClose = closeServer)
-
       discard await ws.recv()
 
-    httpServer = newHttpServer("127.0.0.1:8888", cb)
-    httpServer.start()
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
 
     proc clientClose(status: Status, reason: string): CloseResult {.gcsafe.} =
       check status == Status.TooLarge
       check reason == "Message too big!"
-
       return (Status.Fulfilled, "")
 
-    let ws = await connect(
+    let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
       onClose = clientClose)
 
-    await ws.close()
-    check ws.readyState == ReadyState.Closed
+    await wsClient.close()
+    check wsClient.readyState == ReadyState.Closed

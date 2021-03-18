@@ -1,8 +1,9 @@
-import ../src/ws, nativesockets, chronos, os, chronicles, stew/byteutils
+import ../src/ws, nativesockets, chronos,chronicles, stew/byteutils
 
 proc main() {.async.} =
-  let ws = await connect(
-    "127.0.0.1", Port(8888),
+  let ws = await wsConnect(
+    "127.0.0.1", 
+    Port(8888),
     path = "/ws")
 
   debug "Websocket client: ", State = ws.readyState
@@ -16,15 +17,15 @@ proc main() {.async.} =
         break
 
       let dataStr = string.fromBytes(buff)
-      debug "Server:", data = dataStr
+      debug "Server Response: ", data = dataStr
 
       assert dataStr == reqData
-      return # bail out
+      break
     except WebSocketError as exc:
       error "WebSocket error:", exception = exc.msg
 
-    await sleepAsync(100.millis)
-
+    await sleepAsync(100.millis)  
+    
   # close the websocket
   await ws.close()
 
