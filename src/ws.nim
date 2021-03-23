@@ -7,6 +7,7 @@ import pkg/[chronos,
             chronos/apps/http/httptable,
             chronos/apps/http/httpserver,
             chronos/streams/asyncstream,
+            chronos/streams/tlsstream,
             chronicles,
             httputils,
             stew/byteutils,
@@ -642,7 +643,8 @@ proc close*(
 proc initiateHandshake(
   uri: Uri,
   address: TransportAddress,
-  headers: HttpTable): Future[AsyncStream] {.async.} =
+  headers: HttpTable,
+  flags: set[TLSFlags] = {}): Future[AsyncStream] {.async.} =
   ## Initiate handshake with server
 
   var transp: StreamTransport
@@ -721,7 +723,7 @@ proc connect*(
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
   let address = initTAddress(uri.hostname & ":" & uri.port)
-  let stream = await initiateHandshake(uri, address, headers)
+  let stream = await initiateHandshake(uri, address, headers,flags)
 
   # Client data should be masked.
   return WebSocket(

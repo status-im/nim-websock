@@ -12,7 +12,6 @@ proc main() {.async.} =
         path = "/wss",
         protocols = @["myfancyprotocol"],
         flags = {NoVerifyHost,NoVerifyServerName})
-
     debug "Websocket client: ", State = ws.readyState
 
     let reqData = "Hello Server"
