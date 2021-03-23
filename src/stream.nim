@@ -47,7 +47,7 @@ proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
 proc closeWait*(wsStream : AsyncStream): Future[void] {.async.} =
   if not wsStream.writer.tsource.closed():
     await wsStream.writer.tsource.closeWait()
-  if not wsStream.writer.tsource.closed():
+  if not wsStream.reader.tsource.closed():
     await wsStream.reader.tsource.closeWait()
 
 # TODO: Implement stream read and write wrapper.

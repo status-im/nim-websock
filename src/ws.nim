@@ -150,7 +150,7 @@ type
 template remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
 
-proc toString*(ht: HttpTables): string =
+proc `$`(ht: HttpTables): string =
   ## Returns string representation of HttpTable/Ref.
   var res = ""
   for key,value in ht.stringItems(true):
@@ -645,7 +645,7 @@ proc initiateHandshake(
   
   let reader = newAsyncStreamReader(transp)
   let writer = newAsyncStreamWriter(transp)
-  requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & headers.toString()
+  requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
   await writer.write(requestHeader)
   let res = await reader.readHeaders()
   if res.len == 0:
