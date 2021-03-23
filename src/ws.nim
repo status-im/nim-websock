@@ -663,7 +663,7 @@ proc initiateHandshake(
   let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
 
   if uri.scheme == "https":
-    var tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
+    tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
     stream = AsyncStream(reader:tlsstream.reader,writer:tlsstream.writer)
     await tlsstream.writer.write(requestHeader)
     res = await tlsstream.reader.readHeaders()
