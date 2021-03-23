@@ -96,7 +96,7 @@ suite "Test transmission":
       let servRes = await ws.recv()
 
       check string.fromBytes(servRes) == testString
-      await ws.close()
+      await ws.stream.closeWait()
 
     let res = HttpServerRef.new(
       address, cb)
