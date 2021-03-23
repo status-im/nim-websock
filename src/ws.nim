@@ -7,6 +7,7 @@ import pkg/[chronos,
             chronos/apps/http/httptable,
             chronos/apps/http/httpserver,
             chronos/streams/asyncstream,
+            chronos/streams/tlsstream,
             chronicles,
             httputils,
             stew/byteutils,
@@ -133,7 +134,6 @@ type
 
   CloseCb* = proc(code: Status, reason: string):
     CloseResult {.gcsafe.}
-
   WebSocket* = ref object
     stream*: AsyncStream
     version*: uint
@@ -643,7 +643,8 @@ proc close*(
 proc initiateHandshake(
   uri: Uri,
   address: TransportAddress,
-  headers: HttpTable): Future[AsyncStream] {.async.} =
+  headers: HttpTable,
+  flags: set[TLSFlags] = {}): Future[AsyncStream] {.async.} =
   ## Initiate handshake with server
 
   var transp: StreamTransport
@@ -656,9 +657,21 @@ proc initiateHandshake(
 
   let reader = newAsyncStreamReader(transp)
   let writer = newAsyncStreamWriter(transp)
+  var stream: AsyncStream
+  var tlsStream:  TLSAsyncStream
+  var res: seq[byte]
   let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
-  await writer.write(requestHeader)
-  let res = await reader.readHeaders()
+
+  if uri.scheme == "https":
+    tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
+    stream = AsyncStream(reader:tlsstream.reader,writer:tlsstream.writer)
+    await tlsstream.writer.write(requestHeader)
+    res = await tlsstream.reader.readHeaders()
+  else:
+    stream = AsyncStream(reader:reader,writer:writer)
+    await stream.writer.write(requestHeader)
+    res = await stream.reader.readHeaders()
+
   if res.len == 0:
     raise newException(ValueError, "Empty response from server")
 
@@ -673,14 +686,13 @@ proc initiateHandshake(
           " Header reason: " & resHeader.reason() &
           " Address: " & $transp.remoteAddress())
 
-  return AsyncStream(
-    reader: reader,
-    writer: writer)
+  return stream
 
 proc connect*(
   _: type WebSocket,
   uri: Uri,
   protocols: seq[string] = @[],
+  flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
@@ -694,8 +706,10 @@ proc connect*(
   case uri.scheme
   of "ws":
     uri.scheme = "http"
+  of "wss":
+    uri.scheme = "https"
   else:
-    raise newException(WSWrongUriSchemeError, "uri scheme has to be 'ws'")
+    raise newException(WSWrongUriSchemeError, "uri scheme has to be 'ws' or 'wss'")
 
   var headerData = [
     ("Connection", "Upgrade"),
@@ -710,7 +724,7 @@ proc connect*(
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
   let address = initTAddress(uri.hostname & ":" & uri.port)
-  let stream = await initiateHandshake(uri, address, headers)
+  let stream = await initiateHandshake(uri, address, headers,flags)
 
   # Client data should be masked.
   return WebSocket(
@@ -747,6 +761,38 @@ proc connect*(
   return await WebSocket.connect(
     parseUri(uri),
     protocols,
+    {},
+    version,
+    frameSize,
+    onPing,
+    onPong,
+    onClose)
+
+proc webSocketTLSConnect*(
+  host: string,
+  port: Port,
+  path: string,
+  protocols: seq[string] = @[],
+  flags: set[TLSFlags] = {},
+  version = WSDefaultVersion,
+  frameSize = WSDefaultFrameSize,
+  onPing: ControlCb = nil,
+  onPong: ControlCb = nil,
+  onClose: CloseCb = nil): Future[WebSocket] {.async.} =
+  ## Create a new websockets client
+  ## using a string path
+  ##
+
+  var uri = "wss://" & host & ":" & $port
+  if path.startsWith("/"):
+    uri.add path
+  else:
+    uri.add "/" & path
+
+  return await wsConnect(
+    parseUri(uri),
+    protocols,
+    flags,
     version,
     frameSize,
     onPing,
