@@ -637,7 +637,6 @@ proc initiateHandshake(
   ## Initiate handshake with server
 
   var transp: StreamTransport
-  var requestHeader: string
   try:
     transp = await connect(address)
   except CatchableError as exc:
@@ -645,7 +644,7 @@ proc initiateHandshake(
   
   let reader = newAsyncStreamReader(transp)
   let writer = newAsyncStreamWriter(transp)
-  requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
+  let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
   await writer.write(requestHeader)
   let res = await reader.readHeaders()
   if res.len == 0:
