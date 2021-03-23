@@ -13,17 +13,19 @@ proc main() {.async.} =
         protocols = @["myfancyprotocol"],
         flags = {NoVerifyHost,NoVerifyServerName})
     
-    debug "Websocket TLS client: ", State = ws.readyState
+    debug "Websocket client: ", State = ws.readyState
 
     let reqData = "Hello Server"
     try:
+        echo "sending client "
         await ws.send(reqData)
         let buff = await ws.recv()
         if buff.len <= 0:
             break
     
+        # buff.setLen(read) # truncate buffer to size of read data
         let dataStr = string.fromBytes(buff)
-        debug "Server Response:", data = dataStr
+        debug "Server:", data = dataStr
     
         assert dataStr == reqData
         return # bail out

@@ -7,6 +7,7 @@ import pkg/[chronos,
             chronos/apps/http/httptable,
             chronos/apps/http/httpserver,
             chronos/streams/asyncstream,
+            chronos/streams/tlsstream,
             chronicles,
             httputils,
             stew/byteutils,
@@ -642,7 +643,8 @@ proc close*(
 proc initiateHandshake(
   uri: Uri,
   address: TransportAddress,
-  headers: HttpTable): Future[AsyncStream] {.async.} =
+  headers: HttpTable,
+  flags: set[TLSFlags] = {}): Future[AsyncStream] {.async.} =
   ## Initiate handshake with server
 
   var transp: StreamTransport
@@ -661,7 +663,7 @@ proc initiateHandshake(
   let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
 
   if uri.scheme == "https":
-    var tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
+    tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
     stream = AsyncStream(reader:tlsstream.reader,writer:tlsstream.writer)
     await tlsstream.writer.write(requestHeader)
     res = await tlsstream.reader.readHeaders()
@@ -669,7 +671,6 @@ proc initiateHandshake(
     stream = AsyncStream(reader:reader,writer:writer)
     await stream.writer.write(requestHeader)
     res = await stream.reader.readHeaders()
-
   if res.len == 0:
     raise newException(ValueError, "Empty response from server")
 
@@ -722,7 +723,7 @@ proc connect*(
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
   let address = initTAddress(uri.hostname & ":" & uri.port)
-  let stream = await initiateHandshake(uri, address, headers)
+  let stream = await initiateHandshake(uri, address, headers,flags)
 
   # Client data should be masked.
   return WebSocket(
@@ -777,6 +778,9 @@ proc webSocketTLSConnect*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil): Future[WebSocket] {.async.} =
+  ## Create a new websockets client
+  ## using a string path
+  ##
 
   var uri = "wss://" & host & ":" & $port
   if path.startsWith("/"):
