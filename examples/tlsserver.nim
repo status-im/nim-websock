@@ -60,8 +60,8 @@ Er1u9bKTUyeuYpqXr2BP9dqphwu8R4NFVUg6DIRpMFMsybaL7KAd4hD22RXCvc0m
 uLu7KODi+eW62MHqs4N2
 -----END CERTIFICATE-----
 """
-let secureKey = TLSPrivateKey.init(SecureKey)
-let secureCert = TLSCertificate.init(SecureCert)
+let secureKey* = TLSPrivateKey.init(SecureKey)
+let secureCert* = TLSCertificate.init(SecureCert)
 
 proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
     if r.isOk():
@@ -75,9 +75,8 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
                 if ws.readyState != Open:
                     error "Failed to open websocket connection."
                     return
-                debug "Websocket handshake completed."
+                debug "Websocket TLS handshake completed."
                 # Only reads header for data frame.
-                echo "receiving server "
                 let recvData = await ws.recv()
                 if recvData.len <= 0:
                     debug "Empty messages"
@@ -85,7 +84,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
 
                 if ws.readyState == ReadyState.Closed:
                     return
-                debug "Response: ", data = string.fromBytes(recvData)
+                debug "Client Response: ", data = string.fromBytes(recvData)
                 await ws.send(recvData)
             except WebSocketError:
                 error "WebSocket error:", exception = getCurrentExceptionMsg()
