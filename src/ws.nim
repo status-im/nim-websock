@@ -723,7 +723,7 @@ proc connect*(
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
   let address = initTAddress(uri.hostname & ":" & uri.port)
-  let stream = await initiateHandshake(uri, address, headers,flags)
+  let stream = await initiateHandshake(uri, address, headers, flags)
 
   # Client data should be masked.
   return WebSocket(
