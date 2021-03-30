@@ -79,6 +79,27 @@ suite "Test handshake":
         path = "/ws",
         protocols = @["proto"])
 
+  test "Test for incorrect scheme":
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      expect WSProtoMismatchError:
+        var ws = await createServer(request, "proto")
+        check ws.readyState == ReadyState.Closed
+
+      discard await request.respond(Http200, "Connection established")
+    let res = HttpServerRef.new(
+    address, cb)
+    server = res.get()
+    server.start()
+
+    let uri = "wx://127.0.0.1:8888/ws"
+    expect WSWrongUriSchemeError:
+      discard await wsConnect(
+        parseUri(uri),
+        protocols = @["proto"]) 
+
 suite "Test transmission":
   teardown:
     await server.closeWait()
