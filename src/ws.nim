@@ -663,7 +663,7 @@ proc initiateHandshake(
   let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
 
   if uri.scheme == "https":
-    tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
+    var tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
     stream = AsyncStream(reader:tlsstream.reader,writer:tlsstream.writer)
     await tlsstream.writer.write(requestHeader)
     res = await tlsstream.reader.readHeaders()
@@ -723,7 +723,7 @@ proc connect*(
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
   let address = initTAddress(uri.hostname & ":" & uri.port)
-  let stream = await initiateHandshake(uri, address, headers,flags)
+  let stream = await initiateHandshake(uri, address, headers, flags)
 
   # Client data should be masked.
   return WebSocket(
@@ -778,9 +778,6 @@ proc webSocketTLSConnect*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil): Future[WebSocket] {.async.} =
-  ## Create a new websockets client
-  ## using a string path
-  ##
 
   var uri = "wss://" & host & ":" & $port
   if path.startsWith("/"):

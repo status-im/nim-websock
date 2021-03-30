@@ -23,7 +23,6 @@ proc main() {.async.} =
         if buff.len <= 0:
             break
     
-        # buff.setLen(read) # truncate buffer to size of read data
         let dataStr = string.fromBytes(buff)
         debug "Server:", data = dataStr
     
