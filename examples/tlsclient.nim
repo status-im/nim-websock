@@ -22,7 +22,6 @@ proc main() {.async.} =
         let buff = await ws.recv()
         if buff.len <= 0:
             break
-
         let dataStr = string.fromBytes(buff)
         debug "Server:", data = dataStr
 
