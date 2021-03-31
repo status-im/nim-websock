@@ -202,7 +202,7 @@ proc handshake*(
   let cKey = ws.key & WSGuid
   let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
   
-  var headerData = @[("Connection", "Upgrade"),("Upgrade", "webSocket" ),
+  var headerData = [("Connection", "Upgrade"),("Upgrade", "webSocket" ),
                       ("Sec-WebSocket-Accept", acceptKey)]
   var headers = HttpTable.init(headerData)
   if ws.protocol != "":

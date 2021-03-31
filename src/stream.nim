@@ -26,16 +26,16 @@ proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
     else:
       let hlen = hlenfut.read()
       buffer.setLen(hlen)
-  except TransportLimitError:
+  except AsyncStreamLimitError:
     # size of headers exceeds `MaxHttpHeadersSize`
     debug "Maximum size of headers limit reached",
           address = rstream.tsource.remoteAddress()
     error = true
-  except TransportIncompleteError:
+  except AsyncStreamIncompleteError:
     # remote peer disconnected
     debug "Remote peer disconnected", address = rstream.tsource.remoteAddress()
     error = true
-  except TransportOsError as exc:
+  except AsyncStreamError as exc:
     debug "Problems with networking", address = rstream.tsource.remoteAddress(),
           error = exc.msg
     error = true
