@@ -1,4 +1,4 @@
-import std/strutils,httputils
+import std/strutils,httputils,random
 
 import pkg/[asynctest, 
             chronos,
@@ -133,9 +133,39 @@ suite "Test transmission":
     var clientRes = await wsClient.recv()
     check string.fromBytes(clientRes) == testString
 
+proc rndStr*(size: int): string =
+  for _ in .. size:
+    add(result, char(rand(int('A') .. int('z'))))
+
 suite "Test ping-pong":
   teardown:
     await server.closeWait()
+
+  test "Test payload message length":
+    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(
+        request,
+        "proto")
+
+      expect WSPayloadTooLarge:
+        discard await ws.recv()
+
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
+
+    let str = rndStr(126)
+    let wsClient = await wsConnect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+
+    await wsClient.send(toBytes(str), Opcode.Ping)  
 
   test "Server - test ping-pong control messages":
     var ping, pong = false

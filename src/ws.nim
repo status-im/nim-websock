@@ -68,7 +68,7 @@ type
   WSMaxMessageSizeError* = object of WebSocketError
   WSClosedError* = object of WebSocketError
   WSSendError* = object of WebSocketError
-  WSPayloadTooLarge = object of WebSocketError
+  WSPayloadTooLarge* = object of WebSocketError
 
   Base16Error* = object of CatchableError
     ## Base16 specific exception type
@@ -393,8 +393,9 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
   ##
 
   if frame.length > 125:
+    debug "Control message payload is greater than 125 bytes!"
     raise newException(WSPayloadTooLarge,
-      "Control message payload is freater than 125 bytes!")
+      "Control message payload is greater than 125 bytes!")
 
   try:
     # Process control frame payload.
@@ -494,12 +495,18 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
 
       # return the current frame if it's not one of the control frames
       if frame.opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
-        asyncSpawn ws.handleControl(frame) # process control frames
+        asyncCheck ws.handleControl(frame) # process control frames
         continue
 
       debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
 
       return frame
+  except WSPayloadTooLarge as exc:
+    debug "Handled payload too large exception", exc = exc.msg
+    raise exc
+  except WebSocketError as exc:
+    debug "Handled websocket exception", exc = exc.msg
+    raise exc
   except CatchableError as exc:
     debug "Exception reading frame, dropping socket", exc = exc.msg
     ws.readyState = ReadyState.Closed
