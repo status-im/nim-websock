@@ -3,7 +3,6 @@ import bearssl
 ## Random helpers: similar as in stdlib, but with BrHmacDrbgContext rng
 const randMax = 18_446_744_073_709_551_615'u64
 
-
 proc rand*(rng: var BrHmacDrbgContext, max: Natural): int =
   if max == 0: return 0
   var x: uint64

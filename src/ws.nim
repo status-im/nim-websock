@@ -132,7 +132,7 @@ type
 
   CloseCb* = proc(code: Status, reason: string):
     CloseResult {.gcsafe.}
- 
+
   WebSocket* = ref object
     stream*: AsyncStream
     version*: int
@@ -201,14 +201,14 @@ proc handshake*(
 
   let cKey = ws.key & WSGuid
   let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
-  
+
   var headerData = [("Connection", "Upgrade"),("Upgrade", "webSocket" ),
                       ("Sec-WebSocket-Accept", acceptKey)]
   var headers = HttpTable.init(headerData)
   if ws.protocol != "":
     headers.add("Sec-WebSocket-Protocol", ws.protocol)
 
-  try:  
+  try:
     discard await request.respond(httputils.Http101, "", headers)
   except CatchableError as exc:
     raise newException(WSHandshakeError, "Failed to sent handshake response. Error: " & exc.msg)
@@ -227,7 +227,10 @@ proc createServer*(
   if not request.headers.contains("Sec-WebSocket-Version"):
     raise newException(WSHandshakeError, "Missing version header")
 
-  let wsStream = AsyncStream(reader:request.connection.reader, writer:request.connection.writer)
+  let wsStream = AsyncStream(
+    reader: request.connection.reader,
+    writer: request.connection.writer)
+
   var ws = WebSocket(
     stream: wsStream,
     protocol: protocol,
@@ -568,8 +571,8 @@ proc recv*(
   ## Attempt to read a full message up to max `size`
   ## bytes in `frameSize` chunks.
   ##
-  ## If no `fin` flag ever arrives it will await until
-  ## either cancelled or the `fin` flag arrives.
+  ## If no `fin` flag arrives await until either
+  ## cancelled or the `fin` flag arrives.
   ##
   ## If message is larger than `size` a `WSMaxMessageSizeError`
   ## exception is thrown.
@@ -640,8 +643,10 @@ proc initiateHandshake(
   try:
     transp = await connect(address)
   except CatchableError as exc:
-    raise newException(TransportError, "Cannot connect to " & $transp.remoteAddress() & " Error: " & exc.msg)
-  
+    raise newException(
+      TransportError,
+      "Cannot connect to " & $transp.remoteAddress() & " Error: " & exc.msg)
+
   let reader = newAsyncStreamReader(transp)
   let writer = newAsyncStreamWriter(transp)
   let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
@@ -654,7 +659,7 @@ proc initiateHandshake(
   if resHeader.failed():
     # Header could not be parsed
     raise newException(WSMalformedHeaderError, "Malformed header received.")
-  
+
   if resHeader.code != ord(Http101):
     raise newException(WSFailedUpgradeError,
           "Server did not reply with a websocket upgrade:" &
@@ -662,7 +667,9 @@ proc initiateHandshake(
           " Header reason: " & resHeader.reason() &
           " Address: " & $transp.remoteAddress())
 
-  return AsyncStream(reader:reader,writer:writer)
+  return AsyncStream(
+    reader: reader,
+    writer: writer)
 
 proc wsConnect*(
   uri: Uri,
@@ -683,18 +690,18 @@ proc wsConnect*(
   else:
     raise newException(WSWrongUriSchemeError, "uri scheme has to be 'ws'")
 
-  var headerData = @[
+  var headerData = [
     ("Connection", "Upgrade"),
     ("Upgrade", "websocket"),
     ("Cache-Control", "no-cache"),
     ("Sec-WebSocket-Version", $version),
     ("Sec-WebSocket-Key", key)]
- 
+
   var headers = HttpTable.init(headerData)
 
   if protocols.len != 0:
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
-  
+
   let address = initTAddress(uri.hostname & ":" & uri.port)
   let stream = await initiateHandshake(uri, address, headers)
 

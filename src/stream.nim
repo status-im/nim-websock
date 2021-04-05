@@ -10,13 +10,13 @@ const
   HeaderSep = @[byte('\c'), byte('\L'), byte('\c'), byte('\L')]
   MaxHttpHeadersSize = 8192       # maximum size of HTTP headers in octets
 
-
 proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
   var buffer = newSeq[byte](MaxHttpHeadersSize)
   var error = false
   try:
-    let hlenfut = rstream.readUntil(addr buffer[0], MaxHttpHeadersSize,
-        sep = HeaderSep)
+    let hlenfut = rstream.readUntil(
+      addr buffer[0], MaxHttpHeadersSize,
+      sep = HeaderSep)
     let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
     if not ores:
       # Timeout
