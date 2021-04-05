@@ -14,7 +14,6 @@ import pkg/[chronos,
             stew/endians2,
             stew/base64,
             stew/base10,
-            eth/keys,
             nimcrypto/sha]
 
 import ./random, ./stream
