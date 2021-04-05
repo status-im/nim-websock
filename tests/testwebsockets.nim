@@ -22,7 +22,6 @@ suite "Test handshake":
         var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-      discard await request.respond(Http200, "Connection established")
     let res = HttpServerRef.new(
     address, cb)
     server = res.get()
@@ -44,7 +43,6 @@ suite "Test handshake":
         var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-      discard await request.respond( Http200,"Connection established")
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -70,7 +68,6 @@ suite "Test handshake":
 
       check request.headers.contains("Sec-WebSocket-Key")
 
-      discard await request.respond( Http200,"Connection established")
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
