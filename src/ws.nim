@@ -785,7 +785,7 @@ proc webSocketTLSConnect*(
   else:
     uri.add "/" & path
 
-  return await wsConnect(
+  return await WebSocket.connect(
     parseUri(uri),
     protocols,
     flags,

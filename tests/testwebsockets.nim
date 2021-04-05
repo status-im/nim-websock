@@ -96,7 +96,7 @@ suite "Test handshake":
 
     let uri = "wx://127.0.0.1:8888/ws"
     expect WSWrongUriSchemeError:
-      discard await wsConnect(
+      discard await WebSocket.connect(
         parseUri(uri),
         protocols = @["proto"])
 

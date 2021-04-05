@@ -42,6 +42,7 @@ proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
 
   if error:
     buffer.setLen(0)
+
   return buffer
 
 proc closeWait*(wsStream : AsyncStream): Future[void] {.async.} =
