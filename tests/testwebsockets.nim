@@ -98,7 +98,7 @@ suite "Test handshake":
     expect WSWrongUriSchemeError:
       discard await wsConnect(
         parseUri(uri),
-        protocols = @["proto"]) 
+        protocols = @["proto"])
 
 suite "Test transmission":
   teardown:
