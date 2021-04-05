@@ -134,6 +134,7 @@ type
 
   CloseCb* = proc(code: Status, reason: string):
     CloseResult {.gcsafe.}
+
   WebSocket* = ref object
     stream*: AsyncStream
     version*: uint
@@ -208,9 +209,11 @@ proc handshake*(
 
   let cKey = ws.key & WSGuid
   let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
+  var headerData = [
+    ("Connection", "Upgrade"),
+    ("Upgrade", "webSocket" ),
+    ("Sec-WebSocket-Accept", acceptKey)]
 
-  var headerData = [("Connection", "Upgrade"),("Upgrade", "webSocket" ),
-                      ("Sec-WebSocket-Accept", acceptKey)]
   var headers = HttpTable.init(headerData)
   if ws.protocol != "":
     headers.add("Sec-WebSocket-Protocol", ws.protocol)
@@ -655,22 +658,27 @@ proc initiateHandshake(
       TransportError,
       "Cannot connect to " & $transp.remoteAddress() & " Error: " & exc.msg)
 
+  let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
   let reader = newAsyncStreamReader(transp)
   let writer = newAsyncStreamWriter(transp)
   var stream: AsyncStream
-  var tlsStream:  TLSAsyncStream
-  var res: seq[byte]
-  let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
 
+  var res: seq[byte]
   if uri.scheme == "https":
-    var tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
-    stream = AsyncStream(reader:tlsstream.reader,writer:tlsstream.writer)
+    let tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
+    stream = AsyncStream(
+      reader: tlsstream.reader,
+      writer: tlsstream.writer)
+
     await tlsstream.writer.write(requestHeader)
     res = await tlsstream.reader.readHeaders()
   else:
-    stream = AsyncStream(reader:reader,writer:writer)
+    stream = AsyncStream(
+      reader: reader,
+      writer: writer)
     await stream.writer.write(requestHeader)
     res = await stream.reader.readHeaders()
+
   if res.len == 0:
     raise newException(ValueError, "Empty response from server")
 
@@ -678,6 +686,7 @@ proc initiateHandshake(
   if resHeader.failed():
     # Header could not be parsed
     raise newException(WSMalformedHeaderError, "Malformed header received.")
+
   if resHeader.code != ord(Http101):
     raise newException(WSFailedUpgradeError,
           "Server did not reply with a websocket upgrade:" &
