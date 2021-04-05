@@ -6,7 +6,7 @@ license = "MIT"
 skipDirs = @["examples", "test"]
 
 requires "nim >= 1.2.6"
-requires "chronos >= 2.5.2"
+requires "chronos >= 3.0.0"
 requires "httputils >= 0.2.0"
 requires "chronicles >= 0.10.0"
 requires "stew >= 0.1.0"
