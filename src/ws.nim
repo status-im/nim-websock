@@ -671,7 +671,8 @@ proc initiateHandshake(
     reader: reader,
     writer: writer)
 
-proc wsConnect*(
+proc connect*(
+  _: type WebSocket,
   uri: Uri,
   protocols: seq[string] = @[],
   version = WSDefaultVersion,
@@ -716,7 +717,8 @@ proc wsConnect*(
     onPong: onPong,
     onClose: onClose)
 
-proc wsConnect*(
+proc connect*(
+  _: type WebSocket,
   host: string,
   port: Port,
   path: string,
@@ -736,7 +738,7 @@ proc wsConnect*(
   else:
     uri.add "/" & path
 
-  return await wsConnect(
+  return await WebSocket.connect(
     parseUri(uri),
     protocols,
     version,

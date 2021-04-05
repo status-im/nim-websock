@@ -1,8 +1,8 @@
 import ../src/ws, nativesockets, chronos,chronicles, stew/byteutils
 
 proc main() {.async.} =
-  let ws = await wsConnect(
-    "127.0.0.1", 
+  let ws = await WebSocket.connect(
+    "127.0.0.1",
     Port(8888),
     path = "/ws")
 
@@ -24,8 +24,8 @@ proc main() {.async.} =
     except WebSocketError as exc:
       error "WebSocket error:", exception = exc.msg
 
-    await sleepAsync(100.millis)  
-    
+    await sleepAsync(100.millis)
+
   # close the websocket
   await ws.close()
 

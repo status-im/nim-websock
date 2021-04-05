@@ -28,7 +28,7 @@ suite "Test handshake":
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await wsConnect(
+      discard await WebSocket.connect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
@@ -49,7 +49,7 @@ suite "Test handshake":
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await wsConnect(
+      discard await WebSocket.connect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
@@ -74,7 +74,7 @@ suite "Test handshake":
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await wsConnect(
+      discard await WebSocket.connect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
@@ -100,7 +100,7 @@ suite "Test transmission":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -121,7 +121,7 @@ suite "Test transmission":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -154,7 +154,7 @@ suite "Test ping-pong":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -187,7 +187,7 @@ suite "Test ping-pong":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -235,7 +235,7 @@ suite "Test framing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -260,7 +260,7 @@ suite "Test framing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -285,7 +285,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -321,7 +321,7 @@ suite "Test Closing":
       check status == Status.Fulfilled
       return (Status.TooLarge, "Message too big!")
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -344,7 +344,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -376,7 +376,7 @@ suite "Test Closing":
       check reason == "Message too big!"
       return (Status.Fulfilled, "")
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
