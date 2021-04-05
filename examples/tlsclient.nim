@@ -3,7 +3,7 @@ import pkg/[chronos,
             chronicles,
             stew/byteutils]
 
-import ../src/ws
+import ../ws/ws
 
 proc main() {.async.} =
     let ws = await webSocketTLSConnect(

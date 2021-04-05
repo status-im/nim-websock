@@ -4,7 +4,7 @@ import pkg/[asynctest,
             chronos,
             chronos/apps/http/httpserver,
             stew/byteutils]
-import  ../src/ws, ../src/stream
+import  ../ws/ws, ../ws/stream
 
 var server: HttpServerRef
 let address = initTAddress("127.0.0.1:8888")

@@ -1,4 +1,4 @@
-import ../src/ws, nativesockets, chronos,chronicles, stew/byteutils
+import ../ws/ws, nativesockets, chronos,chronicles, stew/byteutils
 
 proc main() {.async.} =
   let ws = await WebSocket.connect(

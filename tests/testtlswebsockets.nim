@@ -4,9 +4,9 @@ import pkg/[asynctest,
             chronos,
             chronos/apps/http/shttpserver,
             stew/byteutils]
-import  ../src/ws,
+import  ../ws/ws,
         ../examples/[tlsserver, keys],
-        ../src/stream
+        ../ws/stream
 
 var server: SecureHttpServerRef
 let address = initTAddress("127.0.0.1:8888")

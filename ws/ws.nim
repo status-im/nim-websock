@@ -407,7 +407,7 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
 
   if frame.length > 125:
     raise newException(WSPayloadTooLarge,
-      "Control message payload is freater than 125 bytes!")
+      "Control message payload is greater than 125 bytes!")
 
   try:
     # Process control frame payload.
@@ -442,7 +442,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ##
 
   try:
-    while ws.readyState != ReadyState.Closed: # read until a data frame arrives
+    while ws.readyState != ReadyState.Closed:
       # Grab the header.
       var header = newSeq[byte](2)
       await ws.stream.reader.readExactly(addr header[0], 2)
