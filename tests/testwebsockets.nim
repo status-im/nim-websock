@@ -1,8 +1,8 @@
 import std/strutils,httputils
 
-import pkg/[asynctest, 
+import pkg/[asynctest,
             chronos,
-            chronos/apps/http/httpserver, 
+            chronos/apps/http/httpserver,
             stew/byteutils]
 import  ../src/ws, ../src/stream
 
@@ -12,7 +12,7 @@ let address = initTAddress("127.0.0.1:8888")
 suite "Test handshake":
   teardown:
     await server.closeWait()
-    
+
   test "Test for incorrect protocol":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
@@ -146,7 +146,7 @@ suite "Test ping-pong":
         onPong = proc() =
           pong = true
         )
-      await ws.ping()  
+      await ws.ping()
       await ws.close()
 
     let res = HttpServerRef.new(
@@ -214,13 +214,13 @@ suite "Test framing":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-# 
+
       let frame1 = await ws.readFrame()
       check not isNil(frame1)
       var data1 = newSeq[byte](frame1.remainder().int)
       let read1 = await ws.stream.reader.readOnce(addr data1[0], data1.len)
       check read1 == 5
-# 
+
       let frame2 = await ws.readFrame()
       check not isNil(frame2)
       var data2 = newSeq[byte](frame2.remainder().int)
@@ -229,19 +229,19 @@ suite "Test framing":
 
       await ws.stream.closeWait()
       done.complete()
-#     
+
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
     server.start()
-# 
+
     let wsClient = await wsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
       frameSize = 5)
-# 
+
     await wsClient.send(testString)
     await done
 
@@ -268,7 +268,7 @@ suite "Test framing":
 
     expect WSMaxMessageSizeError:
       discard await wsClient.recv(5)
-    
+
 suite "Test Closing":
   teardown:
     await server.closeWait()
@@ -338,7 +338,7 @@ suite "Test Closing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       discard await ws.recv()
-      
+
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -349,7 +349,7 @@ suite "Test Closing":
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
-    await wsClient.close()  
+    await wsClient.close()
 
   test "Client closing with status":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
