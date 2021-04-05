@@ -12,6 +12,7 @@ import pkg/[chronos,
             stew/byteutils,
             stew/endians2,
             stew/base64,
+            stew/base10,
             eth/keys,
             nimcrypto/sha]
 
@@ -135,7 +136,7 @@ type
 
   WebSocket* = ref object
     stream*: AsyncStream
-    version*: int
+    version*: uint
     key*: string
     protocol*: string
     readyState*: ReadyState
@@ -181,11 +182,17 @@ proc prepareCloseBody(code: Status, reason: string): seq[byte] =
 proc handshake*(
   ws: WebSocket,
   request: HttpRequestRef,
-  version = WSDefaultVersion) {.async.} =
+  version: uint = WSDefaultVersion) {.async.} =
   ## Handles the websocket handshake.
   ##
-  let reqHeaders = request.headers
-  discard parseSaturatedNatural(reqHeaders.getString("Sec-WebSocket-Version"), ws.version)
+  let
+    reqHeaders = request.headers
+
+  ws.version = Base10.decode(
+    uint,
+    reqHeaders.getString("Sec-WebSocket-Version"))
+    .tryGet() # this method throws
+
   if ws.version != version:
     raise newException(WSVersionError,
       "Websocket version not supported, Version: " &
