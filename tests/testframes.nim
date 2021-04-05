@@ -1,7 +1,6 @@
 import unittest
 
 include ../src/ws
-include ../src/http
 include ../src/random
 
 # TODO: Fix Test.

@@ -1,37 +1,48 @@
-import ../src/ws, ../src/http, chronos, chronicles, httputils, stew/byteutils
+ import pkg/[chronos,
+             chronos/apps/http/httpserver,
+             chronicles,
+             httputils,
+             stew/byteutils]
+import ../src/ws
 
-proc cb(transp: StreamTransport, header: HttpRequestHeader) {.async.} =
-  debug "Handling request:", uri = header.uri()
-  if header.uri() == "/ws":
-    debug "Initiating web socket connection."
-    try:
-      var ws = await createServer(header, transp, "")
-      if ws.readyState != Open:
-        error "Failed to open websocket connection."
-        return
+proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
+  if r.isOk():
+    let request = r.get()
+    debug "Handling request:", uri = request.uri.path
+    if request.uri.path == "/ws":
+      debug "Initiating web socket connection."
+      try:
+        var ws = await createServer(request,"")
+        if ws.readyState != Open:
+          error "Failed to open websocket connection."
+          return
+        debug "Websocket handshake completed."
+        while ws.readyState != ReadyState.Closed:
+          # Only reads header for data frame.
+          var recvData = await ws.recv()
+          if recvData.len <= 0:
+            debug "Empty messages"
+            break
 
-      debug "Websocket handshake completed."
-      while ws.readyState != ReadyState.Closed:
-        # Only reads header for data frame.
-        var recvData = await ws.recv()
-        if recvData.len <= 0:
-          debug "Empty messages"
-          break
-
-        # debug "Response: ", data = string.fromBytes(recvData), size = recvData.len
-        debug "Response: ", size = recvData.len
-        await ws.send(recvData)
-        # await ws.close()
-
-    except WebSocketError as exc:
-      error "WebSocket error:", exception = exc.msg
-
-  discard await transp.sendHTTPResponse(HttpVersion11, Http200, "Hello World")
-  await transp.closeWait()
+          # debug "Client Response: ", data = string.fromBytes(recvData), size = recvData.len
+          debug "Client Response: ", size = recvData.len
+          await ws.send(recvData)
+          # await ws.close()
+          
+      except WebSocketError as exc:
+        error "WebSocket error:", exception = exc.msg
+    discard await request.respond(Http200, "Hello World")
+  else:
+    return dumbResponse()
 
 when isMainModule:
-  let address = "127.0.0.1:8888"
-  var httpServer = newHttpServer(address, cb)
-  httpServer.start()
-  echo "Server started..."
-  waitFor httpServer.join()
+  let address = initTAddress("127.0.0.1:8888")
+  let socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
+  let res = HttpServerRef.new(
+    address, process,
+    socketFlags = socketFlags)
+ 
+  let server = res.get()
+  server.start()
+  info "Server listening at ", data = address
+  waitFor server.join()

@@ -4,16 +4,19 @@ import std/[tables,
             parseutils]
 
 import pkg/[chronos,
+            chronos/apps/http/httptable,
+            chronos/apps/http/httpserver,
+            chronos/streams/asyncstream,
             chronicles,
             httputils,
             stew/byteutils,
             stew/endians2,
             stew/base64,
-            eth/keys]
+            stew/base10,
+            eth/keys,
+            nimcrypto/sha]
 
-import pkg/nimcrypto/sha
-
-import ./random, ./http
+import ./random, ./stream
 
   #[
   +---------------------------------------------------------------+
@@ -44,6 +47,7 @@ const
   WSDefaultFrameSize* = 1 shl 20 # 1mb
   WSMaxMessageSize* = 20 shl 20 # 20mb
   WSGuid* = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+  CRLF* = "\r\n"
 
 type
   ReadyState* {.pure.} = enum
@@ -131,8 +135,8 @@ type
     CloseResult {.gcsafe.}
 
   WebSocket* = ref object
-    tcpSocket*: StreamTransport
-    version*: int
+    stream*: AsyncStream
+    version*: uint
     key*: string
     protocol*: string
     readyState*: ReadyState
@@ -146,6 +150,19 @@ type
 
 template remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
+
+proc `$`(ht: HttpTables): string =
+  ## Returns string representation of HttpTable/Ref.
+  var res = ""
+  for key,value in ht.stringItems(true):
+      res.add(key.normalizeHeaderName())
+      res.add(": ")
+      res.add(value)
+      res.add(CRLF)
+
+  ## add for end of header mark
+  res.add(CRLF)
+  res
 
 proc unmask*(
   data: var openArray[byte],
@@ -164,20 +181,26 @@ proc prepareCloseBody(code: Status, reason: string): seq[byte] =
 
 proc handshake*(
   ws: WebSocket,
-  header: HttpRequestHeader,
-  version = WSDefaultVersion) {.async.} =
+  request: HttpRequestRef,
+  version: uint = WSDefaultVersion) {.async.} =
   ## Handles the websocket handshake.
   ##
+  let
+    reqHeaders = request.headers
 
-  discard parseSaturatedNatural(header["Sec-WebSocket-Version"], ws.version)
+  ws.version = Base10.decode(
+    uint,
+    reqHeaders.getString("Sec-WebSocket-Version"))
+    .tryGet() # this method throws
+
   if ws.version != version:
     raise newException(WSVersionError,
       "Websocket version not supported, Version: " &
-      header["Sec-WebSocket-Version"])
+      reqHeaders.getString("Sec-WebSocket-Version"))
 
-  ws.key = header["Sec-WebSocket-Key"].strip()
-  if header.contains("Sec-WebSocket-Protocol"):
-    let wantProtocol = header["Sec-WebSocket-Protocol"].strip()
+  ws.key = reqHeaders.getString("Sec-WebSocket-Key").strip()
+  if reqHeaders.contains("Sec-WebSocket-Protocol"):
+    let wantProtocol = reqHeaders.getString("Sec-WebSocket-Protocol").strip()
     if ws.protocol != wantProtocol:
       raise newException(WSProtoMismatchError,
         "Protocol mismatch (expected: " & ws.protocol & ", got: " &
@@ -186,23 +209,20 @@ proc handshake*(
   let cKey = ws.key & WSGuid
   let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
 
-  var response = "HTTP/1.1 101 Web Socket Protocol Handshake" & CRLF
-  response.add("Sec-WebSocket-Accept: " & acceptKey & CRLF)
-  response.add("Connection: Upgrade" & CRLF)
-  response.add("Upgrade: webSocket" & CRLF)
-
+  var headerData = [("Connection", "Upgrade"),("Upgrade", "webSocket" ),
+                      ("Sec-WebSocket-Accept", acceptKey)]
+  var headers = HttpTable.init(headerData)
   if ws.protocol != "":
-    response.add("Sec-WebSocket-Protocol: " & ws.protocol & CRLF)
-  response.add CRLF
+    headers.add("Sec-WebSocket-Protocol", ws.protocol)
 
-  let res = await ws.tcpSocket.write(response)
-  if res != len(response):
-    raise newException(WSSendError, "Failed to send handshake response to client")
+  try:
+    discard await request.respond(httputils.Http101, "", headers)
+  except CatchableError as exc:
+    raise newException(WSHandshakeError, "Failed to sent handshake response. Error: " & exc.msg)
   ws.readyState = ReadyState.Open
 
 proc createServer*(
-  header: HttpRequestHeader,
-  transp: StreamTransport,
+  request: HttpRequestRef,
   protocol: string = "",
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
@@ -211,11 +231,15 @@ proc createServer*(
   ## Creates a new socket from a request.
   ##
 
-  if not header.contains("Sec-WebSocket-Version"):
+  if not request.headers.contains("Sec-WebSocket-Version"):
     raise newException(WSHandshakeError, "Missing version header")
 
+  let wsStream = AsyncStream(
+    reader: request.connection.reader,
+    writer: request.connection.writer)
+
   var ws = WebSocket(
-    tcpSocket: transp,
+    stream: wsStream,
     protocol: protocol,
     masked: false,
     rng: newRng(),
@@ -224,7 +248,7 @@ proc createServer*(
     onPong: onPong,
     onClose: onClose)
 
-  await ws.handshake(header)
+  await ws.handshake(request)
   return ws
 
 proc encodeFrame*(f: Frame): seq[byte] =
@@ -302,7 +326,7 @@ proc send*(
     maskKey = genMaskKey(ws.rng)
 
   if opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
-    discard await ws.tcpSocket.write(encodeFrame(Frame(
+    await ws.stream.writer.write(encodeFrame(Frame(
         fin: true,
         rsv1: false,
         rsv2: false,
@@ -328,7 +352,7 @@ proc send*(
         data: data[i ..< len],
         maskKey: maskKey)
 
-    discard await ws.tcpSocket.write(encodeFrame(inFrame))
+    await ws.stream.writer.write(encodeFrame(inFrame))
     i += len
 
 proc send*(ws: WebSocket, data: string): Future[void] =
@@ -347,7 +371,7 @@ proc handleClose*(ws: WebSocket, frame: Frame) {.async.} =
     var data = newSeq[byte](frame.length)
     if frame.length > 0:
       # Read the data.
-      await ws.tcpSocket.readExactly(addr data[0], int frame.length)
+      await ws.stream.reader.readExactly(addr data[0], int frame.length)
       unmask(data.toOpenArray(0, data.high), frame.maskKey)
 
     var code: Status
@@ -363,13 +387,13 @@ proc handleClose*(ws: WebSocket, frame: Frame) {.async.} =
       try:
         (rcode, reason) = ws.onClose(code, string.fromBytes(data))
       except CatchableError as exc:
-        debug "Exception in Close callback, this is most likelly a bug", exc = exc.msg
+        debug "Exception in Close callback, this is most likely a bug", exc = exc.msg
 
-    # don't respong to a terminated connection
+    # don't respond to a terminated connection
     if ws.readyState != ReadyState.Closing:
       await ws.send(prepareCloseBody(rcode, reason), Opcode.Close)
 
-    await ws.tcpSocket.closeWait()
+    await ws.stream.closeWait()
     ws.readyState = ReadyState.Closed
   else:
     raiseAssert("Invalid state during close!")
@@ -405,9 +429,9 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
     else:
       raiseAssert("Invalid control opcode")
   except CatchableError as exc:
-    debug "Exception handling control messages", exc = exc.msg
+    trace "Exception handling control messages", exc = exc.msg
     ws.readyState = ReadyState.Closed
-    await ws.tcpSocket.closeWait()
+    await ws.stream.closeWait()
 
 proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
@@ -418,8 +442,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
     while ws.readyState != ReadyState.Closed: # read until a data frame arrives
       # Grab the header.
       var header = newSeq[byte](2)
-      await ws.tcpSocket.readExactly(addr header[0], 2)
-
+      await ws.stream.reader.readExactly(addr header[0], 2)
       if header.len != 2:
         debug "Invalid websocket header length"
         raise newException(WSMalformedHeaderError, "Invalid websocket header length")
@@ -453,12 +476,12 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       if headerLen == 0x7e:
         # Length must be 7+16 bits.
         var length = newSeq[byte](2)
-        await ws.tcpSocket.readExactly(addr length[0], 2)
+        await ws.stream.reader.readExactly(addr length[0], 2)
         finalLen = uint16.fromBytesBE(length)
       elif headerLen == 0x7f:
         # Length must be 7+64 bits.
         var length = newSeq[byte](8)
-        await ws.tcpSocket.readExactly(addr length[0], 8)
+        await ws.stream.reader.readExactly(addr length[0], 8)
         finalLen = uint64.fromBytesBE(length)
       else:
         # Length must be 7 bits.
@@ -475,7 +498,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       var maskKey = newSeq[byte](4)
       if frame.mask:
         # Read the mask.
-        await ws.tcpSocket.readExactly(addr maskKey[0], 4)
+        await ws.stream.reader.readExactly(addr maskKey[0], 4)
         for i in 0..<maskKey.len:
           frame.maskKey[i] = cast[char](maskKey[i])
 
@@ -490,7 +513,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   except CatchableError as exc:
     debug "Exception reading frame, dropping socket", exc = exc.msg
     ws.readyState = ReadyState.Closed
-    await ws.tcpSocket.closeWait()
+    await ws.stream.closeWait()
     raise exc
 
 proc ping*(ws: WebSocket): Future[void] =
@@ -525,7 +548,7 @@ proc recv*(
         ws.frame = await ws.readFrame()
 
       let len = min(ws.frame.remainder().int, size - consumed)
-      let read = await ws.tcpSocket.readOnce(addr pbuffer[consumed], len)
+      let read = await ws.stream.reader.readOnce(addr pbuffer[consumed], len)
 
       if read <= 0:
         continue
@@ -555,8 +578,8 @@ proc recv*(
   ## Attempt to read a full message up to max `size`
   ## bytes in `frameSize` chunks.
   ##
-  ## If no `fin` flag ever arrives it will await until
-  ## either cancelled or the `fin` flag arrives.
+  ## If no `fin` flag arrives await until either
+  ## cancelled or the `fin` flag arrives.
   ##
   ## If message is larger than `size` a `WSMaxMessageSizeError`
   ## exception is thrown.
@@ -617,7 +640,46 @@ proc close*(
   except CatchableError as exc:
     debug "Exception closing", exc = exc.msg
 
+proc initiateHandshake(
+  uri: Uri,
+  address: TransportAddress,
+  headers: HttpTable): Future[AsyncStream] {.async.} =
+  ## Initiate handshake with server
+
+  var transp: StreamTransport
+  try:
+    transp = await connect(address)
+  except CatchableError as exc:
+    raise newException(
+      TransportError,
+      "Cannot connect to " & $transp.remoteAddress() & " Error: " & exc.msg)
+
+  let reader = newAsyncStreamReader(transp)
+  let writer = newAsyncStreamWriter(transp)
+  let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
+  await writer.write(requestHeader)
+  let res = await reader.readHeaders()
+  if res.len == 0:
+    raise newException(ValueError, "Empty response from server")
+
+  let resHeader = res.parseResponse()
+  if resHeader.failed():
+    # Header could not be parsed
+    raise newException(WSMalformedHeaderError, "Malformed header received.")
+
+  if resHeader.code != ord(Http101):
+    raise newException(WSFailedUpgradeError,
+          "Server did not reply with a websocket upgrade:" &
+          " Header code: " & $resHeader.code &
+          " Header reason: " & resHeader.reason() &
+          " Address: " & $transp.remoteAddress())
+
+  return AsyncStream(
+    reader: reader,
+    writer: writer)
+
 proc connect*(
+  _: type WebSocket,
   uri: Uri,
   protocols: seq[string] = @[],
   version = WSDefaultVersion,
@@ -636,35 +698,24 @@ proc connect*(
   else:
     raise newException(WSWrongUriSchemeError, "uri scheme has to be 'ws'")
 
-  var headers = newHttpHeaders({
-    "Connection": "Upgrade",
-    "Upgrade": "websocket",
-    "Cache-Control": "no-cache",
-    "Sec-WebSocket-Version": $version,
-    "Sec-WebSocket-Key": key
-  })
+  var headerData = [
+    ("Connection", "Upgrade"),
+    ("Upgrade", "websocket"),
+    ("Cache-Control", "no-cache"),
+    ("Sec-WebSocket-Version", $version),
+    ("Sec-WebSocket-Key", key)]
+
+  var headers = HttpTable.init(headerData)
 
   if protocols.len != 0:
-    headers.table["Sec-WebSocket-Protocol"] = @[protocols.join(", ")]
+    headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
-  let client = newHttpClient(headers)
-  var response = await client.request($uri, "GET", headers = headers)
-  var header = response.parseResponse()
-  if header.failed():
-    # Header could not be parsed
-    raise newException(WSMalformedHeaderError, "Malformed header received: " &
-        $client.transp.remoteAddress())
-
-  if header.code != ord(Http101):
-    raise newException(WSFailedUpgradeError,
-          "Server did not reply with a websocket upgrade: " &
-          "Header code: " & $header.code &
-          "Header reason: " & header.reason() &
-          "Address: " & $client.transp.remoteAddress())
+  let address = initTAddress(uri.hostname & ":" & uri.port)
+  let stream = await initiateHandshake(uri, address, headers)
 
   # Client data should be masked.
   return WebSocket(
-    tcpSocket: client.transp,
+    stream: stream,
     readyState: Open,
     masked: true,
     rng: newRng(),
@@ -674,6 +725,7 @@ proc connect*(
     onClose: onClose)
 
 proc connect*(
+  _: type WebSocket,
   host: string,
   port: Port,
   path: string,
@@ -693,7 +745,7 @@ proc connect*(
   else:
     uri.add "/" & path
 
-  return await connect(
+  return await WebSocket.connect(
     parseUri(uri),
     protocols,
     version,
