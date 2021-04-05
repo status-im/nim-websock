@@ -5,7 +5,7 @@ description = "WS protocol implementation"
 license = "MIT"
 skipDirs = @["examples", "test"]
 
-requires "nim == 1.2.6"
+requires "nim >= 1.2.6"
 requires "chronos >= 2.5.2"
 requires "httputils >= 0.2.0"
 requires "chronicles >= 0.10.0"
