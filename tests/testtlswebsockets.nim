@@ -4,13 +4,18 @@ import pkg/[asynctest,
             chronos,
             chronos/apps/http/shttpserver,
             stew/byteutils]
-import  ../src/ws, ../examples/tlsserver, ../src/stream
+import  ../src/ws,
+        ../examples/[tlsserver, keys],
+        ../src/stream
 
 var server: SecureHttpServerRef
 let address = initTAddress("127.0.0.1:8888")
 let serverFlags  = {Secure, NotifyDisconnect}
 let socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
 let clientFlags = {NoVerifyHost,NoVerifyServerName}
+
+let secureKey = TLSPrivateKey.init(SecureKey)
+let secureCert = TLSCertificate.init(SecureCert)
 
 suite "Test websocket TLS handshake":
   teardown:
