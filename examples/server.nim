@@ -20,9 +20,6 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
         while ws.readyState != ReadyState.Closed:
           # Only reads header for data frame.
           var recvData = waitFor ws.recv()
-          if recvData.len <= 0:
-            debug "Empty messages"
-            break
 
           # debug "Client Response: ", data = string.fromBytes(recvData), size = recvData.len
           debug "Client Response: ", size = recvData.len

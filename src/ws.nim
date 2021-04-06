@@ -368,13 +368,11 @@ proc handleClose*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async
   debug "Handling close sequence"
 
   var
-    code: Status 
+    code = Status.Fulfilled 
     reason = ""
 
   if payLoad.len == 1:
     raise newException(WSPayloadLength,"Invalid close frame with payload length 1!")
-  elif payLoad.len == 0:
-    code = Status.Fulfilled
   elif payLoad.len > 1:
     # first two bytes are the status
     let ccode = uint16.fromBytesBE(payLoad[0..<2])
