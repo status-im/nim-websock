@@ -1,7 +1,7 @@
-import unittest
+import unittest,sequtils, pkg/[chronicles]
 
 include ../src/ws
-include ../src/random
+include ../src/utils
 
 # TODO: Fix Test.
 

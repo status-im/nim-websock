@@ -3,7 +3,7 @@
              chronicles,
              httputils,
              stew/byteutils]
-import ../src/ws
+import ../src/[ws,stream]
 
 proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
   if r.isOk():
@@ -19,7 +19,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
         debug "Websocket handshake completed."
         while ws.readyState != ReadyState.Closed:
           # Only reads header for data frame.
-          var recvData = await ws.recv()
+          var recvData = waitFor ws.recv()
           if recvData.len <= 0:
             debug "Empty messages"
             break
@@ -27,7 +27,6 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
           # debug "Client Response: ", data = string.fromBytes(recvData), size = recvData.len
           debug "Client Response: ", size = recvData.len
           await ws.send(recvData)
-          # await ws.close()
           
       except WebSocketError as exc:
         error "WebSocket error:", exception = exc.msg
