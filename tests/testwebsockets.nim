@@ -12,6 +12,7 @@ let address = initTAddress("127.0.0.1:8888")
 suite "Test handshake":
   teardown:
     await server.closeWait()
+
   test "Test for incorrect protocol":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
@@ -21,8 +22,7 @@ suite "Test handshake":
         var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-    let res = HttpServerRef.new(
-    address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -42,8 +42,7 @@ suite "Test handshake":
         var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -67,8 +66,7 @@ suite "Test handshake":
 
       check request.headers.contains("Sec-WebSocket-Key")
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -84,13 +82,14 @@ suite "Test handshake":
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
+
       expect WSProtoMismatchError:
         var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
       discard await request.respond(Http200, "Connection established")
-    let res = HttpServerRef.new(
-    address, cb)
+
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -103,6 +102,7 @@ suite "Test handshake":
 suite "Test transmission":
   teardown:
     await server.closeWait()
+
   test "Server - test reading simple frame":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
@@ -113,10 +113,9 @@ suite "Test transmission":
       let servRes = await ws.recv()
 
       check string.fromBytes(servRes) == testString
-      await ws.stream.closeWait()
+      await ws.close()
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -135,9 +134,9 @@ suite "Test transmission":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       await ws.send(testString)
-      await ws.stream.closeWait()
-    let res = HttpServerRef.new(
-      address, cb)
+      await ws.close()
+
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -148,6 +147,7 @@ suite "Test transmission":
       protocols = @["proto"])
 
     var clientRes = await wsClient.recv()
+    await wsClient.close()
     check string.fromBytes(clientRes) == testString
 
 suite "Test ping-pong":
@@ -166,11 +166,11 @@ suite "Test ping-pong":
         onPong = proc() =
           pong = true
         )
+
       await ws.ping()
       await ws.close()
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -202,8 +202,8 @@ suite "Test ping-pong":
         )
 
       discard await ws.recv()
-    let res = HttpServerRef.new(
-      address, cb)
+
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -233,23 +233,24 @@ suite "Test framing":
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
+
       let ws = await createServer(request, "proto")
       let frame1 = await ws.readFrame()
       check not isNil(frame1)
       var data1 = newSeq[byte](frame1.remainder().int)
       let read1 = await ws.stream.reader.readOnce(addr data1[0], data1.len)
       check read1 == 5
-#
+
       let frame2 = await ws.readFrame()
       check not isNil(frame2)
       var data2 = newSeq[byte](frame2.remainder().int)
       let read2 = await ws.stream.reader.readOnce(addr data2[0], data2.len)
       check read2 == 5
 
-      await ws.stream.closeWait()
+      await ws.close()
       done.complete()
-    let res = HttpServerRef.new(
-      address, cb)
+
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -259,7 +260,9 @@ suite "Test framing":
       path = "/ws",
       protocols = @["proto"],
       frameSize = 5)
+
     await wsClient.send(testString)
+    await wsClient.close()
     await done
 
   test "should fail to read past max message size":
@@ -270,10 +273,9 @@ suite "Test framing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       await ws.send(testString)
-      await ws.stream.closeWait()
+      await ws.close()
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -285,6 +287,7 @@ suite "Test framing":
 
     expect WSMaxMessageSizeError:
       discard await wsClient.recv(5)
+
 suite "Test Closing":
   teardown:
     await server.closeWait()
@@ -296,8 +299,8 @@ suite "Test Closing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       await ws.close()
-    let res = HttpServerRef.new(
-      address, cb)
+
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -328,8 +331,7 @@ suite "Test Closing":
 
       await ws.close()
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -355,8 +357,7 @@ suite "Test Closing":
       let ws = await createServer(request, "proto")
       discard await ws.recv()
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -382,8 +383,7 @@ suite "Test Closing":
         onClose = closeServer)
       discard await ws.recv()
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
