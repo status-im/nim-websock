@@ -12,6 +12,7 @@ import pkg/[chronos,
             stew/byteutils,
             stew/endians2,
             stew/base64,
+            stew/base10,
             eth/keys,
             nimcrypto/sha]
 
@@ -138,7 +139,7 @@ type
  
   WebSocket* = ref object
     stream*: AsyncStream
-    version*: int
+    version*: uint
     key*: string
     protocol*: string
     readyState*: ReadyState
@@ -184,11 +185,17 @@ proc prepareCloseBody(code: Status, reason: string): seq[byte] =
 proc handshake*(
   ws: WebSocket,
   request: HttpRequestRef,
-  version = WSDefaultVersion) {.async.} =
+  version: uint = WSDefaultVersion) {.async.} =
   ## Handles the websocket handshake.
   ##
-  let reqHeaders = request.headers
-  discard parseSaturatedNatural(reqHeaders.getString("Sec-WebSocket-Version"), ws.version)
+  let
+    reqHeaders = request.headers
+
+  ws.version = Base10.decode(
+    uint,
+    reqHeaders.getString("Sec-WebSocket-Version"))
+    .tryGet() # this method throws
+
   if ws.version != version:
     raise newException(WSVersionError,
       "Websocket version not supported, Version: " &
@@ -204,14 +211,14 @@ proc handshake*(
 
   let cKey = ws.key & WSGuid
   let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
-  
-  var headerData = @[("Connection", "Upgrade"),("Upgrade", "webSocket" ),
+
+  var headerData = [("Connection", "Upgrade"),("Upgrade", "webSocket" ),
                       ("Sec-WebSocket-Accept", acceptKey)]
   var headers = HttpTable.init(headerData)
   if ws.protocol != "":
     headers.add("Sec-WebSocket-Protocol", ws.protocol)
 
-  try:  
+  try:
     discard await request.respond(httputils.Http101, "", headers)
   except CatchableError as exc:
     raise newException(WSHandshakeError, "Failed to sent handshake response. Error: " & exc.msg)
@@ -230,7 +237,10 @@ proc createServer*(
   if not request.headers.contains("Sec-WebSocket-Version"):
     raise newException(WSHandshakeError, "Missing version header")
 
-  let wsStream = AsyncStream(reader:request.connection.reader, writer:request.connection.writer)
+  let wsStream = AsyncStream(
+    reader: request.connection.reader,
+    writer: request.connection.writer)
+
   var ws = WebSocket(
     stream: wsStream,
     protocol: protocol,
@@ -400,8 +410,10 @@ proc handleClose*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async
     ws.readyState = ReadyState.Closing
     await ws.send(prepareCloseBody(rcode, reason), Opcode.Close)
 
-  await ws.stream.closeWait()
-  ws.readyState = ReadyState.Closed
+    await ws.stream.closeWait()
+    ws.readyState = ReadyState.Closed
+  else:
+    raiseAssert("Invalid state during close!")
 
 proc handleControl*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async.} =
   ## handle control frames
@@ -429,12 +441,14 @@ proc handleControl*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.asy
       await ws.handleClose(frame,payLoad)
     else:
       raiseAssert("Invalid control opcode")
+  except CatchableError as exc:
+    trace "Exception handling control messages", exc = exc.msg
+    ws.readyState = ReadyState.Closed
+    await ws.stream.closeWait()
 
   except WebSocketError as exc:
     debug "Handled websocket exception", exc = exc.msg
     raise exc
-  except CatchableError as exc:
-    trace "Exception handling control messages", exc = exc.msg
     
 proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
@@ -616,8 +630,8 @@ proc recv*(
   ## Attempt to read a full message up to max `size`
   ## bytes in `frameSize` chunks.
   ##
-  ## If no `fin` flag ever arrives it will await until
-  ## either cancelled or the `fin` flag arrives.
+  ## If no `fin` flag arrives await until either
+  ## cancelled or the `fin` flag arrives.
   ##
   ## If message is larger than `size` a `WSMaxMessageSizeError`
   ## exception is thrown.
@@ -689,8 +703,10 @@ proc initiateHandshake(
   try:
     transp = await connect(address)
   except CatchableError as exc:
-    raise newException(TransportError, "Cannot connect to " & $transp.remoteAddress() & " Error: " & exc.msg)
-  
+    raise newException(
+      TransportError,
+      "Cannot connect to " & $transp.remoteAddress() & " Error: " & exc.msg)
+
   let reader = newAsyncStreamReader(transp)
   let writer = newAsyncStreamWriter(transp)
   let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
@@ -703,7 +719,7 @@ proc initiateHandshake(
   if resHeader.failed():
     # Header could not be parsed
     raise newException(WSMalformedHeaderError, "Malformed header received.")
-  
+
   if resHeader.code != ord(Http101):
     raise newException(WSFailedUpgradeError,
           "Server did not reply with a websocket upgrade:" &
@@ -711,9 +727,12 @@ proc initiateHandshake(
           " Header reason: " & resHeader.reason() &
           " Address: " & $transp.remoteAddress())
 
-  return AsyncStream(reader:reader,writer:writer)
+  return AsyncStream(
+    reader: reader,
+    writer: writer)
 
-proc wsConnect*(
+proc connect*(
+  _: type WebSocket,
   uri: Uri,
   protocols: seq[string] = @[],
   version = WSDefaultVersion,
@@ -732,18 +751,18 @@ proc wsConnect*(
   else:
     raise newException(WSWrongUriSchemeError, "uri scheme has to be 'ws'")
 
-  var headerData = @[
+  var headerData = [
     ("Connection", "Upgrade"),
     ("Upgrade", "websocket"),
     ("Cache-Control", "no-cache"),
     ("Sec-WebSocket-Version", $version),
     ("Sec-WebSocket-Key", key)]
- 
+
   var headers = HttpTable.init(headerData)
 
   if protocols.len != 0:
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
-  
+
   let address = initTAddress(uri.hostname & ":" & uri.port)
   let stream = await initiateHandshake(uri, address, headers)
 
@@ -758,7 +777,8 @@ proc wsConnect*(
     onPong: onPong,
     onClose: onClose)
 
-proc wsConnect*(
+proc connect*(
+  _: type WebSocket,
   host: string,
   port: Port,
   path: string,
@@ -778,7 +798,7 @@ proc wsConnect*(
   else:
     uri.add "/" & path
 
-  return await wsConnect(
+  return await WebSocket.connect(
     parseUri(uri),
     protocols,
     version,

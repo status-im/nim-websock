@@ -10,13 +10,13 @@ const
   HeaderSep = @[byte('\c'), byte('\L'), byte('\c'), byte('\L')]
   MaxHttpHeadersSize = 8192       # maximum size of HTTP headers in octets
 
-
 proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
   var buffer = newSeq[byte](MaxHttpHeadersSize)
   var error = false
   try:
-    let hlenfut = rstream.readUntil(addr buffer[0], MaxHttpHeadersSize,
-        sep = HeaderSep)
+    let hlenfut = rstream.readUntil(
+      addr buffer[0], MaxHttpHeadersSize,
+      sep = HeaderSep)
     let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
     if not ores:
       # Timeout
@@ -26,16 +26,16 @@ proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
     else:
       let hlen = hlenfut.read()
       buffer.setLen(hlen)
-  except TransportLimitError:
+  except AsyncStreamLimitError:
     # size of headers exceeds `MaxHttpHeadersSize`
     debug "Maximum size of headers limit reached",
           address = rstream.tsource.remoteAddress()
     error = true
-  except TransportIncompleteError:
+  except AsyncStreamIncompleteError:
     # remote peer disconnected
     debug "Remote peer disconnected", address = rstream.tsource.remoteAddress()
     error = true
-  except TransportOsError as exc:
+  except AsyncStreamError as exc:
     debug "Problems with networking", address = rstream.tsource.remoteAddress(),
           error = exc.msg
     error = true

@@ -1,4 +1,4 @@
-import std/strutils,httputils,random
+import std/strutils,httputils
 
 import pkg/[asynctest, 
             chronos,
@@ -29,14 +29,13 @@ suite "Test handshake":
         var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-      discard await request.respond(Http200, "Connection established")
     let res = HttpServerRef.new(
     address, cb)
     server = res.get()
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await wsConnect(
+      discard await WebSocket.connect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
@@ -51,14 +50,13 @@ suite "Test handshake":
         var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-      discard await request.respond( Http200,"Connection established")
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await wsConnect(
+      discard await WebSocket.connect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
@@ -77,14 +75,13 @@ suite "Test handshake":
 
       check request.headers.contains("Sec-WebSocket-Key")
 
-      discard await request.respond( Http200,"Connection established")
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await wsConnect(
+      discard await WebSocket.connect(
         "127.0.0.1",
         Port(8888),
         path = "/ws",
@@ -125,6 +122,7 @@ suite "Test transmission":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       let servRes = await ws.recv()
+
       check string.fromBytes(servRes) == testString
       await ws.stream.closeWait()
 
@@ -133,7 +131,7 @@ suite "Test transmission":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -149,13 +147,13 @@ suite "Test transmission":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       await ws.send(testString)
-  
+      await ws.stream.closeWait()
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -163,7 +161,6 @@ suite "Test transmission":
 
     var clientRes = await wsClient.recv()
     check string.fromBytes(clientRes) == testString
-    await wsClient.close()
 
 suite "Test ping-pong":
   teardown:
@@ -242,7 +239,7 @@ suite "Test ping-pong":
         onPong = proc() =
           pong = true
         )
-      await ws.ping()  
+      await ws.ping()
       await ws.close()
 
     let res = HttpServerRef.new(
@@ -250,7 +247,7 @@ suite "Test ping-pong":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -283,7 +280,7 @@ suite "Test ping-pong":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -310,8 +307,18 @@ suite "Test framing":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let data = await ws.recv()
-      check string.fromBytes(data) == testString
+
+      let frame1 = await ws.readFrame()
+      check not isNil(frame1)
+      var data1 = newSeq[byte](frame1.remainder().int)
+      let read1 = await ws.stream.reader.readOnce(addr data1[0], data1.len)
+      check read1 == 5
+
+      let frame2 = await ws.readFrame()
+      check not isNil(frame2)
+      var data2 = newSeq[byte](frame2.remainder().int)
+      let read2 = await ws.stream.reader.readOnce(addr data2[0], data2.len)
+      check read2 == 5
 
       await ws.stream.closeWait()
       done.complete()
@@ -321,7 +328,12 @@ suite "Test framing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
+
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -346,7 +358,7 @@ suite "Test framing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -354,7 +366,7 @@ suite "Test framing":
 
     expect WSMaxMessageSizeError:
       discard await wsClient.recv(5)
-    
+
 suite "Test Closing":
   teardown:
     await server.closeWait()
@@ -371,7 +383,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -407,7 +419,7 @@ suite "Test Closing":
       check status == Status.Fulfilled
       return (Status.TooLarge, "Message too big!")
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -492,7 +504,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -546,7 +558,7 @@ suite "Test Closing":
       check reason == "Message too big!"
       return (Status.Fulfilled, "")
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
