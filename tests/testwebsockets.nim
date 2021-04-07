@@ -1,4 +1,4 @@
-import std/strutils,httputils
+import std/[strutils,random],httputils
 
 import pkg/[asynctest, 
             chronos,
@@ -106,7 +106,7 @@ suite "Test transmission":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -122,10 +122,7 @@ suite "Test transmission":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       let servRes = await ws.recv()
-
       check string.fromBytes(servRes) == testString
-      await ws.stream.closeWait()
-
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -147,7 +144,9 @@ suite "Test transmission":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       await ws.send(testString)
-      await ws.stream.closeWait()
+      await sleepAsync(100.millis)
+      await ws.close()
+
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -161,7 +160,6 @@ suite "Test transmission":
 
     var clientRes = await wsClient.recv()
     check string.fromBytes(clientRes) == testString
-
 suite "Test ping-pong":
   teardown:
     await server.closeWait() 
@@ -189,7 +187,7 @@ suite "Test ping-pong":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -320,14 +318,8 @@ suite "Test framing":
       let read2 = await ws.stream.reader.readOnce(addr data2[0], data2.len)
       check read2 == 5
 
-      await ws.stream.closeWait()
       done.complete()
     
-    let res = HttpServerRef.new(
-      address, cb)
-    server = res.get()
-    server.start()
-
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -342,6 +334,7 @@ suite "Test framing":
 
     await wsClient.send(testString)
     await done
+    await wsClient.close()
 
   test "should fail to read past max message size":
     let testString = "1234567890"
@@ -351,7 +344,7 @@ suite "Test framing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       await ws.send(testString)
-      await ws.stream.closeWait()
+      await sleepAsync(100.millis)
 
     let res = HttpServerRef.new(
       address, cb)
@@ -443,7 +436,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -464,7 +457,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -484,7 +477,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -525,7 +518,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -584,7 +577,7 @@ suite "Test Closing":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -605,8 +598,7 @@ suite "Test Payload":
         "proto")
 
       expect WSPayloadTooLarge:
-        discard waitFor ws.recv()
-      await ws.stream.closeWait()
+        discard await ws.recv()
 
     let res = HttpServerRef.new(
       address, cb)
@@ -614,13 +606,14 @@ suite "Test Payload":
     server.start()
 
     let str = rndStr(126)
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
 
-    await wsClient.send(toBytes(str), Opcode.Ping) 
+    await wsClient.send(toBytes(str), Opcode.Ping)
+    await sleepAsync(100.millis)
     
   test "Test empty payload message length":
     let emptyStr = ""
@@ -631,20 +624,20 @@ suite "Test Payload":
       let ws = await createServer(request,"proto")
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
-      await ws.stream.closeWait()
 
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
-    Port(8888),
+      Port(8888),
       path = "/ws",
       protocols = @["proto"])
 
     await wsClient.send(emptyStr)
+    await wsClient.close()
 
   test "Test multiple empty payload message length":
     let emptyStr = ""
@@ -662,7 +655,7 @@ suite "Test Payload":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
@@ -693,7 +686,7 @@ suite "Test Payload":
     server = res.get()
     server.start()
 
-    let wsClient = await wsConnect(
+    let wsClient = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",

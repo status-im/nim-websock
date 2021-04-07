@@ -74,6 +74,7 @@ type
   WSFragmentedControlFrameError* = object of WebSocketError
   WSInvalidCloseCode* = object of WebSocketError
   WSPayloadLength* = object of WebSocketError
+  WSInvalidOpcode* = object of WebSocketError
 
   Base16Error* = object of CatchableError
     ## Base16 specific exception type
@@ -339,7 +340,6 @@ proc send*(
         mask: ws.masked,
         data: data, # allow sending data with close messages
         maskKey: maskKey)))
-
     return
   
   let maxSize = ws.frameSize
@@ -409,11 +409,8 @@ proc handleClose*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async
   if ws.readyState != ReadyState.Closing:
     ws.readyState = ReadyState.Closing
     await ws.send(prepareCloseBody(rcode, reason), Opcode.Close)
-
-    await ws.stream.closeWait()
     ws.readyState = ReadyState.Closed
-  else:
-    raiseAssert("Invalid state during close!")
+    await ws.stream.closeWait()
 
 proc handleControl*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async.} =
   ## handle control frames
@@ -440,15 +437,15 @@ proc handleControl*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.asy
     of Opcode.Close:
       await ws.handleClose(frame,payLoad)
     else:
-      raiseAssert("Invalid control opcode")
-  except CatchableError as exc:
-    trace "Exception handling control messages", exc = exc.msg
-    ws.readyState = ReadyState.Closed
-    await ws.stream.closeWait()
+      raise newException(WSInvalidOpcode, "Invalid control opcode")
 
   except WebSocketError as exc:
     debug "Handled websocket exception", exc = exc.msg
     raise exc
+  except CatchableError as exc:
+    trace "Exception handling control messages", exc = exc.msg
+    ws.readyState = ReadyState.Closed
+    await ws.stream.closeWait()
     
 proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
@@ -616,6 +613,7 @@ proc recv*(
     return consumed.int
   except WebSocketError as exc:
     debug "Websocket error", exc = exc.msg
+    ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
     raise exc
   except CancelledError as exc:

@@ -18,12 +18,8 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
           return
         debug "Websocket handshake completed."
         while ws.readyState != ReadyState.Closed:
-          # Only reads header for data frame.
-          var recvData = await ws.recv()
-          if recvData.len <= 0:
-            debug "Empty messages"
-            break
 
+          var recvData = waitFor ws.recv()
           # debug "Client Response: ", data = string.fromBytes(recvData), size = recvData.len
           debug "Client Response: ", size = recvData.len
           await ws.send(recvData)
