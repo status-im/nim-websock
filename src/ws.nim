@@ -69,11 +69,11 @@ type
   WSClosedError* = object of WebSocketError
   WSSendError* = object of WebSocketError
   WSPayloadTooLarge* = object of WebSocketError
-  WSOpcodeReserverdError* = object of WebSocketError
+  WSReserverdOpcodeError* = object of WebSocketError
   WSFragmentedControlFrameError* = object of WebSocketError
-  WSInvalidCloseCode* = object of WebSocketError
-  WSPayloadLength* = object of WebSocketError
-  WSInvalidOpcode* = object of WebSocketError
+  WSInvalidCloseCodeError* = object of WebSocketError
+  WSPayloadLengthError* = object of WebSocketError
+  WSInvalidOpcodeError* = object of WebSocketError
 
   Base16Error* = object of CatchableError
     ## Base16 specific exception type
@@ -381,12 +381,12 @@ proc handleClose*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async
     reason = ""
 
   if payLoad.len == 1:
-    raise newException(WSPayloadLength,"Invalid close frame with payload length 1!")
+    raise newException(WSPayloadLengthError, "Payload is not a single characterInvalid close frame with payload length 1!")
   elif payLoad.len > 1:
     # first two bytes are the status
     let ccode = uint16.fromBytesBE(payLoad[0..<2])
     if ccode <= 999 or ccode > 1015:
-      raise newException(WSInvalidCloseCode,"Invalid code in close message!")
+      raise newException(WSInvalidCloseCodeError,"Invalid code in close message!")
     try:
       code = Status(ccode)
     except RangeError:
@@ -436,7 +436,7 @@ proc handleControl*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.asy
     of Opcode.Close:
       await ws.handleClose(frame, payLoad)
     else:
-      raise newException(WSInvalidOpcode, "Invalid control opcode")
+      raise newException(WSInvalidOpcodeError, "Invalid control opcode")
 
   except WebSocketError as exc:
     debug "Handled websocket exception", exc = exc.msg
@@ -478,7 +478,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       
       let frameOpcode = (opcode).Opcode
       if frameOpcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary, Opcode.Ping,Opcode.Pong,Opcode.Close}:
-        raise newException(WSOpcodeReserverdError, "Unknown opcode is received")
+        raise newException(WSReserverdOpcodeError, "Unknown opcode is received")
 
       frame.opcode = frameOpcode
 
@@ -538,7 +538,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
 
       return frame
-  except WSOpcodeReserverdError as exc:
+  except WSReserverdOpcodeError as exc:
     trace "Handled websocket opcode exception",exc = exc.msg
     raise exc
   except WSPayloadTooLarge as exc:
