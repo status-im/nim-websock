@@ -1,9 +1,9 @@
 import std/[strutils,random],httputils
 
-import pkg/[asynctest, 
+import pkg/[asynctest,
             chronos,
             chronicles,
-            chronos/apps/http/httpserver, 
+            chronos/apps/http/httpserver,
             stew/byteutils,
             eth/keys]
 
@@ -19,7 +19,7 @@ proc rndStr*(size: int): string =
 suite "Test handshake":
   teardown:
     await server.closeWait()
-    
+
   test "Test for incorrect protocol":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
@@ -98,7 +98,6 @@ suite "Test transmission":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       let servRes = await ws.recv()
-
       check string.fromBytes(servRes) == testString
 
     let res = HttpServerRef.new(
@@ -113,7 +112,7 @@ suite "Test transmission":
       protocols = @["proto"])
     await wsClient.send(testString)
     await wsClient.close()
-    
+
   test "Server - test reading simple frame":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
@@ -162,13 +161,13 @@ suite "Test transmission":
     check string.fromBytes(clientRes) == testString
 suite "Test ping-pong":
   teardown:
-    await server.closeWait() 
+    await server.closeWait()
   test "Send text Message fragmented into 2 fragments, one ping with payload in-between":
     var ping, pong = false
     let testString = "1234567890"
     let msg = toBytes(testString)
     let maxFrameSize = 5
-    var maskKey = genMaskKey(newRng())
+
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
       check r.isOk()
       let request = r.get()
@@ -197,6 +196,7 @@ suite "Test ping-pong":
         pong = true
       )
 
+    let maskKey = genMaskKey(newRng())
     let encframe = encodeFrame(Frame(
       fin: false,
       rsv1: false,
@@ -217,8 +217,8 @@ suite "Test ping-pong":
       opcode: Opcode.Cont,
       mask: true,
       data: msg[5..9],
-      maskKey: maskKey))  
-      
+      maskKey: maskKey))
+
     await wsClient.stream.writer.write(encframe1)
     await wsClient.close()
     check:
@@ -319,7 +319,7 @@ suite "Test framing":
       check read2 == 5
 
       done.complete()
-    
+
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -430,7 +430,7 @@ suite "Test Closing":
       let ws = await createServer(request, "proto")
       # Close with payload of length 2
       await ws.close(reason="HH")
-      
+
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -450,7 +450,7 @@ suite "Test Closing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       discard await ws.recv()
-      
+
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -461,7 +461,7 @@ suite "Test Closing":
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
-    await wsClient.close() 
+    await wsClient.close()
 
   test "Client closing with Payload of length 2":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
@@ -482,7 +482,7 @@ suite "Test Closing":
       path = "/ws",
       protocols = @["proto"])
        # Close with payload of length 2
-    await wsClient.close(reason="HH")  
+    await wsClient.close(reason="HH")
 
   test "Client closing with status":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
@@ -519,6 +519,34 @@ suite "Test Closing":
     await wsClient.close()
     check wsClient.readyState == ReadyState.Closed
 
+  test "Client closing with valid close code 3999":
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
+      check r.isOk()
+      let request = r.get()
+      check request.uri.path == "/ws"
+
+      proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
+        check status == Status.ReservedCode
+        return (Status.TooLarge, "Message too big!")
+
+      let ws = await createServer(
+        request,
+        "proto",
+        onClose = closeServer)
+      discard await ws.recv()
+
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
+
+    let wsClient = await WebSocket.connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+    await wsClient.close(code = Status.ReservedCode)
+
 suite "Test Payload":
   teardown:
     await server.closeWait()
@@ -549,8 +577,8 @@ suite "Test Payload":
 
     await wsClient.send(toBytes(str), Opcode.Ping)
     await sleepAsync(100.millis)
-    
-  test "Test empty payload message length":
+
+  test "Test single empty payload":
     let emptyStr = ""
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
       check r.isOk()
@@ -574,7 +602,7 @@ suite "Test Payload":
     await wsClient.send(emptyStr)
     await wsClient.close()
 
-  test "Test multiple empty payload message length":
+  test "Test multiple empty payload":
     let emptyStr = ""
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
       check r.isOk()
@@ -599,7 +627,7 @@ suite "Test Payload":
     for i in 0..3:
       await wsClient.send(emptyStr)
     await wsClient.close()
-    
+
   test "Send ping with small text payload":
     let testData = toBytes("Hello, world!")
     var ping, pong = false

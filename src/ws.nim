@@ -114,6 +114,7 @@ type
     NoExtensions = 1010
     UnexpectedError = 1011
     # 3000-3999 reserved for libs
+    ReservedCode = 3999 # Used for testing.
     # 4000-4999 reserved for applications
 
   Frame = ref object
@@ -377,7 +378,7 @@ proc handleClose*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async
   debug "Handling close sequence"
 
   var
-    code = Status.Fulfilled 
+    code = Status.Fulfilled
     reason = ""
 
   if payLoad.len == 1:
@@ -393,10 +394,10 @@ proc handleClose*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async
       code = Status.Fulfilled
     # remining payload bytes are reason for closing
     reason = string.fromBytes(payLoad[2..payLoad.high])
-  
-  var rcode: Status 
+
+  var rcode: Status
   if code in {Status.Fulfilled}:
-    rcode = Status.Fulfilled 
+    rcode = Status.Fulfilled
 
   if not isNil(ws.onClose):
     try:
@@ -525,7 +526,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
         if frame.length > 125:
           raise newException(WSPayloadTooLarge,
             "Control message payload is greater than 125 bytes!")
-        
+
         var payLoad = newSeq[byte](frame.length)
         # Read control frame payload.
         if frame.length > 0:
@@ -594,11 +595,11 @@ proc recv*(
 
         if ws.frame.opcode != Opcode.Cont:
           raise newException(WSOpcodeMismatchError, "expected continue frame")
-      
+
       if ws.frame.fin and ws.frame.remainder().int <= 0:
         ws.frame = nil
-        break  
-      
+        break
+
       let len = min(ws.frame.remainder().int, size - consumed)
       if len == 0:
         continue
