@@ -1,7 +1,6 @@
 import unittest,sequtils, pkg/[chronicles]
 
-include ../src/ws
-include ../src/utils
+include ../src/[ws,utils]
 
 # TODO: Fix Test.
 

@@ -1,7 +1,6 @@
 import std/[tables,
             strutils,
-            uri,
-            parseutils]
+            uri]
 
 import pkg/[chronos,
             chronos/apps/http/httptable,
