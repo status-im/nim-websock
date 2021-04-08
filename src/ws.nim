@@ -532,8 +532,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
           # Read data
           await ws.stream.reader.readExactly(addr payLoad[0], frame.length.int)
           unmask(payLoad.toOpenArray(0, payLoad.high), frame.maskKey)
-        # TODO: Fix this.
-        asyncCheck ws.handleControl(frame,payLoad) # process control frames
+        await ws.handleControl(frame,payLoad) # process control frames
         continue
 
       debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
@@ -581,10 +580,18 @@ proc recv*(
       # read the next frame
       if isNil(ws.frame):
         ws.frame = await ws.readFrame()
+        # This could happen if the connection is closed.
+        if isNil(ws.frame):
+          return consumed.int
+
         if ws.frame.opcode == Opcode.Cont:
           raise newException(WSOpcodeMismatchError, "first frame cannot be continue frame")
       elif (not ws.frame.fin and ws.frame.remainder() <= 0):
         ws.frame = await ws.readFrame()
+        # This could happen if the connection is closed.
+        if isNil(ws.frame):
+          return consumed.int
+
         if ws.frame.opcode != Opcode.Cont:
           raise newException(WSOpcodeMismatchError, "expected continue frame")
       
