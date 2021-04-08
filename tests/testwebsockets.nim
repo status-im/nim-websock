@@ -288,6 +288,8 @@ suite "Test framing":
     expect WSMaxMessageSizeError:
       discard await wsClient.recv(5)
 
+    await wsClient.close()
+
 suite "Test Closing":
   teardown:
     await server.closeWait()
