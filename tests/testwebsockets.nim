@@ -125,6 +125,7 @@ suite "Test transmission":
       path = "/ws",
       protocols = @["proto"])
     await wsClient.send(testString)
+    await wsClient.close()
 
   test "Client - test reading simple frame":
     let testString = "Hello!"

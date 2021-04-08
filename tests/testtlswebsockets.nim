@@ -10,9 +10,9 @@ import  ../ws/ws,
 
 var server: SecureHttpServerRef
 let address = initTAddress("127.0.0.1:8888")
-let serverFlags  = {Secure, NotifyDisconnect}
+let serverFlags  = {Secure}
 let socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
-let clientFlags = {NoVerifyHost,NoVerifyServerName}
+let clientFlags = {NoVerifyHost, NoVerifyServerName}
 
 let secureKey = TLSPrivateKey.init(SecureKey)
 let secureCert = TLSCertificate.init(SecureCert)
@@ -146,6 +146,7 @@ suite "Test websocket TLS transmission":
         clientFlags)
 
     await wsClient.send(testString)
+    await wsClient.close()
 
   test "Client - test reading simple frame":
     let testString = "Hello!"
@@ -176,3 +177,4 @@ suite "Test websocket TLS transmission":
 
     var clientRes = await wsClient.recv()
     check string.fromBytes(clientRes) == testString
+    await wsClient.close()
