@@ -436,7 +436,7 @@ proc handleControl*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.asy
     of Opcode.Close:
       await ws.handleClose(frame, payLoad)
     else:
-      raise newException(WSInvalidOpcodeError, "Invalid control opcode")
+      raise newException(WSInvalidOpcodeError, "Invalid control opcode!")
 
   except WebSocketError as exc:
     debug "Handled websocket exception", exc = exc.msg
@@ -478,7 +478,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       
       let frameOpcode = (opcode).Opcode
       if frameOpcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary, Opcode.Ping,Opcode.Pong,Opcode.Close}:
-        raise newException(WSReserverdOpcodeError, "Unknown opcode is received")
+        raise newException(WSReserverdOpcodeError, "Unknown opcode received!")
 
       frame.opcode = frameOpcode
 
@@ -521,7 +521,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       # return the current frame if it's not one of the control frames
       if frame.opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
         if not frame.fin:
-          raise newException(WSFragmentedControlFrameError, "Websocket fragmentation controlled fin error")
+          raise newException(WSFragmentedControlFrameError, "Control frame cannot be fragmented!")
         if frame.length > 125:
           raise newException(WSPayloadTooLarge,
             "Control message payload is greater than 125 bytes!")
@@ -585,7 +585,7 @@ proc recv*(
           return consumed.int
 
         if ws.frame.opcode == Opcode.Cont:
-          raise newException(WSOpcodeMismatchError, "first frame cannot be continue frame")
+          raise newException(WSOpcodeMismatchError, "First frame cannot be continue frame")
       elif (not ws.frame.fin and ws.frame.remainder() <= 0):
         ws.frame = await ws.readFrame()
         # This could happen if the connection is closed.
