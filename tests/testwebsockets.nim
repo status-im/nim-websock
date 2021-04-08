@@ -422,27 +422,6 @@ suite "Test Closing":
     discard await wsClient.recv()
     check wsClient.readyState == ReadyState.Closed
 
-  test "Server closing with Payload of length 1":
-    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
-      let request = r.get()
-      check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
-      # Close with payload of length 1
-      await ws.close(reason="H")
-
-    let res = HttpServerRef.new(
-      address, cb)
-    server = res.get()
-    server.start()
-
-    let wsClient = await WebSocket.connect(
-      "127.0.0.1",
-      Port(8888),
-      path = "/ws",
-      protocols = @["proto"])
-    discard await wsClient.recv()  
-
   test "Server closing with Payload of length 2":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
@@ -450,7 +429,7 @@ suite "Test Closing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       # Close with payload of length 2
-      await ws.close(reason="HH")  
+      await ws.close(reason="HH")
       
     let res = HttpServerRef.new(
       address, cb)
@@ -483,27 +462,6 @@ suite "Test Closing":
       path = "/ws",
       protocols = @["proto"])
     await wsClient.close() 
-
-  test "Client closing with Payload of length 1":
-    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
-      let request = r.get()
-      check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
-      discard await ws.recv()
-      
-    let res = HttpServerRef.new(
-      address, cb)
-    server = res.get()
-    server.start()
-
-    let wsClient = await WebSocket.connect(
-      "127.0.0.1",
-      Port(8888),
-      path = "/ws",
-      protocols = @["proto"])
-    # Close with payload of length 1
-    await wsClient.close(reason="H")  
 
   test "Client closing with Payload of length 2":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
@@ -560,29 +518,6 @@ suite "Test Closing":
 
     await wsClient.close()
     check wsClient.readyState == ReadyState.Closed
-
-  test "Client closing with valid close code 3999":
-    proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
-      check r.isOk()
-      let request = r.get()
-      check request.uri.path == "/ws"
-
-      let ws = await createServer(
-        request,
-        "proto")
-      discard await ws.recv()
-
-    let res = HttpServerRef.new(
-      address, cb)
-    server = res.get()
-    server.start()
-
-    let wsClient = await WebSocket.connect(
-      "127.0.0.1",
-      Port(8888),
-      path = "/ws",
-      protocols = @["proto"])
-    await wsClient.close()
 
 suite "Test Payload":
   teardown:
