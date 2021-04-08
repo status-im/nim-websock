@@ -136,7 +136,7 @@ type
 
   CloseCb* = proc(code: Status, reason: string):
     CloseResult {.gcsafe.}
- 
+
   WebSocket* = ref object
     stream*: AsyncStream
     version*: uint
@@ -340,7 +340,7 @@ proc send*(
         data: data, # allow sending data with close messages
         maskKey: maskKey)))
     return
-  
+
   let maxSize = ws.frameSize
   var i = 0
   while ws.readyState notin {ReadyState.Closing}:
@@ -434,7 +434,7 @@ proc handleControl*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.asy
         except CatchableError as exc:
           debug "Exception in Pong callback, this is most likelly a bug", exc = exc.msg
     of Opcode.Close:
-      await ws.handleClose(frame,payLoad)
+      await ws.handleClose(frame, payLoad)
     else:
       raise newException(WSInvalidOpcode, "Invalid control opcode")
 
@@ -445,7 +445,7 @@ proc handleControl*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.asy
     trace "Exception handling control messages", exc = exc.msg
     ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
-    
+
 proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
@@ -598,7 +598,7 @@ proc recv*(
       let read = await ws.stream.reader.readOnce(addr pbuffer[consumed], len)
       if read <= 0:
         continue
-      
+
       if ws.frame.mask:
         # unmask data using offset
         unmask(
