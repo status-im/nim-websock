@@ -219,8 +219,7 @@ jobs:
         if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
         run: |
           cd nim-ws
-          nim c -r examples/server.nim &
-          sleep 10
+          ./scripts/start_server.sh
           wstest --mode fuzzingclient --spec fuzzingclient.json
 
       - name: Deploy autobahn report.
