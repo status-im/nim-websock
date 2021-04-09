@@ -215,7 +215,9 @@ jobs:
 
       - name: Install Autobahn test suite
         if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
-        run: pip install autobahntestsuite
+        run: |
+          pip install virtualenv
+          pip install autobahntestsuite
 
       - name: Run Autobahn test suite.
         if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
