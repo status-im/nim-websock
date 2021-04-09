@@ -218,13 +218,14 @@ jobs:
       - name: Run Autobahn test suite.
         if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
         run: |
-          nim c -r examples/server.nim
-          cd autobahn
+          cd nim-ws
+          nim c -r examples/server.nim &
+          sleep 10
           wstest --mode fuzzingclient --spec fuzzingclient.json
 
       - name: Deploy autobahn report.
         if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
         uses: peaceiris/actions-gh-pages@v3
         with:
-          personal_token: ${{ secrets.DEPLOY_GH_TOKEN }}
+          personal_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./autobahn/reports/servers
