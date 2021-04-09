@@ -202,13 +202,13 @@ jobs:
           nimble test
 
       - name: Setup Python version
-        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
         uses: actions/setup-python@v2
         with:
           python-version: 2.7.17
 
       - name: Create and start virtual environment
-        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
         run: |
           pip install virtualenv
           virtualenv --python=/usr/bin/python2 autobahn
@@ -217,14 +217,14 @@ jobs:
           pip install autobahntestsuite
 
       - name: Run Autobahn test suite.
-        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
         run: |
           nim c -r examples/server.nim
           cd autobahn
           wstest --mode fuzzingclient --spec fuzzingclient.json
 
       - name: Deploy autobahn report.
-        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
         uses: peaceiris/actions-gh-pages@v3
         with:
           personal_token: ${{ secrets.DEPLOY_GH_TOKEN }}
