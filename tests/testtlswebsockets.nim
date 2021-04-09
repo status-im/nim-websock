@@ -124,9 +124,7 @@ suite "Test websocket TLS transmission":
         check request.uri.path == "/wss"
         let ws = await createServer(request, "proto")
         let servRes = await ws.recv()
-
         check string.fromBytes(servRes) == testString
-        await ws.close()
 
     let res = SecureHttpServerRef.new(
       address, cb,
