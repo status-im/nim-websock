@@ -35,7 +35,7 @@ jobs:
           - target:
               os: windows
             builder: windows-2019
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (${{ matrix.branch }})'
+    name: "${{ matrix.target.os }}-${{ matrix.target.cpu }} (${{ matrix.branch }})"
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout nim-ws
@@ -200,3 +200,33 @@ jobs:
           cd nim-ws
           nimble install -y --depsOnly
           nimble test
+
+      - name: Setup Python version
+        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        uses: actions/setup-python@v2
+        with:
+        python-version: 2.7.16
+
+      - name: Create and start virtual environment
+        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        run: |
+          virtualenv --python=/usr/bin/python2 autobahn
+          source autobahn/bin/activate
+
+      - name: Install Autobahn test suite
+        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        run: pip install autobahntestsuite
+
+      - name: Run Autobahn test suite.
+        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        run: |
+          nim c -r examples/server.nim
+          cd autobahn
+          wstest --mode fuzzingclient --spec fuzzingclient.json
+
+      - name: Deploy autobahn report.
+        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          personal_token: ${{ secrets.SEMANTIC_RELEASE_GH_TOKEN }}
+          publish_dir: ./autobahn/reports/servers
