@@ -10,7 +10,7 @@ import  ../ws/ws,
 
 var server: SecureHttpServerRef
 let address = initTAddress("127.0.0.1:8888")
-let serverFlags  = {Secure}
+let serverFlags  = {HttpServerFlags.Secure, HttpServerFlags.NotifyDisconnect}
 let socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
 let clientFlags = {NoVerifyHost, NoVerifyServerName}
 
@@ -23,14 +23,16 @@ suite "Test websocket TLS handshake":
 
   test "Test for websocket TLS incorrect protocol":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/wss"
       expect WSProtoMismatchError:
           var ws = await createServer(request, "proto")
           check ws.readyState == ReadyState.Closed
 
-      discard await request.respond(Http200, "Connection established")
+      return await request.respond(Http200, "Connection established")
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -52,14 +54,16 @@ suite "Test websocket TLS handshake":
 
   test "Test for websocket TLS incorrect version":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/wss"
       expect WSVersionError:
           var ws = await createServer(request, "proto")
           check ws.readyState == ReadyState.Closed
 
-      discard await request.respond( Http200,"Connection established")
+      return await request.respond(Http200, "Connection established")
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -72,13 +76,13 @@ suite "Test websocket TLS handshake":
     server.start()
 
     expect WSFailedUpgradeError:
-        discard await webSocketTLSConnect(
-            "127.0.0.1",
-            Port(8888),
-            path = "/wss",
-            protocols = @["wrongproto"],
-            clientFlags,
-            version = 14)
+      discard await webSocketTLSConnect(
+        "127.0.0.1",
+        Port(8888),
+        path = "/wss",
+        protocols = @["wrongproto"],
+        clientFlags,
+        version = 14)
 
   test "Test for websocket TLS client headers":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
@@ -119,12 +123,15 @@ suite "Test websocket TLS transmission":
   test "Server - test reading simple frame":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-        check r.isOk()
-        let request = r.get()
-        check request.uri.path == "/wss"
-        let ws = await createServer(request, "proto")
-        let servRes = await ws.recv()
-        check string.fromBytes(servRes) == testString
+      if r.isErr():
+        return
+
+      let request = r.get()
+      check request.uri.path == "/wss"
+      let ws = await createServer(request, "proto")
+      let servRes = await ws.recv()
+      check string.fromBytes(servRes) == testString
+      await ws.close()
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -137,11 +144,11 @@ suite "Test websocket TLS transmission":
     server.start()
 
     let wsClient = await webSocketTLSConnect(
-        "127.0.0.1",
-        Port(8888),
-        path = "/wss",
-        protocols = @["proto"],
-        clientFlags)
+      "127.0.0.1",
+      Port(8888),
+      path = "/wss",
+      protocols = @["proto"],
+      clientFlags)
 
     await wsClient.send(testString)
     await wsClient.close()
@@ -149,7 +156,42 @@ suite "Test websocket TLS transmission":
   test "Client - test reading simple frame":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
+      let request = r.get()
+      check request.uri.path == "/wss"
+      let ws = await createServer(request, "proto")
+      let servRes = await ws.recv()
+      check string.fromBytes(servRes) == testString
+      await ws.close()
+
+    let res = SecureHttpServerRef.new(
+      address, cb,
+      serverFlags = serverFlags,
+      socketFlags = socketFlags,
+      tlsPrivateKey = secureKey,
+      tlsCertificate = secureCert)
+
+    server = res.get()
+    server.start()
+
+    let wsClient = await webSocketTLSConnect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/wss",
+      protocols = @["proto"],
+      clientFlags)
+
+    await wsClient.send(testString)
+    await wsClient.close()
+
+  test "Client - test reading simple frame":
+    let testString = "Hello!"
+    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/wss"
       let ws = await createServer(request, "proto")

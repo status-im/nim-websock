@@ -11,11 +11,14 @@ let address = initTAddress("127.0.0.1:8888")
 
 suite "Test handshake":
   teardown:
+    await server.stop()
     await server.closeWait()
 
   test "Test for incorrect protocol":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       expect WSProtoMismatchError:
@@ -35,7 +38,9 @@ suite "Test handshake":
 
   test "Test for incorrect version":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       expect WSVersionError:
@@ -56,7 +61,9 @@ suite "Test handshake":
 
   test "Test for client headers":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       check request.headers.getString("Connection").toUpperAscii() == "Upgrade".toUpperAscii()
@@ -79,7 +86,9 @@ suite "Test handshake":
 
   test "Test for incorrect scheme":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
 
@@ -87,7 +96,7 @@ suite "Test handshake":
         var ws = await createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
-      discard await request.respond(Http200, "Connection established")
+      return await request.respond(Http200, "Connection established")
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -106,7 +115,9 @@ suite "Test transmission":
   test "Server - test reading simple frame":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
@@ -130,7 +141,9 @@ suite "Test transmission":
   test "Client - test reading simple frame":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
@@ -158,7 +171,9 @@ suite "Test ping-pong":
   test "Server - test ping-pong control messages":
     var ping, pong = false
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(
@@ -192,7 +207,9 @@ suite "Test ping-pong":
   test "Client - test ping-pong control messages":
     var ping, pong = false
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(
@@ -203,6 +220,7 @@ suite "Test ping-pong":
         )
 
       discard await ws.recv()
+      await ws.close()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -229,9 +247,10 @@ suite "Test framing":
 
   test "should split message into frames":
     let testString = "1234567890"
-    var done = newFuture[void]()
     proc cb(r: RequestFence): Future[HttpResponseRef]{.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
 
@@ -249,7 +268,6 @@ suite "Test framing":
       check read2 == 5
 
       await ws.close()
-      done.complete()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -264,12 +282,13 @@ suite "Test framing":
 
     await wsClient.send(testString)
     await wsClient.close()
-    await done
 
   test "should fail to read past max message size":
     let testString = "1234567890"
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
@@ -297,7 +316,9 @@ suite "Test Closing":
 
   test "Server closing":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
@@ -318,7 +339,9 @@ suite "Test Closing":
 
   test "Server closing with status":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
@@ -354,11 +377,14 @@ suite "Test Closing":
 
   test "Client closing":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       discard await ws.recv()
+      await ws.close()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -373,7 +399,9 @@ suite "Test Closing":
 
   test "Client closing with status":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
-      check r.isOk()
+      if r.isErr():
+        return
+
       let request = r.get()
       check request.uri.path == "/ws"
       proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
@@ -385,6 +413,7 @@ suite "Test Closing":
         "proto",
         onClose = closeServer)
       discard await ws.recv()
+      await ws.close()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
