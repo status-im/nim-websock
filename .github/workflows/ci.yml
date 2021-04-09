@@ -207,19 +207,16 @@ jobs:
         with:
           python-version: 2.7.17
 
-      - name: Create and start virtual environment
+      - name: Setup and run Autobahn test suite.
         if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
         run: |
           pip install virtualenv
           virtualenv --python=/usr/bin/python2 autobahn
           source autobahn/bin/activate
           pip install autobahntestsuite
-
-      - name: Run Autobahn test suite.
-        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
-        run: |
           cd nim-ws
           ./scripts/start_server.sh
+          cd autobahn
           wstest --mode fuzzingclient --spec fuzzingclient.json
 
       - name: Deploy autobahn report.
@@ -227,4 +224,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./autobahn/reports/servers
+          publish_dir: ./nim-ws/autobahn/reports/servers
