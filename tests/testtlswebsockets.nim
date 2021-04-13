@@ -45,7 +45,7 @@ suite "Test websocket TLS handshake":
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await webSocketTLSConnect(
+      discard await WebSocket.tlsConnect(
         "127.0.0.1",
         Port(8888),
         path = "/wss",
@@ -76,7 +76,7 @@ suite "Test websocket TLS handshake":
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await webSocketTLSConnect(
+      discard await WebSocket.tlsConnect(
         "127.0.0.1",
         Port(8888),
         path = "/wss",
@@ -109,7 +109,7 @@ suite "Test websocket TLS handshake":
     server.start()
 
     expect WSFailedUpgradeError:
-      discard await webSocketTLSConnect(
+      discard await WebSocket.tlsConnect(
         "127.0.0.1",
         Port(8888),
         path = "/wss",
@@ -143,7 +143,7 @@ suite "Test websocket TLS transmission":
     server = res.get()
     server.start()
 
-    let wsClient = await webSocketTLSConnect(
+    let wsClient = await WebSocket.tlsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/wss",
@@ -176,7 +176,7 @@ suite "Test websocket TLS transmission":
     server = res.get()
     server.start()
 
-    let wsClient = await webSocketTLSConnect(
+    let wsClient = await WebSocket.tlsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/wss",
@@ -208,7 +208,7 @@ suite "Test websocket TLS transmission":
     server = res.get()
     server.start()
 
-    let wsClient = await webSocketTLSConnect(
+    let wsClient = await WebSocket.tlsConnect(
       "127.0.0.1",
       Port(8888),
       path = "/wss",

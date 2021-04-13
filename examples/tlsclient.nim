@@ -6,7 +6,7 @@ import pkg/[chronos,
 import ../ws/ws
 
 proc main() {.async.} =
-    let ws = await webSocketTLSConnect(
+    let ws = await WebSocket.tlsConnect(
         "127.0.0.1",
         Port(8888),
         path = "/wss",

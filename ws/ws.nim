@@ -775,7 +775,8 @@ proc connect*(
     onPong,
     onClose)
 
-proc webSocketTLSConnect*(
+proc tlsConnect*(
+  _: type WebSocket,
   host: string,
   port: Port,
   path: string,
