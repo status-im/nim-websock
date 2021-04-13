@@ -15,8 +15,5 @@ requires "nimcrypto"
 requires "bearssl"
 
 task test, "run tests":
-  exec "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off ./tests/testall.nim"
+  exec "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info ./tests/testall.nim"
   rmFile "./tests/testall"
-  rmFile "./tests/testwebsockets"
-  rmFile "./tests/testframes"
-  rmFile "./tests/testtlswebsockets"
