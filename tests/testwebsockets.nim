@@ -249,7 +249,7 @@ suite "Test framing":
     let testString = "1234567890"
     proc cb(r: RequestFence): Future[HttpResponseRef]{.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/ws"
@@ -268,6 +268,7 @@ suite "Test framing":
       check read2 == 5
 
       await ws.close()
+      return dumbResponse()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -287,13 +288,14 @@ suite "Test framing":
     let testString = "1234567890"
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       await ws.send(testString)
       await ws.close()
+      return dumbResponse()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -317,12 +319,13 @@ suite "Test Closing":
   test "Server closing":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       await ws.close()
+      return dumbResponse()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -340,13 +343,17 @@ suite "Test Closing":
   test "Server closing with status":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/ws"
-      proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
-        check status == Status.TooLarge
-        check reason == "Message too big!"
+      proc closeServer(status: Status, reason: string): CloseResult
+        {.gcsafe, raises: [Defect].} =
+        try:
+          check status == Status.TooLarge
+          check reason == "Message too big!"
+        except Exception as exc:
+          raise newException(Defect, exc.msg)
 
         return (Status.Fulfilled, "")
 
@@ -356,14 +363,19 @@ suite "Test Closing":
         onClose = closeServer)
 
       await ws.close()
+      return dumbResponse()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
-    proc clientClose(status: Status, reason: string): CloseResult {.gcsafe.} =
-      check status == Status.Fulfilled
-      return (Status.TooLarge, "Message too big!")
+    proc clientClose(status: Status, reason: string): CloseResult
+      {.gcsafe, raises: [Defect].} =
+      try:
+        check status == Status.Fulfilled
+        return (Status.TooLarge, "Message too big!")
+      except Exception as exc:
+        raise newException(Defect, exc.msg)
 
     let wsClient = await WebSocket.connect(
       "127.0.0.1",
@@ -378,13 +390,14 @@ suite "Test Closing":
   test "Client closing":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       discard await ws.recv()
       await ws.close()
+      return dumbResponse()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -400,13 +413,17 @@ suite "Test Closing":
   test "Client closing with status":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/ws"
-      proc closeServer(status: Status, reason: string): CloseResult {.gcsafe.} =
-        check status == Status.Fulfilled
-        return (Status.TooLarge, "Message too big!")
+      proc closeServer(status: Status, reason: string): CloseResult
+        {.gcsafe, raises: [Defect].} =
+        try:
+          check status == Status.Fulfilled
+          return (Status.TooLarge, "Message too big!")
+        except Exception as exc:
+          raise newException(Defect, exc.msg)
 
       let ws = await createServer(
         request,
@@ -414,15 +431,20 @@ suite "Test Closing":
         onClose = closeServer)
       discard await ws.recv()
       await ws.close()
+      return dumbResponse()
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
-    proc clientClose(status: Status, reason: string): CloseResult {.gcsafe.} =
-      check status == Status.TooLarge
-      check reason == "Message too big!"
-      return (Status.Fulfilled, "")
+    proc clientClose(status: Status, reason: string): CloseResult
+      {.gcsafe, raises: [Defect].} =
+      try:
+        check status == Status.TooLarge
+        check reason == "Message too big!"
+        return (Status.Fulfilled, "")
+      except Exception as exc:
+        raise newException(Defect, exc.msg)
 
     let wsClient = await WebSocket.connect(
       "127.0.0.1",

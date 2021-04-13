@@ -1,3 +1,5 @@
+{.push raises: [Defect].}
+
 import std/[tables,
             strutils,
             uri,
@@ -125,14 +127,14 @@ type
     length: uint64            ## Message size.
     consumed: uint64          ## how much has been consumed from the frame
 
-  ControlCb* = proc() {.gcsafe.}
+  ControlCb* = proc() {.gcsafe, raises: [Defect].}
 
   CloseResult* = tuple
     code: Status
     reason: string
 
   CloseCb* = proc(code: Status, reason: string):
-    CloseResult {.gcsafe.}
+    CloseResult {.gcsafe, raises: [Defect].}
 
   WebSocket* = ref object
     stream*: AsyncStream
@@ -527,7 +529,7 @@ proc recv*(
   size: int): Future[int] {.async.} =
   ## Attempts to read up to `size` bytes
   ##
-  ## Will read as many frames as necesary
+  ## Will read as many frames as necessary
   ## to fill the buffer until either
   ## the message ends (frame.fin) or
   ## the buffer is full. If no data is on

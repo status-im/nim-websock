@@ -1,12 +1,14 @@
-import std/strutils,httputils
+import std/strutils, httputils
 
 import pkg/[asynctest,
             chronos,
             chronos/apps/http/shttpserver,
             stew/byteutils]
 import  ../ws/ws,
-        ../examples/[tlsserver, keys],
+        ../examples/[tlsserver],
         ../ws/stream
+
+import ./keys
 
 var server: SecureHttpServerRef
 let address = initTAddress("127.0.0.1:8888")
@@ -124,7 +126,7 @@ suite "Test websocket TLS transmission":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/wss"
@@ -132,6 +134,7 @@ suite "Test websocket TLS transmission":
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
       await ws.close()
+      return dumbResponse()
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -157,7 +160,7 @@ suite "Test websocket TLS transmission":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/wss"
@@ -165,6 +168,7 @@ suite "Test websocket TLS transmission":
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
       await ws.close()
+      return dumbResponse()
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -190,13 +194,14 @@ suite "Test websocket TLS transmission":
     let testString = "Hello!"
     proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/wss"
       let ws = await createServer(request, "proto")
       await ws.send(testString)
       await ws.close()
+      return dumbResponse()
 
     let res = SecureHttpServerRef.new(
       address, cb,
