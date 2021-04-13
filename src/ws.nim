@@ -44,7 +44,7 @@ const
   WSHeaderSize* = 12
   WSDefaultVersion* = 13
   WSDefaultFrameSize* = 1 shl 20 # 1mb
-  WSMaxMessageSize* = 20 shl 20 # 20mb
+  WSMaxMessageSize* = 20 shl 20  # 20mb
   WSGuid* = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
   CRLF* = "\r\n"
 
@@ -114,20 +114,20 @@ type
     NoExtensions = 1010
     UnexpectedError = 1011
     # 3000-3999 reserved for libs
-    ReservedCode = 3999 # Used for testing.
-    # 4000-4999 reserved for applications
+    ReservedCode = 3999     # Used for testing.
+                            # 4000-4999 reserved for applications
 
   Frame = ref object
-    fin: bool                 ## Indicates that this is the final fragment in a message.
-    rsv1: bool                ## MUST be 0 unless negotiated that defines meanings
-    rsv2: bool                ## MUST be 0
-    rsv3: bool                ## MUST be 0
-    opcode: Opcode            ## Defines the interpretation of the "Payload data".
-    mask: bool                ## Defines whether the "Payload data" is masked.
-    data: seq[byte]           ## Payload data
-    maskKey: array[4, char]   ## Masking key
-    length: uint64            ## Message size.
-    consumed: uint64          ## how much has been consumed from the frame
+    fin: bool               ## Indicates that this is the final fragment in a message.
+    rsv1: bool              ## MUST be 0 unless negotiated that defines meanings
+    rsv2: bool              ## MUST be 0
+    rsv3: bool              ## MUST be 0
+    opcode: Opcode          ## Defines the interpretation of the "Payload data".
+    mask: bool              ## Defines whether the "Payload data" is masked.
+    data: seq[byte]         ## Payload data
+    maskKey: array[4, char] ## Masking key
+    length: uint64          ## Message size.
+    consumed: uint64        ## how much has been consumed from the frame
 
   ControlCb* = proc() {.gcsafe.}
 
@@ -158,11 +158,11 @@ template remainder*(frame: Frame): uint64 =
 proc `$`(ht: HttpTables): string =
   ## Returns string representation of HttpTable/Ref.
   var res = ""
-  for key,value in ht.stringItems(true):
-      res.add(key.normalizeHeaderName())
-      res.add(": ")
-      res.add(value)
-      res.add(CRLF)
+  for key, value in ht.stringItems(true):
+    res.add(key.normalizeHeaderName())
+    res.add(": ")
+    res.add(value)
+    res.add(CRLF)
 
   ## add for end of header mark
   res.add(CRLF)
@@ -211,9 +211,10 @@ proc handshake*(
         wantProtocol & ")")
 
   let cKey = ws.key & WSGuid
-  let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
+  let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0,
+      cKey.high)).data)
 
-  var headerData = [("Connection", "Upgrade"),("Upgrade", "webSocket" ),
+  var headerData = [("Connection", "Upgrade"), ("Upgrade", "webSocket"),
                       ("Sec-WebSocket-Accept", acceptKey)]
   var headers = HttpTable.init(headerData)
   if ws.protocol != "":
@@ -222,7 +223,8 @@ proc handshake*(
   try:
     discard await request.respond(httputils.Http101, "", headers)
   except CatchableError as exc:
-    raise newException(WSHandshakeError, "Failed to sent handshake response. Error: " & exc.msg)
+    raise newException(WSHandshakeError,
+        "Failed to sent handshake response. Error: " & exc.msg)
   ws.readyState = ReadyState.Open
 
 proc createServer*(
@@ -339,7 +341,7 @@ proc send*(
         opcode: opcode,
         mask: ws.masked,
         data: data, # allow sending data with close messages
-        maskKey: maskKey)))
+      maskKey: maskKey)))
     return
 
   let maxSize = ws.frameSize
@@ -352,14 +354,14 @@ proc send*(
         rsv2: false,
         rsv3: false,
         opcode: if i > 0: Opcode.Cont else: opcode, # fragments have to be `Continuation` frames
-        mask: ws.masked,
-        data: data[i ..< len],
-        maskKey: maskKey))
+      mask: ws.masked,
+      data: data[i ..< len],
+      maskKey: maskKey))
 
     await ws.stream.writer.write(encFrame)
     i += len
 
-    if i >= data.len :
+    if i >= data.len:
       break
 
 proc send*(ws: WebSocket, data: string): Future[void] =
@@ -387,7 +389,7 @@ proc handleClose*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async
     # first two bytes are the status
     let ccode = uint16.fromBytesBE(payLoad[0..<2])
     if ccode <= 999 or ccode > 1015:
-      raise newException(WSInvalidCloseCodeError,"Invalid code in close message!")
+      raise newException(WSInvalidCloseCodeError, "Invalid code in close message!")
     try:
       code = Status(ccode)
     except RangeError:
@@ -476,9 +478,10 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
       let opcode = (b0 and 0x0f)
       if opcode > ord(Opcode.high):
         raise newException(WSOpcodeMismatchError, "Wrong opcode!")
-      
+
       let frameOpcode = (opcode).Opcode
-      if frameOpcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary, Opcode.Ping,Opcode.Pong,Opcode.Close}:
+      if frameOpcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary,
+          Opcode.Ping, Opcode.Pong, Opcode.Close}:
         raise newException(WSReserverdOpcodeError, "Unknown opcode received!")
 
       frame.opcode = frameOpcode
@@ -533,14 +536,15 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
           # Read data
           await ws.stream.reader.readExactly(addr payLoad[0], frame.length.int)
           unmask(payLoad.toOpenArray(0, payLoad.high), frame.maskKey)
-        await ws.handleControl(frame,payLoad) # process control frames
+        await ws.handleControl(frame, payLoad) # process control frames
         continue
 
-      debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
+      debug "Decoded new frame", opcode = frame.opcode, len = frame.length,
+          mask = frame.mask
 
       return frame
   except WSReserverdOpcodeError as exc:
-    trace "Handled websocket opcode exception",exc = exc.msg
+    trace "Handled websocket opcode exception", exc = exc.msg
     raise exc
   except WSPayloadTooLarge as exc:
     debug "Handled payload too large exception", exc = exc.msg
@@ -560,7 +564,7 @@ proc ping*(ws: WebSocket): Future[void] =
 proc recv*(
   ws: WebSocket,
   data: pointer,
-  size: int): Future[int] {.async.} =
+  size: int): Future[(int, Opcode)] {.async.} =
   ## Attempts to read up to `size` bytes
   ##
   ## Will read as many frames as necesary
@@ -573,6 +577,7 @@ proc recv*(
 
   var consumed = 0
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
+  var opcode = Opcode.Text
   try:
     while consumed < size:
       # we might have to read more than
@@ -583,15 +588,16 @@ proc recv*(
         ws.frame = await ws.readFrame()
         # This could happen if the connection is closed.
         if isNil(ws.frame):
-          return consumed.int
+          return (consumed.int, opcode)
 
-        if ws.frame.opcode == Opcode.Cont:
+        opcode = ws.frame.opcode
+        if opcode == Opcode.Cont:
           raise newException(WSOpcodeMismatchError, "First frame cannot be continue frame")
       elif (not ws.frame.fin and ws.frame.remainder() <= 0):
         ws.frame = await ws.readFrame()
         # This could happen if the connection is closed.
         if isNil(ws.frame):
-          return consumed.int
+          return (consumed.int, opcode)
 
         if ws.frame.opcode != Opcode.Cont:
           raise newException(WSOpcodeMismatchError, "expected continue frame")
@@ -617,7 +623,7 @@ proc recv*(
       consumed += read
       ws.frame.consumed += read.uint64
 
-    return consumed.int
+    return (consumed.int, opcode)
   except WebSocketError as exc:
     debug "Websocket error", exc = exc.msg
     ws.readyState = ReadyState.Closed
@@ -631,7 +637,7 @@ proc recv*(
 
 proc recv*(
   ws: WebSocket,
-  size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  size = WSMaxMessageSize): Future[(seq[byte], Opcode)] {.async.} =
   ## Attempt to read a full message up to max `size`
   ## bytes in `frameSize` chunks.
   ##
@@ -644,10 +650,12 @@ proc recv*(
   ## In all other cases it awaits a full message.
   ##
   var res: seq[byte]
+  var opcode = Opcode.Text
   try:
     while ws.readyState != ReadyState.Closed:
       var buf = newSeq[byte](ws.frameSize)
-      let read = await ws.recv(addr buf[0], buf.len)
+      var read: int
+      (read, opcode) = await ws.recv(addr buf[0], buf.len)
       if read <= 0:
         break
 
@@ -673,7 +681,7 @@ proc recv*(
   except CatchableError as exc:
     debug "Exception reading frames", exc = exc.msg
 
-  return res
+  return (res, opcode)
 
 proc close*(
   ws: WebSocket,

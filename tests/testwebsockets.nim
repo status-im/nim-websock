@@ -1,4 +1,4 @@
-import std/[strutils,random],httputils
+import std/[strutils, random], httputils
 
 import pkg/[asynctest,
             chronos,
@@ -7,7 +7,7 @@ import pkg/[asynctest,
             stew/byteutils,
             eth/keys]
 
-include ../src/[ws,stream,utils]
+include ../src/[ws, stream, utils]
 
 var server: HttpServerRef
 let address = initTAddress("127.0.0.1:8888")
@@ -68,9 +68,12 @@ suite "Test handshake":
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
-      check request.headers.getString("Connection").toUpperAscii() == "Upgrade".toUpperAscii()
-      check request.headers.getString("Upgrade").toUpperAscii() == "websocket".toUpperAscii()
-      check request.headers.getString("Cache-Control").toUpperAscii() == "no-cache".toUpperAscii()
+      check request.headers.getString("Connection").toUpperAscii() ==
+          "Upgrade".toUpperAscii()
+      check request.headers.getString("Upgrade").toUpperAscii() ==
+          "websocket".toUpperAscii()
+      check request.headers.getString("Cache-Control").toUpperAscii() ==
+          "no-cache".toUpperAscii()
       check request.headers.getString("Sec-WebSocket-Version") == $WSDefaultVersion
 
       check request.headers.contains("Sec-WebSocket-Key")
@@ -137,7 +140,7 @@ suite "Test transmission":
 
   test "Client - test reading simple frame":
     let testString = "Hello!"
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
@@ -168,7 +171,7 @@ suite "Test ping-pong":
     let msg = toBytes(testString)
     let maxFrameSize = 5
 
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
@@ -176,8 +179,8 @@ suite "Test ping-pong":
         request,
         "proto",
         onPing = proc() =
-          ping = true
-        )
+        ping = true
+      )
 
       let respData = await ws.recv()
       check string.fromBytes(respData) == testString
@@ -193,8 +196,8 @@ suite "Test ping-pong":
       protocols = @["proto"],
       frameSize = maxFrameSize,
       onPong = proc() =
-        pong = true
-      )
+      pong = true
+    )
 
     let maskKey = genMaskKey(newRng())
     let encframe = encodeFrame(Frame(
@@ -227,7 +230,7 @@ suite "Test ping-pong":
 
   test "Server - test ping-pong control messages":
     var ping, pong = false
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
@@ -235,8 +238,8 @@ suite "Test ping-pong":
         request,
         "proto",
         onPong = proc() =
-          pong = true
-        )
+        pong = true
+      )
       await ws.ping()
       await ws.close()
 
@@ -251,8 +254,8 @@ suite "Test ping-pong":
       path = "/ws",
       protocols = @["proto"],
       onPing = proc() =
-        ping = true
-      )
+      ping = true
+    )
 
     discard await wsClient.recv()
     check:
@@ -261,7 +264,7 @@ suite "Test ping-pong":
 
   test "Client - test ping-pong control messages":
     var ping, pong = false
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
@@ -269,8 +272,8 @@ suite "Test ping-pong":
         request,
         "proto",
         onPing = proc() =
-          ping = true
-        )
+        ping = true
+      )
 
       discard await ws.recv()
     let res = HttpServerRef.new(
@@ -284,8 +287,8 @@ suite "Test ping-pong":
       path = "/ws",
       protocols = @["proto"],
       onPong = proc() =
-        pong = true
-      )
+      pong = true
+    )
 
     await wsClient.ping()
     await wsClient.close()
@@ -429,7 +432,7 @@ suite "Test Closing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       # Close with payload of length 2
-      await ws.close(reason="HH")
+      await ws.close(reason = "HH")
 
     let res = HttpServerRef.new(
       address, cb)
@@ -470,7 +473,7 @@ suite "Test Closing":
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
       discard await ws.recv()
-      
+
     let res = HttpServerRef.new(
       address, cb)
     server = res.get()
@@ -481,8 +484,8 @@ suite "Test Closing":
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
-       # Close with payload of length 2
-    await wsClient.close(reason="HH")
+      # Close with payload of length 2
+    await wsClient.close(reason = "HH")
 
   test "Client closing with status":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async, gcsafe.} =
@@ -552,7 +555,7 @@ suite "Test Payload":
     await server.closeWait()
 
   test "Test payload message length":
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
@@ -580,11 +583,11 @@ suite "Test Payload":
 
   test "Test single empty payload":
     let emptyStr = ""
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request,"proto")
+      let ws = await createServer(request, "proto")
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
 
@@ -604,11 +607,11 @@ suite "Test Payload":
 
   test "Test multiple empty payload":
     let emptyStr = ""
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request,"proto")
+      let ws = await createServer(request, "proto")
       var servRes: seq[byte]
       servRes = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
@@ -631,7 +634,7 @@ suite "Test Payload":
   test "Send ping with small text payload":
     let testData = toBytes("Hello, world!")
     var ping, pong = false
-    proc process(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/ws"
@@ -639,8 +642,8 @@ suite "Test Payload":
         request,
         "proto",
         onPing = proc() =
-          ping = true
-        )
+        ping = true
+      )
 
       discard await ws.recv()
 
@@ -655,8 +658,8 @@ suite "Test Payload":
       path = "/ws",
       protocols = @["proto"],
       onPong = proc() =
-        pong = true
-      )
+      pong = true
+    )
 
     await wsClient.send(testData, Opcode.Ping)
     await wsClient.close()
