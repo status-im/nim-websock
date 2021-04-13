@@ -100,7 +100,7 @@ suite "Test transmission":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let servRes = await ws.recv()
+      let (servRes, _) = await ws.recv()
       check string.fromBytes(servRes) == testString
 
     let res = HttpServerRef.new(
@@ -123,7 +123,7 @@ suite "Test transmission":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let servRes = await ws.recv()
+      let (servRes, _) = await ws.recv()
       check string.fromBytes(servRes) == testString
     let res = HttpServerRef.new(
       address, cb)
@@ -160,7 +160,7 @@ suite "Test transmission":
       path = "/ws",
       protocols = @["proto"])
 
-    var clientRes = await wsClient.recv()
+    let (clientRes, _) = await wsClient.recv()
     check string.fromBytes(clientRes) == testString
 suite "Test ping-pong":
   teardown:
@@ -182,7 +182,7 @@ suite "Test ping-pong":
         ping = true
       )
 
-      let respData = await ws.recv()
+      let (respData, _) = await ws.recv()
       check string.fromBytes(respData) == testString
     let res = HttpServerRef.new(
       address, cb)
@@ -588,7 +588,7 @@ suite "Test Payload":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let servRes = await ws.recv()
+      let (servRes, _) = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
 
     let res = HttpServerRef.new(
@@ -612,8 +612,7 @@ suite "Test Payload":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      var servRes: seq[byte]
-      servRes = await ws.recv()
+      let (servRes, _) = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
 
     let res = HttpServerRef.new(
