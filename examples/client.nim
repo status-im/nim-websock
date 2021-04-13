@@ -1,4 +1,9 @@
-import ../ws/ws, nativesockets, chronos,chronicles, stew/byteutils
+import pkg/[
+  chronos,
+  chronicles,
+  stew/byteutils]
+
+import ../ws/ws
 
 proc main() {.async.} =
   let ws = await WebSocket.connect(

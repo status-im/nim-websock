@@ -3,6 +3,7 @@
              chronicles,
              httputils,
              stew/byteutils]
+
 import ../ws/ws
 
 proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =

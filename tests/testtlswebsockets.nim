@@ -4,9 +4,9 @@ import pkg/[asynctest,
             chronos,
             chronos/apps/http/shttpserver,
             stew/byteutils]
-import  ../ws/ws,
-        ../examples/[tlsserver],
-        ../ws/stream
+
+import  ../ws/[ws, stream],
+        ../examples/tlsserver
 
 import ./keys
 
