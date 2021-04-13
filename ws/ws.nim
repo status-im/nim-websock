@@ -1,3 +1,5 @@
+{.push raises: [Defect].}
+
 import std/[tables,
             strutils,
             uri,
@@ -7,13 +9,13 @@ import pkg/[chronos,
             chronos/apps/http/httptable,
             chronos/apps/http/httpserver,
             chronos/streams/asyncstream,
+            chronos/streams/tlsstream,
             chronicles,
             httputils,
             stew/byteutils,
             stew/endians2,
             stew/base64,
             stew/base10,
-            eth/keys,
             nimcrypto/sha]
 
 import ./random, ./stream
@@ -125,14 +127,14 @@ type
     length: uint64            ## Message size.
     consumed: uint64          ## how much has been consumed from the frame
 
-  ControlCb* = proc() {.gcsafe.}
+  ControlCb* = proc() {.gcsafe, raises: [Defect].}
 
   CloseResult* = tuple
     code: Status
     reason: string
 
   CloseCb* = proc(code: Status, reason: string):
-    CloseResult {.gcsafe.}
+    CloseResult {.gcsafe, raises: [Defect].}
 
   WebSocket* = ref object
     stream*: AsyncStream
@@ -208,9 +210,11 @@ proc handshake*(
 
   let cKey = ws.key & WSGuid
   let acceptKey = Base64Pad.encode(sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
+  var headerData = [
+    ("Connection", "Upgrade"),
+    ("Upgrade", "webSocket" ),
+    ("Sec-WebSocket-Accept", acceptKey)]
 
-  var headerData = [("Connection", "Upgrade"),("Upgrade", "webSocket" ),
-                      ("Sec-WebSocket-Accept", acceptKey)]
   var headers = HttpTable.init(headerData)
   if ws.protocol != "":
     headers.add("Sec-WebSocket-Protocol", ws.protocol)
@@ -404,7 +408,7 @@ proc handleControl*(ws: WebSocket, frame: Frame) {.async.} =
 
   if frame.length > 125:
     raise newException(WSPayloadTooLarge,
-      "Control message payload is freater than 125 bytes!")
+      "Control message payload is greater than 125 bytes!")
 
   try:
     # Process control frame payload.
@@ -439,7 +443,7 @@ proc readFrame*(ws: WebSocket): Future[Frame] {.async.} =
   ##
 
   try:
-    while ws.readyState != ReadyState.Closed: # read until a data frame arrives
+    while ws.readyState != ReadyState.Closed:
       # Grab the header.
       var header = newSeq[byte](2)
       await ws.stream.reader.readExactly(addr header[0], 2)
@@ -525,7 +529,7 @@ proc recv*(
   size: int): Future[int] {.async.} =
   ## Attempts to read up to `size` bytes
   ##
-  ## Will read as many frames as necesary
+  ## Will read as many frames as necessary
   ## to fill the buffer until either
   ## the message ends (frame.fin) or
   ## the buffer is full. If no data is on
@@ -643,7 +647,8 @@ proc close*(
 proc initiateHandshake(
   uri: Uri,
   address: TransportAddress,
-  headers: HttpTable): Future[AsyncStream] {.async.} =
+  headers: HttpTable,
+  flags: set[TLSFlags] = {}): Future[AsyncStream] {.async.} =
   ## Initiate handshake with server
 
   var transp: StreamTransport
@@ -654,11 +659,27 @@ proc initiateHandshake(
       TransportError,
       "Cannot connect to " & $transp.remoteAddress() & " Error: " & exc.msg)
 
+  let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
   let reader = newAsyncStreamReader(transp)
   let writer = newAsyncStreamWriter(transp)
-  let requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
-  await writer.write(requestHeader)
-  let res = await reader.readHeaders()
+  var stream: AsyncStream
+
+  var res: seq[byte]
+  if uri.scheme == "https":
+    let tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
+    stream = AsyncStream(
+      reader: tlsstream.reader,
+      writer: tlsstream.writer)
+
+    await tlsstream.writer.write(requestHeader)
+    res = await tlsstream.reader.readHeaders()
+  else:
+    stream = AsyncStream(
+      reader: reader,
+      writer: writer)
+    await stream.writer.write(requestHeader)
+    res = await stream.reader.readHeaders()
+
   if res.len == 0:
     raise newException(ValueError, "Empty response from server")
 
@@ -674,14 +695,13 @@ proc initiateHandshake(
           " Header reason: " & resHeader.reason() &
           " Address: " & $transp.remoteAddress())
 
-  return AsyncStream(
-    reader: reader,
-    writer: writer)
+  return stream
 
 proc connect*(
   _: type WebSocket,
   uri: Uri,
   protocols: seq[string] = @[],
+  flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
@@ -695,8 +715,10 @@ proc connect*(
   case uri.scheme
   of "ws":
     uri.scheme = "http"
+  of "wss":
+    uri.scheme = "https"
   else:
-    raise newException(WSWrongUriSchemeError, "uri scheme has to be 'ws'")
+    raise newException(WSWrongUriSchemeError, "uri scheme has to be 'ws' or 'wss'")
 
   var headerData = [
     ("Connection", "Upgrade"),
@@ -711,7 +733,7 @@ proc connect*(
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
   let address = initTAddress(uri.hostname & ":" & uri.port)
-  let stream = await initiateHandshake(uri, address, headers)
+  let stream = await initiateHandshake(uri, address, headers, flags)
 
   # Client data should be masked.
   return WebSocket(
@@ -748,6 +770,36 @@ proc connect*(
   return await WebSocket.connect(
     parseUri(uri),
     protocols,
+    {},
+    version,
+    frameSize,
+    onPing,
+    onPong,
+    onClose)
+
+proc tlsConnect*(
+  _: type WebSocket,
+  host: string,
+  port: Port,
+  path: string,
+  protocols: seq[string] = @[],
+  flags: set[TLSFlags] = {},
+  version = WSDefaultVersion,
+  frameSize = WSDefaultFrameSize,
+  onPing: ControlCb = nil,
+  onPong: ControlCb = nil,
+  onClose: CloseCb = nil): Future[WebSocket] {.async.} =
+
+  var uri = "wss://" & host & ":" & $port
+  if path.startsWith("/"):
+    uri.add path
+  else:
+    uri.add "/" & path
+
+  return await WebSocket.connect(
+    parseUri(uri),
+    protocols,
+    flags,
     version,
     frameSize,
     onPing,
