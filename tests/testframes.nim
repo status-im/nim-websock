@@ -1,7 +1,7 @@
 import unittest
 
 include ../ws/ws
-include ../ws/random
+include ../ws/utils
 
 # TODO: Fix Test.
 
