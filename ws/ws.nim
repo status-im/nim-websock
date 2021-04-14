@@ -392,6 +392,7 @@ proc handleClose*(ws: WebSocket, frame: Frame, payLoad: seq[byte] = @[]) {.async
 
   if payLoad.len == 1:
     raise newException(WSPayloadLengthError, "Invalid close frame with payload length 1!")
+
   elif payLoad.len > 1:
     # first two bytes are the status
     let ccode = uint16.fromBytesBE(payLoad[0..<2])

@@ -36,7 +36,7 @@ suite "Test websocket TLS handshake":
   test "Test for websocket TLS incorrect protocol":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/wss"
@@ -64,7 +64,7 @@ suite "Test websocket TLS handshake":
   test "Test for websocket TLS incorrect version":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
-        return
+        return dumbResponse()
 
       let request = r.get()
       check request.uri.path == "/wss"
@@ -104,7 +104,6 @@ suite "Test websocket TLS handshake":
       check request.headers.getString("Sec-WebSocket-Version") == $WSDefaultVersion
 
       check request.headers.contains("Sec-WebSocket-Key")
-
       discard await request.respond(Http200, "Connection established")
 
     let res = SecureHttpServerRef.new(

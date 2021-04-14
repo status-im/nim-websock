@@ -53,8 +53,7 @@ suite "Test handshake":
    test "Test for incorrect version":
       proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
          if r.isErr():
-            return
-
+           return dumbResponse()
          let request = r.get()
          check request.uri.path == "/ws"
          expect WSVersionError:
@@ -88,7 +87,6 @@ suite "Test handshake":
          check request.headers.getString("Sec-WebSocket-Version") == $WSDefaultVersion
 
          check request.headers.contains("Sec-WebSocket-Key")
-
          discard await request.respond(Http200, "Connection established")
 
       let res = HttpServerRef.new(address, cb)
