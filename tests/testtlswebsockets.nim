@@ -2,22 +2,32 @@ import std/strutils, httputils
 
 import pkg/[asynctest,
             chronos,
+            chronicles,
             chronos/apps/http/shttpserver,
             stew/byteutils]
 
-import  ../ws/[ws, stream],
+import ../ws/[ws, stream],
         ../examples/tlsserver
 
 import ./keys
 
-var server: SecureHttpServerRef
-let address = initTAddress("127.0.0.1:8888")
-let serverFlags  = {HttpServerFlags.Secure, HttpServerFlags.NotifyDisconnect}
-let socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
-let clientFlags = {NoVerifyHost, NoVerifyServerName}
+proc waitForClose(ws: WebSocket) {.async.} =
+  try:
+    while ws.readystate != ReadyState.Closed:
+      discard await ws.recv()
+  except CatchableError:
+    debug "Closing websocket"
 
-let secureKey = TLSPrivateKey.init(SecureKey)
-let secureCert = TLSCertificate.init(SecureCert)
+var server: SecureHttpServerRef
+
+let
+  address = initTAddress("127.0.0.1:8888")
+  serverFlags = {HttpServerFlags.Secure, HttpServerFlags.NotifyDisconnect}
+  socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
+  clientFlags = {NoVerifyHost, NoVerifyServerName}
+  secureKey = TLSPrivateKey.init(SecureKey)
+  secureCert = TLSCertificate.init(SecureCert)
+
 
 suite "Test websocket TLS handshake":
   teardown:
@@ -31,10 +41,7 @@ suite "Test websocket TLS handshake":
       let request = r.get()
       check request.uri.path == "/wss"
       expect WSProtoMismatchError:
-          var ws = await createServer(request, "proto")
-          check ws.readyState == ReadyState.Closed
-
-      return await request.respond(Http200, "Connection established")
+        discard await createServer(request, "proto")
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -62,10 +69,7 @@ suite "Test websocket TLS handshake":
       let request = r.get()
       check request.uri.path == "/wss"
       expect WSVersionError:
-          var ws = await createServer(request, "proto")
-          check ws.readyState == ReadyState.Closed
-
-      return await request.respond(Http200, "Connection established")
+        discard await createServer(request, "proto")
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -91,14 +95,17 @@ suite "Test websocket TLS handshake":
       check r.isOk()
       let request = r.get()
       check request.uri.path == "/wss"
-      check request.headers.getString("Connection").toUpperAscii() == "Upgrade".toUpperAscii()
-      check request.headers.getString("Upgrade").toUpperAscii() == "websocket".toUpperAscii()
-      check request.headers.getString("Cache-Control").toUpperAscii() == "no-cache".toUpperAscii()
+      check request.headers.getString("Connection").toUpperAscii() ==
+          "Upgrade".toUpperAscii()
+      check request.headers.getString("Upgrade").toUpperAscii() ==
+          "websocket".toUpperAscii()
+      check request.headers.getString("Cache-Control").toUpperAscii() ==
+          "no-cache".toUpperAscii()
       check request.headers.getString("Sec-WebSocket-Version") == $WSDefaultVersion
 
       check request.headers.contains("Sec-WebSocket-Key")
 
-      discard await request.respond( Http200,"Connection established")
+      discard await request.respond(Http200, "Connection established")
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -133,7 +140,7 @@ suite "Test websocket TLS transmission":
       let ws = await createServer(request, "proto")
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
-      await ws.close()
+      await waitForClose(ws)
       return dumbResponse()
 
     let res = SecureHttpServerRef.new(
@@ -158,41 +165,7 @@ suite "Test websocket TLS transmission":
 
   test "Client - test reading simple frame":
     let testString = "Hello!"
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
-      if r.isErr():
-        return dumbResponse()
-
-      let request = r.get()
-      check request.uri.path == "/wss"
-      let ws = await createServer(request, "proto")
-      let servRes = await ws.recv()
-      check string.fromBytes(servRes) == testString
-      await ws.close()
-      return dumbResponse()
-
-    let res = SecureHttpServerRef.new(
-      address, cb,
-      serverFlags = serverFlags,
-      socketFlags = socketFlags,
-      tlsPrivateKey = secureKey,
-      tlsCertificate = secureCert)
-
-    server = res.get()
-    server.start()
-
-    let wsClient = await WebSocket.tlsConnect(
-      "127.0.0.1",
-      Port(8888),
-      path = "/wss",
-      protocols = @["proto"],
-      clientFlags)
-
-    await wsClient.send(testString)
-    await wsClient.close()
-
-  test "Client - test reading simple frame":
-    let testString = "Hello!"
-    proc cb(r: RequestFence): Future[HttpResponseRef]  {.async.} =
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
         return dumbResponse()
 
@@ -222,4 +195,4 @@ suite "Test websocket TLS transmission":
 
     var clientRes = await wsClient.recv()
     check string.fromBytes(clientRes) == testString
-    await wsClient.close()
+    await waitForClose(wsClient)

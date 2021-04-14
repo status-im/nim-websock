@@ -1,4 +1,4 @@
- import pkg/[chronos,
+import pkg/[chronos,
             chronos/apps/http/httpserver,
             chronos/timer,
             chronicles,
@@ -8,7 +8,7 @@ import strutils
 const
   HeaderSep = @[byte('\c'), byte('\L'), byte('\c'), byte('\L')]
   HttpHeadersTimeout = timer.seconds(120) # timeout for receiving headers (120 sec)
-  MaxHttpHeadersSize = 8192               # maximum size of HTTP headers in octets
+  MaxHttpHeadersSize = 8192 # maximum size of HTTP headers in octets
 
 proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
   var buffer = newSeq[byte](MaxHttpHeadersSize)
@@ -45,7 +45,11 @@ proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
 
   return buffer
 
-proc closeWait*(wsStream : AsyncStream) {.async.} =
+proc closeWait*(wsStream: AsyncStream) {.async.} =
+
+  await allFutures(
+    wsStream.writer.closeWait(),
+    wsStream.reader.closeWait())
   await allFutures(
     wsStream.writer.tsource.closeWait(),
     wsStream.reader.tsource.closeWait())
