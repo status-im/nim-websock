@@ -25,7 +25,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
                 debug "Websocket handshake completed."
                 # Only reads header for data frame.
                 echo "receiving server "
-                let recvData = await ws.recv()
+                let (recvData, opcode) = await ws.recv()
                 if recvData.len <= 0:
                     debug "Empty messages"
                     break
@@ -33,7 +33,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
                 if ws.readyState == ReadyState.Closed:
                     return
                 debug "Response: ", data = string.fromBytes(recvData)
-                await ws.send(recvData)
+                await ws.send(recvData, opcode)
             except WebSocketError:
                 error "WebSocket error:", exception = getCurrentExceptionMsg()
         discard await request.respond(Http200, "Hello World")
@@ -42,7 +42,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
 
 when isMainModule:
     let address = initTAddress("127.0.0.1:8888")
-    let serverFlags  = {Secure, NotifyDisconnect}
+    let serverFlags = {Secure, NotifyDisconnect}
     let socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
     let res = SecureHttpServerRef.new(
         address, process,

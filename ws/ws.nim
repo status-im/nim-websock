@@ -571,7 +571,7 @@ proc ping*(ws: WebSocket): Future[void] =
 proc recv*(
   ws: WebSocket,
   data: pointer,
-  size: int): Future[int] {.async.} =
+  size: int): Future[(int, Opcode)] {.async.} =
   ## Attempts to read up to `size` bytes
   ##
   ## Will read as many frames as necessary
@@ -582,8 +582,10 @@ proc recv*(
   ## one byte is available
   ##
 
-  var consumed = 0
-  var pbuffer = cast[ptr UncheckedArray[byte]](data)
+  var
+    consumed = 0
+    pbuffer = cast[ptr UncheckedArray[byte]](data)
+    opcode = Opcode.Text
   try:
     while consumed < size:
       # we might have to read more than
@@ -594,15 +596,16 @@ proc recv*(
         ws.frame = await ws.readFrame()
         # This could happen if the connection is closed.
         if isNil(ws.frame):
-          return consumed.int
-        if ws.frame.opcode == Opcode.Cont:
+          return (consumed.int, opcode)
+        opcode = ws.frame.opcode
+        if opcode == Opcode.Cont:
           raise newException(WSOpcodeMismatchError, "First frame cannot be continue frame")
 
       elif (not ws.frame.fin and ws.frame.remainder() <= 0):
         ws.frame = await ws.readFrame()
         # This could happen if the connection is closed.
         if isNil(ws.frame):
-          return consumed.int
+          return (consumed.int, opcode)
 
         if ws.frame.opcode != Opcode.Cont:
           raise newException(WSOpcodeMismatchError, "expected continue frame")
@@ -627,7 +630,7 @@ proc recv*(
       consumed += read
       ws.frame.consumed += read.uint64
 
-    return consumed.int
+    return (consumed.int, opcode)
 
   except WebSocketError as exc:
     debug "Websocket error", exc = exc.msg
@@ -642,7 +645,7 @@ proc recv*(
 
 proc recv*(
   ws: WebSocket,
-  size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  size = WSMaxMessageSize): Future[(seq[byte], Opcode)] {.async.} =
   ## Attempt to read a full message up to max `size`
   ## bytes in `frameSize` chunks.
   ##
@@ -654,11 +657,16 @@ proc recv*(
   ##
   ## In all other cases it awaits a full message.
   ##
-  var res: seq[byte]
+  var
+    res: seq[byte]
+    opcode = Opcode.Text
   try:
     while ws.readyState != ReadyState.Closed:
-      var buf = newSeq[byte](ws.frameSize)
-      let read = await ws.recv(addr buf[0], buf.len)
+      var
+        buf = newSeq[byte](ws.frameSize)
+        read: int
+
+      (read, opcode) = await ws.recv(addr buf[0], buf.len)
       if read <= 0:
         break
 
@@ -684,7 +692,7 @@ proc recv*(
   except CatchableError as exc:
     debug "Exception reading frames", exc = exc.msg
 
-  return res
+  return (res, opcode)
 
 proc close*(
   ws: WebSocket,

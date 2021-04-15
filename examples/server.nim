@@ -18,12 +18,12 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
           return
         debug "Websocket handshake completed."
         while true:
-          let recvData = await ws.recv()
+          let (recvData, opcode) = await ws.recv()
           if ws.readyState == ReadyState.Closed:
             debug "Websocket closed."
             break
           debug "Client Response: ", size = recvData.len
-          await ws.send(recvData)
+          await ws.send(recvData, opcode)
 
       except WebSocketError as exc:
         error "WebSocket error:", exception = exc.msg
