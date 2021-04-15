@@ -200,3 +200,28 @@ jobs:
           cd nim-ws
           nimble install -y --depsOnly
           nimble test
+
+      - name: Setup Python version
+        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
+        uses: actions/setup-python@v2
+        with:
+          python-version: 2.7.17
+
+      - name: Setup and run Autobahn test suite.
+        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
+        run: |
+          pip install virtualenv
+          virtualenv --python=/usr/bin/python2 autobahn
+          source autobahn/bin/activate
+          pip install autobahntestsuite
+          cd nim-ws
+          ./scripts/start_server.sh
+          cd autobahn
+          wstest --mode fuzzingclient --spec fuzzingclient.json
+
+      - name: Deploy autobahn report.
+        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          personal_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./nim-ws/autobahn/reports/servers
