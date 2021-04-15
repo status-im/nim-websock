@@ -19,7 +19,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
 
         debug "Websocket handshake completed."
         while true:
-          let recvData = await ws.recv()
+          let (recvData, opcode) = await ws.recv()
           if ws.readyState == ReadyState.Closed:
             debug "Websocket closed."
             break

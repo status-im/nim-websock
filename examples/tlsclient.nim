@@ -11,14 +11,14 @@ proc main() {.async.} =
         Port(8888),
         path = "/wss",
         protocols = @["myfancyprotocol"],
-        flags = {NoVerifyHost,NoVerifyServerName})
+        flags = {NoVerifyHost, NoVerifyServerName})
     debug "Websocket client: ", State = ws.readyState
 
     let reqData = "Hello Server"
     try:
         echo "sending client "
         await ws.send(reqData)
-        let buff = await ws.recv()
+        let (buff, _) = await ws.recv()
         if buff.len <= 0:
             break
         let dataStr = string.fromBytes(buff)

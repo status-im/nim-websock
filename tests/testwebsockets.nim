@@ -15,6 +15,10 @@ proc rndStr*(size: int): string =
   for _ in .. size:
     add(result, char(rand(int('A') .. int('z'))))
 
+proc rndBin*(size: int): seq[byte] =
+   for _ in .. size:
+      add(result, byte(rand(0 .. 255)))
+
 proc waitForClose(ws: WebSocket) {.async.} =
   try:
     while ws.readystate != ReadyState.Closed:
@@ -141,7 +145,7 @@ suite "Test transmission":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let servRes = await ws.recv()
+      let (servRes, _) = await ws.recv()
       check string.fromBytes(servRes) == testString
 
     let res = HttpServerRef.new(
@@ -165,7 +169,7 @@ suite "Test transmission":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let servRes = await ws.recv()
+      let (servRes, _) = await ws.recv()
       check string.fromBytes(servRes) == testString
       await waitForClose(ws)
 
@@ -208,7 +212,7 @@ suite "Test transmission":
         path = "/ws",
         protocols = @["proto"])
 
-      var clientRes = await wsClient.recv()
+      let (clientRes, _) = await wsClient.recv()
       check string.fromBytes(clientRes) == testString
       await waitForClose(wsClient)
 
@@ -241,7 +245,7 @@ suite "Test ping-pong":
           ping = true
       )
 
-      let respData = await ws.recv()
+      let (respData, _) = await ws.recv()
       check string.fromBytes(respData) == testString
       await waitForClose(ws)
 
@@ -727,8 +731,7 @@ suite "Test Closing":
       getTracker("stream.server").isLeaked() == false
       getTracker("stream.transport").isLeaked() == false
 
-
-suite "Test Payload":
+suite "Test text message with payload":
   teardown:
     await server.closeWait()
 
@@ -770,7 +773,7 @@ suite "Test Payload":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let servRes = await ws.recv()
+      let (servRes, _) = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
       await waitForClose(ws)
 
@@ -796,7 +799,7 @@ suite "Test Payload":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let servRes = await ws.recv()
+      let (servRes, _) = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
       await waitForClose(ws)
 
@@ -851,6 +854,149 @@ suite "Test Payload":
     check:
       ping
       pong
+
+  test "AsyncStream leaks test":
+    check:
+      getTracker("async.stream.reader").isLeaked() == false
+      getTracker("async.stream.writer").isLeaked() == false
+      getTracker("stream.server").isLeaked() == false
+      getTracker("stream.transport").isLeaked() == false
+
+suite "Test Binary message with Payload":
+  teardown:
+    await server.closeWait()
+
+  test "Test binary message with single empty payload message":
+    let emptyData = newSeq[byte](0)
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      if r.isErr():
+        return dumbResponse()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(request, "proto")
+      let (servRes, opcode) = await ws.recv()
+      check:
+        servRes == emptyData
+        opcode == Opcode.Binary
+      await waitForClose(ws)
+
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
+
+    let wsClient = await WebSocket.connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+
+    await wsClient.send(emptyData, Opcode.Binary)
+    await wsClient.close()
+
+  test "Test binary message with multiple empty payload":
+    let emptyData = newSeq[byte](0)
+    proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      if r.isErr():
+        return dumbResponse()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(request, "proto")
+      let (servRes, opcode) = await ws.recv()
+      check:
+        servRes == emptyData
+        opcode == Opcode.Binary
+      await waitForClose(ws)
+
+    let res = HttpServerRef.new(
+      address, cb)
+    server = res.get()
+    server.start()
+
+    let wsClient = await WebSocket.connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"])
+
+    for i in 0..3:
+      await wsClient.send(emptyData, Opcode.Binary)
+    await wsClient.close()
+
+  test "Send binary data with small text payload":
+    let testData = rndBin(10)
+    debug "testData", testData = testData
+    var ping, pong = false
+    proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      if r.isErr():
+        return dumbResponse()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(
+        request,
+        "proto",
+        onPing = proc() =
+        ping = true
+      )
+      let (res, opcode) = await ws.recv()
+      check:
+        res == testData
+        opcode == Opcode.Binary
+      await waitForClose(ws)
+
+    let res = HttpServerRef.new(
+      address, process)
+    server = res.get()
+    server.start()
+
+    let wsClient = await WebSocket.connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"],
+      onPong = proc() =
+      pong = true
+    )
+
+    await wsClient.send(testData, Opcode.Binary)
+    await wsClient.close()
+
+  test "Send binary message message with payload of length 125":
+    let testData = rndBin(125)
+    var ping, pong = false
+    proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
+      if r.isErr():
+        return dumbResponse()
+      let request = r.get()
+      check request.uri.path == "/ws"
+      let ws = await createServer(
+        request,
+        "proto",
+        onPing = proc() =
+        ping = true
+      )
+      let (res, opcode) = await ws.recv()
+      check:
+        res == testData
+        opcode == Opcode.Binary
+      await waitForClose(ws)
+
+    let res = HttpServerRef.new(
+      address, process)
+    server = res.get()
+    server.start()
+
+    let wsClient = await WebSocket.connect(
+      "127.0.0.1",
+      Port(8888),
+      path = "/ws",
+      protocols = @["proto"],
+      onPong = proc() =
+      pong = true
+    )
+
+    await wsClient.send(testData, Opcode.Binary)
+    await wsClient.close()
 
   test "AsyncStream leaks test":
     check:
