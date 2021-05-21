@@ -1,4 +1,7 @@
-import std/[strutils, random], httputils
+import std/strutils
+import pkg/[chronos, httputils]
+import pkg/stew/byteutils
+import ./asyncunit
 
 import pkg/[
   asynctest,
