@@ -27,6 +27,11 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
 
       except WebSocketError as exc:
         error "WebSocket error:", exception = exc.msg
+
+    let header = HttpTable.init([
+      ("Server", "nim-ws example server")
+    ])
+
     discard await request.respond(Http200, "Hello World")
   else:
     return dumbResponse()
