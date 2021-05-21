@@ -1,5 +1,7 @@
 # Websocket for Nim
 
+![Github action](https://github.com/status-im/nim-ws/workflows/nim-ws%20CI/badge.svg)
+
 We're working towards an implementation of the
 [Websocket](https://tools.ietf.org/html/rfc6455) protocol for
 [Nim](https://nim-lang.org/). This is very much a work in progress, and not yet
