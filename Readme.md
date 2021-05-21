@@ -7,6 +7,9 @@ We're working towards an implementation of the
 [Nim](https://nim-lang.org/). This is very much a work in progress, and not yet
 in a usable state.
 
+See what is available and what is missing in [Autobahn summary report](https://status-im.github.io/nim-ws/)
+
+
  Building and testing
 --------------------
 
