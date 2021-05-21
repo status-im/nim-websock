@@ -28,7 +28,6 @@ let
   secureKey = TLSPrivateKey.init(SecureKey)
   secureCert = TLSCertificate.init(SecureCert)
 
-
 suite "Test websocket TLS handshake":
   teardown:
     await server.closeWait()
