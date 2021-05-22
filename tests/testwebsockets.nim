@@ -759,7 +759,7 @@ suite "Test Payload":
       path = "/ws",
       protocols = @["proto"])
 
-    await wsClient.send(toBytes(str), Opcode.Ping)
+    await wsClient.ping(toBytes(str))
     await wsClient.close()
 
   test "Test single empty payload":
@@ -826,8 +826,8 @@ suite "Test Payload":
       let ws = await createServer(
         request,
         "proto",
-        onPing = proc(data: openArray[byte] = []) =
-          ping = true
+        onPing = proc(data: openArray[byte]) =
+          ping = data == testData
       )
 
       await waitForClose(ws)
@@ -846,7 +846,7 @@ suite "Test Payload":
         pong = true
     )
 
-    await wsClient.send(testData, Opcode.Ping)
+    await wsClient.ping(testData)
     await wsClient.close()
     check:
       ping
