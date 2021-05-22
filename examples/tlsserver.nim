@@ -25,7 +25,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
                 debug "Websocket handshake completed."
                 # Only reads header for data frame.
                 echo "receiving server "
-                let (recvData, opcode) = await ws.recv()
+                let recvData = await ws.recv()
                 if recvData.len <= 0:
                     debug "Empty messages"
                     break
@@ -33,7 +33,8 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
                 if ws.readyState == ReadyState.Closed:
                     return
                 debug "Response: ", data = string.fromBytes(recvData)
-                await ws.send(recvData, Opcode.Text)
+                await ws.send(recvData,
+                    if ws.binary: Opcode.Binary else: Opcode.Text)
             except WebSocketError:
                 error "WebSocket error:", exception = getCurrentExceptionMsg()
         discard await request.respond(Http200, "Hello World")

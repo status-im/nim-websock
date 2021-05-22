@@ -136,7 +136,7 @@ suite "Test websocket TLS transmission":
       let request = r.get()
       check request.uri.path == "/wss"
       let ws = await createServer(request, "proto")
-      let (servRes, _) = await ws.recv()
+      let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
       await waitForClose(ws)
       return dumbResponse()
@@ -191,6 +191,6 @@ suite "Test websocket TLS transmission":
       protocols = @["proto"],
       clientFlags)
 
-    let (clientRes, _) = await wsClient.recv()
+    let clientRes = await wsClient.recv()
     check string.fromBytes(clientRes) == testString
     await waitForClose(wsClient)

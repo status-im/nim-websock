@@ -145,7 +145,7 @@ suite "Test transmission":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let (servRes, _) = await ws.recv()
+      let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
 
     let res = HttpServerRef.new(
@@ -169,7 +169,7 @@ suite "Test transmission":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let (servRes, _) = await ws.recv()
+      let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
       await waitForClose(ws)
 
@@ -212,7 +212,7 @@ suite "Test transmission":
         path = "/ws",
         protocols = @["proto"])
 
-      let (clientRes, _) = await wsClient.recv()
+      var clientRes = await wsClient.recv()
       check string.fromBytes(clientRes) == testString
       await waitForClose(wsClient)
 
@@ -241,11 +241,11 @@ suite "Test ping-pong":
       let ws = await createServer(
         request,
         "proto",
-        onPing = proc(data: openArray[byte] = []) =
+        onPing = proc(data: openArray[byte]) =
           ping = true
       )
 
-      let (respData, _) = await ws.recv()
+      let respData = await ws.recv()
       check string.fromBytes(respData) == testString
       await waitForClose(ws)
 
@@ -260,7 +260,7 @@ suite "Test ping-pong":
       path = "/ws",
       protocols = @["proto"],
       frameSize = maxFrameSize,
-      onPong = proc(data: openArray[byte] = []) =
+      onPong = proc(data: openArray[byte]) =
         pong = true
     )
 
@@ -310,7 +310,7 @@ suite "Test ping-pong":
         let ws = await createServer(
           request,
           "proto",
-          onPong = proc(data: openArray[byte] = []) =
+          onPong = proc(data: openArray[byte]) =
             pong = true
         )
 
@@ -326,7 +326,7 @@ suite "Test ping-pong":
         Port(8888),
         path = "/ws",
         protocols = @["proto"],
-        onPing = proc(data: openArray[byte] = []) =
+        onPing = proc(data: openArray[byte]) =
           ping = true
       )
 
@@ -346,7 +346,7 @@ suite "Test ping-pong":
       let ws = await createServer(
         request,
         "proto",
-        onPing = proc(data: openArray[byte] = []) =
+        onPing = proc(data: openArray[byte]) =
           ping = true
       )
       await waitForClose(ws)
@@ -363,7 +363,7 @@ suite "Test ping-pong":
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
-      onPong = proc(data: openArray[byte] = []) =
+      onPong = proc(data: openArray[byte]) =
         pong = true
     )
 
@@ -731,7 +731,8 @@ suite "Test Closing":
       getTracker("stream.server").isLeaked() == false
       getTracker("stream.transport").isLeaked() == false
 
-suite "Test text message with payload":
+
+suite "Test Payload":
   teardown:
     await server.closeWait()
 
@@ -762,7 +763,7 @@ suite "Test text message with payload":
       path = "/ws",
       protocols = @["proto"])
 
-    await wsClient.ping(toBytes(str))
+    await wsClient.ping(str.toBytes())
     await wsClient.close()
 
   test "Test single empty payload":
@@ -773,7 +774,7 @@ suite "Test text message with payload":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let (servRes, _) = await ws.recv()
+      let servRes = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
       await waitForClose(ws)
 
@@ -799,7 +800,7 @@ suite "Test text message with payload":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let (servRes, _) = await ws.recv()
+      let servRes = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
       await waitForClose(ws)
 
@@ -845,7 +846,7 @@ suite "Test text message with payload":
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
-      onPong = proc(data: openArray[byte] = []) =
+      onPong = proc(data: openArray[byte]) =
         pong = true
     )
 
@@ -874,10 +875,12 @@ suite "Test Binary message with Payload":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let (servRes, opcode) = await ws.recv()
+      let servRes = await ws.recv()
+
       check:
         servRes == emptyData
-        opcode == Opcode.Binary
+        ws.binary == true
+
       await waitForClose(ws)
 
     let res = HttpServerRef.new(
@@ -902,10 +905,12 @@ suite "Test Binary message with Payload":
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(request, "proto")
-      let (servRes, opcode) = await ws.recv()
+      let servRes = await ws.recv()
+
       check:
         servRes == emptyData
-        opcode == Opcode.Binary
+        ws.binary == true
+
       await waitForClose(ws)
 
     let res = HttpServerRef.new(
@@ -935,13 +940,15 @@ suite "Test Binary message with Payload":
       let ws = await createServer(
         request,
         "proto",
-        onPing = proc() =
-        ping = true
+        onPing = proc(data: openArray[byte]) =
+          ping = true
       )
-      let (res, opcode) = await ws.recv()
+
+      let res = await ws.recv()
       check:
         res == testData
-        opcode == Opcode.Binary
+        ws.binary == true
+
       await waitForClose(ws)
 
     let res = HttpServerRef.new(
@@ -954,8 +961,8 @@ suite "Test Binary message with Payload":
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
-      onPong = proc() =
-      pong = true
+      onPong = proc(data: openArray[byte]) =
+        pong = true
     )
 
     await wsClient.send(testData, Opcode.Binary)
@@ -972,13 +979,15 @@ suite "Test Binary message with Payload":
       let ws = await createServer(
         request,
         "proto",
-        onPing = proc() =
-        ping = true
+        onPing = proc(data: openArray[byte]) =
+          ping = true
       )
-      let (res, opcode) = await ws.recv()
+
+      let res = await ws.recv()
       check:
         res == testData
-        opcode == Opcode.Binary
+        ws.binary == true
+
       await waitForClose(ws)
 
     let res = HttpServerRef.new(
@@ -991,8 +1000,8 @@ suite "Test Binary message with Payload":
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
-      onPong = proc() =
-      pong = true
+      onPong = proc(data: openArray[byte]) =
+        pong = true
     )
 
     await wsClient.send(testData, Opcode.Binary)

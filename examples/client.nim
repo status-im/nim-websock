@@ -17,7 +17,7 @@ proc main() {.async.} =
   while true:
     try:
       await ws.send(reqData)
-      let (buff, _) = await ws.recv()
+      let buff = await ws.recv()
       if buff.len <= 0:
         break
 

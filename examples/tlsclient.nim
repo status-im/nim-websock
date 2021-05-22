@@ -18,7 +18,7 @@ proc main() {.async.} =
     try:
         echo "sending client "
         await ws.send(reqData)
-        let (buff, _) = await ws.recv()
+        let buff = await ws.recv()
         if buff.len <= 0:
             break
         let dataStr = string.fromBytes(buff)
