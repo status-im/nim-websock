@@ -33,7 +33,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
                 if ws.readyState == ReadyState.Closed:
                     return
                 debug "Response: ", data = string.fromBytes(recvData)
-                await ws.send(recvData)
+                await ws.send(recvData, Opcode.Text)
             except WebSocketError:
                 error "WebSocket error:", exception = getCurrentExceptionMsg()
         discard await request.respond(Http200, "Hello World")

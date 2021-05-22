@@ -6,9 +6,7 @@ import pkg/[asynctest,
         chronicles,
         stew/byteutils]
 
-import ../ws/[ws, stream]
-
-include ../ws/ws
+import ../ws/[ws, stream, utils]
 
 var server: HttpServerRef
 let address = initTAddress("127.0.0.1:8888")
@@ -233,13 +231,14 @@ suite "Test ping-pong":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
         return dumbResponse()
+
       let request = r.get()
       check request.uri.path == "/ws"
       let ws = await createServer(
         request,
         "proto",
-        onPing = proc() =
-        ping = true
+        onPing = proc(data: openArray[byte] = []) =
+          ping = true
       )
 
       let respData = await ws.recv()
@@ -257,34 +256,35 @@ suite "Test ping-pong":
       path = "/ws",
       protocols = @["proto"],
       frameSize = maxFrameSize,
-      onPong = proc() =
-      pong = true
+      onPong = proc(data: openArray[byte] = []) =
+        pong = true
     )
 
     let maskKey = genMaskKey(newRng())
-    let encframe = encodeFrame(Frame(
-      fin: false,
-      rsv1: false,
-      rsv2: false,
-      rsv3: false,
-      opcode: Opcode.Text,
-      mask: true,
-      data: msg[0..4],
-      maskKey: maskKey))
+    await wsClient.stream.writer.write(
+      encodeFrame(Frame(
+        fin: false,
+        rsv1: false,
+        rsv2: false,
+        rsv3: false,
+        opcode: Opcode.Text,
+        mask: true,
+        data: msg[0..4],
+        maskKey: maskKey)))
 
-    await wsClient.stream.writer.write(encframe)
     await wsClient.ping()
-    let encframe1 = encodeFrame(Frame(
-      fin: true,
-      rsv1: false,
-      rsv2: false,
-      rsv3: false,
-      opcode: Opcode.Cont,
-      mask: true,
-      data: msg[5..9],
-      maskKey: maskKey))
 
-    await wsClient.stream.writer.write(encframe1)
+    await wsClient.stream.writer.write(
+      encodeFrame(Frame(
+        fin: true,
+        rsv1: false,
+        rsv2: false,
+        rsv3: false,
+        opcode: Opcode.Cont,
+        mask: true,
+        data: msg[5..9],
+        maskKey: maskKey)))
+
     await wsClient.close()
     check:
       ping
@@ -306,7 +306,7 @@ suite "Test ping-pong":
         let ws = await createServer(
           request,
           "proto",
-          onPong = proc() =
+          onPong = proc(data: openArray[byte] = []) =
             pong = true
         )
 
@@ -322,8 +322,8 @@ suite "Test ping-pong":
         Port(8888),
         path = "/ws",
         protocols = @["proto"],
-        onPing = proc() =
-        ping = true
+        onPing = proc(data: openArray[byte] = []) =
+          ping = true
       )
 
       await waitForClose(wsClient)
@@ -342,8 +342,8 @@ suite "Test ping-pong":
       let ws = await createServer(
         request,
         "proto",
-        onPing = proc() =
-        ping = true
+        onPing = proc(data: openArray[byte] = []) =
+          ping = true
       )
       await waitForClose(ws)
       check:
@@ -359,8 +359,8 @@ suite "Test ping-pong":
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
-      onPong = proc() =
-      pong = true
+      onPong = proc(data: openArray[byte] = []) =
+        pong = true
     )
 
     await wsClient.ping()
@@ -744,6 +744,7 @@ suite "Test Payload":
 
       expect WSPayloadTooLarge:
         discard await ws.recv()
+
       await waitForClose(ws)
 
     let res = HttpServerRef.new(
@@ -758,7 +759,7 @@ suite "Test Payload":
       path = "/ws",
       protocols = @["proto"])
 
-    await wsClient.send(toBytes(str), Opcode.Ping)
+    await wsClient.ping(toBytes(str))
     await wsClient.close()
 
   test "Test single empty payload":
@@ -825,8 +826,8 @@ suite "Test Payload":
       let ws = await createServer(
         request,
         "proto",
-        onPing = proc() =
-        ping = true
+        onPing = proc(data: openArray[byte]) =
+          ping = data == testData
       )
 
       await waitForClose(ws)
@@ -841,11 +842,11 @@ suite "Test Payload":
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
-      onPong = proc() =
-      pong = true
+      onPong = proc(data: openArray[byte] = []) =
+        pong = true
     )
 
-    await wsClient.send(testData, Opcode.Ping)
+    await wsClient.ping(testData)
     await wsClient.close()
     check:
       ping
