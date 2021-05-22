@@ -16,6 +16,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
         if ws.readyState != Open:
           error "Failed to open websocket connection."
           return
+
         debug "Websocket handshake completed."
         while true:
           let recvData = await ws.recv()
@@ -23,14 +24,10 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
             debug "Websocket closed."
             break
           debug "Client Response: ", size = recvData.len
-          await ws.send(recvData)
+          await ws.send(recvData, Opcode.Text)
 
       except WebSocketError as exc:
         error "WebSocket error:", exception = exc.msg
-
-    let header = HttpTable.init([
-      ("Server", "nim-ws example server")
-    ])
 
     discard await request.respond(Http200, "Hello World")
   else:

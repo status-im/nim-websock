@@ -46,10 +46,11 @@ proc readHeaders*(rstream: AsyncStreamReader): Future[seq[byte]] {.async.} =
   return buffer
 
 proc closeWait*(wsStream: AsyncStream) {.async.} =
-
+  # TODO: this is most likelly wrongs
   await allFutures(
     wsStream.writer.closeWait(),
     wsStream.reader.closeWait())
+
   await allFutures(
     wsStream.writer.tsource.closeWait(),
     wsStream.reader.tsource.closeWait())
