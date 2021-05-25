@@ -1,0 +1,136 @@
+## Nim-Libp2p
+## Copyright (c) 2021 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
+{.push raises: [Defect].}
+
+import chronos
+import ./utils
+
+const
+  SHA1DigestSize* = 20
+  WSHeaderSize* = 12
+  WSDefaultVersion* = 13
+  WSDefaultFrameSize* = 1 shl 20 # 1mb
+  WSMaxMessageSize* = 20 shl 20  # 20mb
+  WSGuid* = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+  CRLF* = "\r\n"
+
+type
+  ReadyState* {.pure.} = enum
+    Connecting = 0 # The connection is not yet open.
+    Open = 1       # The connection is open and ready to communicate.
+    Closing = 2    # The connection is in the process of closing.
+    Closed = 3     # The connection is closed or couldn't be opened.
+
+  Opcode* {.pure.} = enum
+    ## 4 bits. Defines the interpretation of the "Payload data".
+    Cont = 0x0   ## Denotes a continuation frame.
+    Text = 0x1   ## Denotes a text frame.
+    Binary = 0x2 ## Denotes a binary frame.
+    # 3-7 are reserved for further non-control frames.
+    Close = 0x8  ## Denotes a connection close.
+    Ping = 0x9   ## Denotes a ping.
+    Pong = 0xa   ## Denotes a pong.
+    # B-F are reserved for further control frames.
+
+  HeaderFlag* {.pure, size: sizeof(uint8).} = enum
+    rsv3
+    rsv2
+    rsv1
+    fin
+
+  HeaderFlags* = set[HeaderFlag]
+
+  MaskKey* = array[4, char]
+
+  Frame* = ref object
+    fin*: bool                 ## Indicates that this is the final fragment in a message.
+    rsv1*: bool                ## MUST be 0 unless negotiated that defines meanings
+    rsv2*: bool                ## MUST be 0
+    rsv3*: bool                ## MUST be 0
+    opcode*: Opcode            ## Defines the interpretation of the "Payload data".
+    mask*: bool                ## Defines whether the "Payload data" is masked.
+    data*: seq[byte]           ## Payload data
+    maskKey*: MaskKey          ## Masking key
+    length*: uint64            ## Message size.
+    consumed*: uint64          ## how much has been consumed from the frame
+
+  Status* {.pure.} = enum
+    # 0-999 not used
+    Fulfilled = 1000
+    GoingAway = 1001
+    ProtocolError = 1002
+    CannotAccept = 1003
+    # 1004 reserved
+    NoStatus = 1005         # use by clients
+    ClosedAbnormally = 1006 # use by clients
+    Inconsistent = 1007
+    PolicyError = 1008
+    TooLarge = 1009
+    NoExtensions = 1010
+    UnexpectedError = 1011
+    ReservedCode = 3999     # use by clients
+                            # 3000-3999 reserved for libs
+                            # 4000-4999 reserved for applications
+
+  ControlCb* = proc(data: openArray[byte] = [])
+    {.gcsafe, raises: [Defect].}
+
+  CloseResult* = tuple
+    code: Status
+    reason: string
+
+  CloseCb* = proc(code: Status, reason: string):
+    CloseResult {.gcsafe, raises: [Defect].}
+
+  Extension* = ref object of RootObj
+    name*: string
+
+  WebSocket* = ref object of RootObj
+    extensions: seq[Extension] # extension active for this session
+    version*: uint
+    key*: string
+    proto*: string
+    readyState*: ReadyState
+    masked*: bool # send masked packets
+    binary*: bool # is payload binary?
+    rng*: Rng
+    frameSize*: int
+    onPing*: ControlCb
+    onPong*: ControlCb
+    onClose*: CloseCb
+
+  WebSocketError* = object of CatchableError
+  WSMalformedHeaderError* = object of WebSocketError
+  WSFailedUpgradeError* = object of WebSocketError
+  WSVersionError* = object of WebSocketError
+  WSProtoMismatchError* = object of WebSocketError
+  WSMaskMismatchError* = object of WebSocketError
+  WSHandshakeError* = object of WebSocketError
+  WSOpcodeMismatchError* = object of WebSocketError
+  WSRsvMismatchError* = object of WebSocketError
+  WSWrongUriSchemeError* = object of WebSocketError
+  WSMaxMessageSizeError* = object of WebSocketError
+  WSClosedError* = object of WebSocketError
+  WSSendError* = object of WebSocketError
+  WSPayloadTooLarge* = object of WebSocketError
+  WSReserverdOpcodeError* = object of WebSocketError
+  WSFragmentedControlFrameError* = object of WebSocketError
+  WSInvalidCloseCodeError* = object of WebSocketError
+  WSPayloadLengthError* = object of WebSocketError
+  WSInvalidOpcodeError* = object of WebSocketError
+
+proc `name=`*(self: Extension, name: string) =
+  raiseAssert "Can't change extensions name!"
+
+method decode*(self: Extension, frame: Frame): Future[Frame] {.base, async.} =
+  raiseAssert "Not implemented!"
+
+method encode*(self: Extension, frame: Frame): Future[Frame] {.base, async.} =
+  raiseAssert "Not implemented!"
