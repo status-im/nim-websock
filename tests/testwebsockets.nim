@@ -1,15 +1,12 @@
-import std/strutils
-import pkg/[chronos, httputils]
-import pkg/stew/byteutils
-import ./asyncunit
-
+import std/[strutils, random]
 import pkg/[
-  asynctest,
+  httputils,
   chronos,
   chronos/apps/http/httpserver,
   chronicles,
   stew/byteutils]
 
+import ./asynctest
 import ../ws/ws
 
 var server: HttpServerRef
