@@ -3,7 +3,7 @@ import pkg/[chronos,
              chronicles,
              httputils]
 
-import ../ws/ws
+import ../ws/[ws, frame, errors]
 
 proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
   if r.isOk():
