@@ -549,7 +549,7 @@ proc initiateHandshake(
   except CatchableError as exc:
     raise newException(
       TransportError,
-      "Cannot connect to " & $transp.remoteAddress() & " Error: " & exc.msg)
+      "Cannot connect to " & $address & " Error: " & exc.msg)
 
   let
     requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
