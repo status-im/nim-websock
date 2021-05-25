@@ -18,7 +18,8 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
         if request.uri.path == "/wss":
             debug "Initiating web socket connection."
             try:
-                var ws = await WebSocket.createServer(request, "myfancyprotocol")
+                let server = WSServer.new(protos = ["myfancyprotocol"])
+                var ws = await server.handleRequest(request)
                 if ws.readyState != Open:
                     error "Failed to open websocket connection."
                     return

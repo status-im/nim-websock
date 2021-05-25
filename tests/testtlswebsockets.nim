@@ -11,7 +11,7 @@ import ../ws/[ws, stream, errors],
 
 import ./keys
 
-proc waitForClose(ws: WebSocket) {.async.} =
+proc waitForClose(ws: WSSession) {.async.} =
   try:
     while ws.readystate != ReadyState.Closed:
       discard await ws.recv()
@@ -39,8 +39,10 @@ suite "Test websocket TLS handshake":
 
       let request = r.get()
       check request.uri.path == "/wss"
+      let server = WSServer.new(protos = ["proto"])
+
       expect WSProtoMismatchError:
-        discard await WebSocket.createServer(request, "proto")
+        discard await server.handleRequest(request)
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -67,8 +69,10 @@ suite "Test websocket TLS handshake":
 
       let request = r.get()
       check request.uri.path == "/wss"
+      let server = WSServer.new(protos = ["proto"])
+
       expect WSVersionError:
-        discard await WebSocket.createServer(request, "proto")
+        discard await server.handleRequest(request)
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -135,9 +139,13 @@ suite "Test websocket TLS transmission":
 
       let request = r.get()
       check request.uri.path == "/wss"
-      let ws = await WebSocket.createServer(request, "proto")
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
+
       await waitForClose(ws)
       return dumbResponse()
 
@@ -169,9 +177,13 @@ suite "Test websocket TLS transmission":
 
       let request = r.get()
       check request.uri.path == "/wss"
-      let ws = await WebSocket.createServer(request, "proto")
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+
       await ws.send(testString)
       await ws.close()
+
       return dumbResponse()
 
     let res = SecureHttpServerRef.new(

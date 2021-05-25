@@ -19,7 +19,7 @@ proc rndBin*(size: int): seq[byte] =
    for _ in .. size:
       add(result, byte(rand(0 .. 255)))
 
-proc waitForClose(ws: WebSocket) {.async.} =
+proc waitForClose(ws: WSSession) {.async.} =
   try:
     while ws.readystate != ReadyState.Closed:
       discard await ws.recv()
@@ -38,8 +38,9 @@ suite "Test handshake":
 
       let request = r.get()
       check request.uri.path == "/ws"
+      let server = WSServer.new(protos = ["proto"])
       expect WSProtoMismatchError:
-        discard await WebSocket.createServer(request, "proto")
+        discard await server.handleRequest(request)
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -58,8 +59,9 @@ suite "Test handshake":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
+      let server = WSServer.new(protos = ["ws"])
       expect WSVersionError:
-        discard await WebSocket.createServer(request, "proto")
+        discard await server.handleRequest(request)
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -110,8 +112,9 @@ suite "Test handshake":
       let request = r.get()
       check request.uri.path == "/ws"
 
+      let server = WSServer.new(protos = ["proto"])
       expect WSProtoMismatchError:
-        var ws = await WebSocket.createServer(request, "proto")
+        var ws = await server.handleRequest(request)
         check ws.readyState == ReadyState.Closed
 
       return await request.respond(Http200, "Connection established")
@@ -135,6 +138,7 @@ suite "Test handshake":
 
 suite "Test transmission":
   teardown:
+    await server.stop()
     await server.closeWait()
 
   test "Send text message message with payload of length 65535":
@@ -145,7 +149,8 @@ suite "Test transmission":
 
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(request, "proto")
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
 
@@ -167,10 +172,14 @@ suite "Test transmission":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
         return dumbResponse()
+
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(request, "proto")
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
+
       check string.fromBytes(servRes) == testString
       await waitForClose(ws)
 
@@ -183,6 +192,7 @@ suite "Test transmission":
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
+
     await wsClient.send(testString)
     await wsClient.close()
 
@@ -199,7 +209,9 @@ suite "Test transmission":
 
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await WebSocket.createServer(request, "proto")
+        let server = WSServer.new(protos = ["proto"])
+        let ws = await server.handleRequest(request)
+
         await ws.send(testString)
         await ws.close()
 
@@ -239,19 +251,19 @@ suite "Test ping-pong":
 
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(
-        request,
-        "proto",
+      let server = WSServer.new(
+        protos = ["proto"],
         onPing = proc(data: openArray[byte]) =
           ping = true
-      )
+        )
+
+      let ws = await server.handleRequest(request)
 
       let respData = await ws.recv()
       check string.fromBytes(respData) == testString
       await waitForClose(ws)
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -310,12 +322,12 @@ suite "Test ping-pong":
 
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await WebSocket.createServer(
-          request,
-          "proto",
+        let server = WSServer.new(
+          protos = ["proto"],
           onPong = proc(data: openArray[byte]) =
             pong = true
         )
+        let ws = await server.handleRequest(request)
 
         await ws.ping()
         await ws.close()
@@ -346,12 +358,13 @@ suite "Test ping-pong":
 
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(
-        request,
-        "proto",
+      let server = WSServer.new(
+        protos = ["proto"],
         onPing = proc(data: openArray[byte]) =
           ping = true
       )
+
+      let ws = await server.handleRequest(request)
       await waitForClose(ws)
       check:
         ping
@@ -393,7 +406,8 @@ suite "Test framing":
       let request = r.get()
       check request.uri.path == "/ws"
 
-      let ws = await WebSocket.createServer(request, "proto")
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
       let frame1 = await ws.readFrame()
       check not isNil(frame1)
       var data1 = newSeq[byte](frame1.remainder().int)
@@ -435,7 +449,8 @@ suite "Test framing":
 
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await WebSocket.createServer(request, "proto")
+        let server = WSServer.new(protos = ["proto"])
+        let ws = await server.handleRequest(request)
         await ws.send(testString)
         await ws.close()
 
@@ -476,7 +491,8 @@ suite "Test Closing":
 
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await WebSocket.createServer(request, "proto")
+        let server = WSServer.new(protos = ["proto"])
+        let ws = await server.handleRequest(request)
         await ws.close()
 
       let res = HttpServerRef.new(address, cb)
@@ -515,11 +531,12 @@ suite "Test Closing":
 
           return (Status.Fulfilled, "")
 
-        let ws = await WebSocket.createServer(
-          request,
-          "proto",
-          onClose = closeServer)
+        let server = WSServer.new(
+          protos = ["proto"],
+          onClose = closeServer
+        )
 
+        let ws = await server.handleRequest(request)
         await ws.close()
 
       let res = HttpServerRef.new(address, cb)
@@ -551,7 +568,8 @@ suite "Test Closing":
 
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(request, "proto")
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
       await waitForClose(ws)
 
     let res = HttpServerRef.new(address, cb)
@@ -580,10 +598,12 @@ suite "Test Closing":
         except Exception as exc:
           raise newException(Defect, exc.msg)
 
-      let ws = await WebSocket.createServer(
-        request,
-        "proto",
-        onClose = closeServer)
+      let server = WSServer.new(
+        protos = ["proto"],
+        onClose = closeServer
+      )
+
+      let ws = await server.handleRequest(request)
       await waitForClose(ws)
 
     let res = HttpServerRef.new(address, cb)
@@ -615,14 +635,12 @@ suite "Test Closing":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(
-        request,
-        "proto")
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
 
       await ws.close(code = Status.ReservedCode)
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -658,16 +676,16 @@ suite "Test Closing":
         except Exception as exc:
           raise newException(Defect, exc.msg)
 
-      let ws = await WebSocket.createServer(
-        request,
-        "proto",
-        onClose = closeServer)
+      let server = WSServer.new(
+        protos = ["proto"],
+        onClose = closeServer
+      )
+      let ws = await server.handleRequest(request)
 
       await waitForClose(ws)
       return dumbResponse()
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -689,7 +707,10 @@ suite "Test Closing":
             return dumbResponse()
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await WebSocket.createServer(request, "proto")
+
+        let server = WSServer.new(protos = ["proto"])
+        let ws = await server.handleRequest(request)
+
         # Close with payload of length 2
         await ws.close(reason = "HH")
 
@@ -711,7 +732,10 @@ suite "Test Closing":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(request, "proto")
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+
       await waitForClose(ws)
 
     let res = HttpServerRef.new(
@@ -744,9 +768,8 @@ suite "Test Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(
-        request,
-        "proto")
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
 
       expect WSPayloadTooLarge:
         discard await ws.recv()
@@ -775,8 +798,11 @@ suite "Test Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(request, "proto")
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
+
       check string.fromBytes(servRes) == emptyStr
       await waitForClose(ws)
 
@@ -801,8 +827,11 @@ suite "Test Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(request, "proto")
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
+
       check string.fromBytes(servRes) == emptyStr
       await waitForClose(ws)
 
@@ -829,13 +858,13 @@ suite "Test Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(
-        request,
-        "proto",
-        onPing = proc(data: openArray[byte]) =
-          ping = data == testData
-      )
 
+      let server = WSServer.new(
+        protos = ["proto"],
+        onPing = proc(data: openArray[byte]) =
+          ping = data == testData)
+
+      let ws = await server.handleRequest(request)
       await waitForClose(ws)
 
     let res = HttpServerRef.new(
@@ -876,7 +905,9 @@ suite "Test Binary message with Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(request, "proto")
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
 
       check:
@@ -885,8 +916,7 @@ suite "Test Binary message with Payload":
 
       await waitForClose(ws)
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -906,7 +936,10 @@ suite "Test Binary message with Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(request, "proto")
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+
       let servRes = await ws.recv()
 
       check:
@@ -939,12 +972,13 @@ suite "Test Binary message with Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(
-        request,
-        "proto",
+
+      let server = WSServer.new(
+        protos = ["proto"],
         onPing = proc(data: openArray[byte]) =
           ping = true
       )
+      let ws = await server.handleRequest(request)
 
       let res = await ws.recv()
       check:
@@ -976,14 +1010,16 @@ suite "Test Binary message with Payload":
     proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
         return dumbResponse()
+
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await WebSocket.createServer(
-        request,
-        "proto",
+
+      let server = WSServer.new(
+        protos = ["proto"],
         onPing = proc(data: openArray[byte]) =
           ping = true
       )
+      let ws = await server.handleRequest(request)
 
       let res = await ws.recv()
       check:
