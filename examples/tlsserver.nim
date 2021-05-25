@@ -4,7 +4,7 @@ import pkg/[chronos,
             httputils,
             stew/byteutils]
 
-import ../ws/[ws, frame, errors]
+import ../ws/ws
 import ../tests/keys
 
 let secureKey = TLSPrivateKey.init(SecureKey)

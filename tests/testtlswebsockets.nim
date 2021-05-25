@@ -6,8 +6,7 @@ import pkg/[asynctest,
             chronos/apps/http/shttpserver,
             stew/byteutils]
 
-import ../ws/[ws, stream, errors],
-        ../examples/tlsserver
+import ../ws/ws, ../examples/tlsserver
 
 import ./keys
 

@@ -1,5 +1,5 @@
 ## Nim-Libp2p
-## Copyright (c) 2020 Status Research & Development GmbH
+## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import pkg/[chronos, chronicles, stew/endians2, stew/results]
-import ./errors
+import ./types
 
 #[
   +---------------------------------------------------------------+
@@ -34,40 +34,6 @@ import ./errors
   +---------------------------------------------------------------+
 ]#
 
-type
-  Opcode* {.pure.} = enum
-    ## 4 bits. Defines the interpretation of the "Payload data".
-    Cont = 0x0   ## Denotes a continuation frame.
-    Text = 0x1   ## Denotes a text frame.
-    Binary = 0x2 ## Denotes a binary frame.
-    # 3-7 are reserved for further non-control frames.
-    Close = 0x8  ## Denotes a connection close.
-    Ping = 0x9   ## Denotes a ping.
-    Pong = 0xa   ## Denotes a pong.
-    # B-F are reserved for further control frames.
-
-  HeaderFlag* {.pure, size: sizeof(uint8).} = enum
-    rsv3
-    rsv2
-    rsv1
-    fin
-
-  HeaderFlags = set[HeaderFlag]
-
-  MaskKey = array[4, char]
-
-  Frame* = ref object
-    fin*: bool                 ## Indicates that this is the final fragment in a message.
-    rsv1*: bool                ## MUST be 0 unless negotiated that defines meanings
-    rsv2*: bool                ## MUST be 0
-    rsv3*: bool                ## MUST be 0
-    opcode*: Opcode            ## Defines the interpretation of the "Payload data".
-    mask*: bool                ## Defines whether the "Payload data" is masked.
-    data*: seq[byte]           ## Payload data
-    maskKey*: MaskKey          ## Masking key
-    length*: uint64            ## Message size.
-    consumed*: uint64          ## how much has been consumed from the frame
-
 proc mask*(
   data: var openArray[byte],
   maskKey: MaskKey,
@@ -78,9 +44,20 @@ proc mask*(
   for i in 0 ..< data.len:
     data[i] = (data[i].uint8 xor maskKey[(offset + i) mod 4].uint8)
 
-proc encode*(f: Frame, offset = 0): seq[byte] =
+template remainder*(frame: Frame): uint64 =
+  frame.length - frame.consumed
+
+proc encode*(
+  frame: Frame,
+  offset = 0,
+  extensions: seq[Extension] = @[]): Future[seq[byte]] {.async.} =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
+
+  var f = frame
+  if extensions.len > 0:
+    for e in extensions:
+      f = await e.encode(f)
 
   var ret: seq[byte]
   var b0 = (f.opcode.uint8 and 0x0F) # 0th byte: opcodes and flags.
@@ -135,8 +112,8 @@ proc encode*(f: Frame, offset = 0): seq[byte] =
 proc decode*(
   _: typedesc[Frame],
   reader: AsyncStreamReader,
-  masked: bool):
-  Future[Frame] {.async.} =
+  masked: bool,
+  extensions: seq[Extension] = @[]): Future[Frame] {.async.} =
   ## Read and Decode incoming header
   ##
 
@@ -203,5 +180,9 @@ proc decode*(
     await reader.readExactly(addr maskKey[0], 4)
     for i in 0..<maskKey.len:
       frame.maskKey[i] = cast[char](maskKey[i])
+
+  if extensions.len > 0:
+    for e in extensions[extensions.high..extensions.low]:
+      frame = await e.decode(frame)
 
   return frame

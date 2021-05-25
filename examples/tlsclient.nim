@@ -3,7 +3,7 @@ import pkg/[chronos,
             chronicles,
             stew/byteutils]
 
-import ../ws/ws, ../ws/errors
+import ../ws/ws
 
 proc main() {.async.} =
     let ws = await WebSocket.tlsConnect(
@@ -31,4 +31,5 @@ proc main() {.async.} =
 
     # close the websocket
     await ws.close()
+
 waitFor(main())
