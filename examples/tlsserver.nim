@@ -4,7 +4,7 @@ import pkg/[chronos,
             httputils,
             stew/byteutils]
 
-import ../ws/ws
+import ../ws/[ws, frame, errors]
 import ../tests/keys
 
 let secureKey = TLSPrivateKey.init(SecureKey)
@@ -18,7 +18,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
         if request.uri.path == "/wss":
             debug "Initiating web socket connection."
             try:
-                var ws = await createServer(request, "myfancyprotocol")
+                var ws = await WebSocket.createServer(request, "myfancyprotocol")
                 if ws.readyState != Open:
                     error "Failed to open websocket connection."
                     return

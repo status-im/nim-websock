@@ -6,7 +6,7 @@ import pkg/[asynctest,
         chronicles,
         stew/byteutils]
 
-import ../ws/[ws, stream, utils]
+import ../ws/[ws, stream, utils, frame, errors]
 
 var server: HttpServerRef
 let address = initTAddress("127.0.0.1:8888")
@@ -39,7 +39,7 @@ suite "Test handshake":
       let request = r.get()
       check request.uri.path == "/ws"
       expect WSProtoMismatchError:
-        discard await createServer(request, "proto")
+        discard await WebSocket.createServer(request, "proto")
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -59,7 +59,7 @@ suite "Test handshake":
       let request = r.get()
       check request.uri.path == "/ws"
       expect WSVersionError:
-        discard await createServer(request, "proto")
+        discard await WebSocket.createServer(request, "proto")
 
     let res = HttpServerRef.new(address, cb)
     server = res.get()
@@ -111,7 +111,7 @@ suite "Test handshake":
       check request.uri.path == "/ws"
 
       expect WSProtoMismatchError:
-        var ws = await createServer(request, "proto")
+        var ws = await WebSocket.createServer(request, "proto")
         check ws.readyState == ReadyState.Closed
 
       return await request.respond(Http200, "Connection established")
@@ -142,14 +142,14 @@ suite "Test transmission":
     proc cb(r: RequestFence): Future[HttpResponseRef] {.async.} =
       if r.isErr():
         return dumbResponse()
+
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
 
-    let res = HttpServerRef.new(
-      address, cb)
+    let res = HttpServerRef.new(address, cb)
     server = res.get()
     server.start()
 
@@ -158,6 +158,7 @@ suite "Test transmission":
       Port(8888),
       path = "/ws",
       protocols = @["proto"])
+
     await wsClient.send(testString)
     await wsClient.close()
 
@@ -168,7 +169,7 @@ suite "Test transmission":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
       await waitForClose(ws)
@@ -198,7 +199,7 @@ suite "Test transmission":
 
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await createServer(request, "proto")
+        let ws = await WebSocket.createServer(request, "proto")
         await ws.send(testString)
         await ws.close()
 
@@ -238,7 +239,7 @@ suite "Test ping-pong":
 
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto",
         onPing = proc(data: openArray[byte]) =
@@ -266,7 +267,7 @@ suite "Test ping-pong":
 
     let maskKey = genMaskKey(newRng())
     await wsClient.stream.writer.write(
-      encodeFrame(Frame(
+      Frame(
         fin: false,
         rsv1: false,
         rsv2: false,
@@ -274,12 +275,13 @@ suite "Test ping-pong":
         opcode: Opcode.Text,
         mask: true,
         data: msg[0..4],
-        maskKey: maskKey)))
+        maskKey: maskKey)
+        .encode())
 
     await wsClient.ping()
 
     await wsClient.stream.writer.write(
-      encodeFrame(Frame(
+      Frame(
         fin: true,
         rsv1: false,
         rsv2: false,
@@ -287,7 +289,8 @@ suite "Test ping-pong":
         opcode: Opcode.Cont,
         mask: true,
         data: msg[5..9],
-        maskKey: maskKey)))
+        maskKey: maskKey)
+        .encode())
 
     await wsClient.close()
     check:
@@ -307,7 +310,7 @@ suite "Test ping-pong":
 
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await createServer(
+        let ws = await WebSocket.createServer(
           request,
           "proto",
           onPong = proc(data: openArray[byte]) =
@@ -343,7 +346,7 @@ suite "Test ping-pong":
 
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto",
         onPing = proc(data: openArray[byte]) =
@@ -390,7 +393,7 @@ suite "Test framing":
       let request = r.get()
       check request.uri.path == "/ws"
 
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       let frame1 = await ws.readFrame()
       check not isNil(frame1)
       var data1 = newSeq[byte](frame1.remainder().int)
@@ -432,7 +435,7 @@ suite "Test framing":
 
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await createServer(request, "proto")
+        let ws = await WebSocket.createServer(request, "proto")
         await ws.send(testString)
         await ws.close()
 
@@ -473,7 +476,7 @@ suite "Test Closing":
 
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await createServer(request, "proto")
+        let ws = await WebSocket.createServer(request, "proto")
         await ws.close()
 
       let res = HttpServerRef.new(address, cb)
@@ -512,7 +515,7 @@ suite "Test Closing":
 
           return (Status.Fulfilled, "")
 
-        let ws = await createServer(
+        let ws = await WebSocket.createServer(
           request,
           "proto",
           onClose = closeServer)
@@ -548,7 +551,7 @@ suite "Test Closing":
 
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       await waitForClose(ws)
 
     let res = HttpServerRef.new(address, cb)
@@ -577,7 +580,7 @@ suite "Test Closing":
         except Exception as exc:
           raise newException(Defect, exc.msg)
 
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto",
         onClose = closeServer)
@@ -612,7 +615,7 @@ suite "Test Closing":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto")
 
@@ -655,7 +658,7 @@ suite "Test Closing":
         except Exception as exc:
           raise newException(Defect, exc.msg)
 
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto",
         onClose = closeServer)
@@ -686,7 +689,7 @@ suite "Test Closing":
             return dumbResponse()
         let request = r.get()
         check request.uri.path == "/ws"
-        let ws = await createServer(request, "proto")
+        let ws = await WebSocket.createServer(request, "proto")
         # Close with payload of length 2
         await ws.close(reason = "HH")
 
@@ -708,7 +711,7 @@ suite "Test Closing":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       await waitForClose(ws)
 
     let res = HttpServerRef.new(
@@ -731,7 +734,6 @@ suite "Test Closing":
       getTracker("stream.server").isLeaked() == false
       getTracker("stream.transport").isLeaked() == false
 
-
 suite "Test Payload":
   teardown:
     await server.closeWait()
@@ -742,7 +744,7 @@ suite "Test Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto")
 
@@ -773,7 +775,7 @@ suite "Test Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
       await waitForClose(ws)
@@ -799,7 +801,7 @@ suite "Test Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == emptyStr
       await waitForClose(ws)
@@ -827,7 +829,7 @@ suite "Test Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto",
         onPing = proc(data: openArray[byte]) =
@@ -874,7 +876,7 @@ suite "Test Binary message with Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       let servRes = await ws.recv()
 
       check:
@@ -904,7 +906,7 @@ suite "Test Binary message with Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       let servRes = await ws.recv()
 
       check:
@@ -937,7 +939,7 @@ suite "Test Binary message with Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto",
         onPing = proc(data: openArray[byte]) =
@@ -976,7 +978,7 @@ suite "Test Binary message with Payload":
         return dumbResponse()
       let request = r.get()
       check request.uri.path == "/ws"
-      let ws = await createServer(
+      let ws = await WebSocket.createServer(
         request,
         "proto",
         onPing = proc(data: openArray[byte]) =

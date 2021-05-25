@@ -6,7 +6,7 @@ import pkg/[asynctest,
             chronos/apps/http/shttpserver,
             stew/byteutils]
 
-import ../ws/[ws, stream],
+import ../ws/[ws, stream, errors],
         ../examples/tlsserver
 
 import ./keys
@@ -40,7 +40,7 @@ suite "Test websocket TLS handshake":
       let request = r.get()
       check request.uri.path == "/wss"
       expect WSProtoMismatchError:
-        discard await createServer(request, "proto")
+        discard await WebSocket.createServer(request, "proto")
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -68,7 +68,7 @@ suite "Test websocket TLS handshake":
       let request = r.get()
       check request.uri.path == "/wss"
       expect WSVersionError:
-        discard await createServer(request, "proto")
+        discard await WebSocket.createServer(request, "proto")
 
     let res = SecureHttpServerRef.new(
       address, cb,
@@ -135,7 +135,7 @@ suite "Test websocket TLS transmission":
 
       let request = r.get()
       check request.uri.path == "/wss"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
       await waitForClose(ws)
@@ -169,7 +169,7 @@ suite "Test websocket TLS transmission":
 
       let request = r.get()
       check request.uri.path == "/wss"
-      let ws = await createServer(request, "proto")
+      let ws = await WebSocket.createServer(request, "proto")
       await ws.send(testString)
       await ws.close()
       return dumbResponse()
