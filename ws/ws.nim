@@ -142,7 +142,7 @@ proc handshake*(
       reqHeaders.getString("Sec-WebSocket-Version"))
 
   ws.key = reqHeaders.getString("Sec-WebSocket-Key").strip()
-  var protos: seq[string]
+  var protos = @[""]
   if reqHeaders.contains("Sec-WebSocket-Protocol"):
     let wantProtos = reqHeaders.getList("Sec-WebSocket-Protocol")
     protos = wantProtos.filterIt(
