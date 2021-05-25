@@ -12,7 +12,7 @@ proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
     if request.uri.path == "/ws":
       debug "Initiating web socket connection."
       try:
-        let ws = await createServer(request, "")
+        let ws = await WebSocket.createServer(request, "")
         if ws.readyState != Open:
           error "Failed to open websocket connection."
           return
