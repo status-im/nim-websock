@@ -50,8 +50,7 @@ template remainder*(frame: Frame): uint64 =
 proc encode*(
   frame: Frame,
   offset = 0,
-  extensions: seq[Extension] = @[]):
-  Future[seq[byte]] {.async.} =
+  extensions: seq[Extension] = @[]): Future[seq[byte]] {.async.} =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
 
@@ -114,8 +113,7 @@ proc decode*(
   _: typedesc[Frame],
   reader: AsyncStreamReader,
   masked: bool,
-  extensions: seq[Extension] = @[]):
-  Future[Frame] {.async.} =
+  extensions: seq[Extension] = @[]): Future[Frame] {.async.} =
   ## Read and Decode incoming header
   ##
 
