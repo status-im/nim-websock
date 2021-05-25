@@ -1,12 +1,13 @@
 import std/[strutils, random], httputils
 
-import pkg/[asynctest,
-        chronos,
-        chronos/apps/http/httpserver,
-        chronicles,
-        stew/byteutils]
+import pkg/[
+  asynctest,
+  chronos,
+  chronos/apps/http/httpserver,
+  chronicles,
+  stew/byteutils]
 
-import ../ws/[ws, stream, utils, frame, errors]
+import ../ws/ws
 
 var server: HttpServerRef
 let address = initTAddress("127.0.0.1:8888")
@@ -138,7 +139,6 @@ suite "Test handshake":
 
 suite "Test transmission":
   teardown:
-    await server.stop()
     await server.closeWait()
 
   test "Send text message message with payload of length 65535":
@@ -279,7 +279,7 @@ suite "Test ping-pong":
 
     let maskKey = genMaskKey(newRng())
     await wsClient.stream.writer.write(
-      Frame(
+      (await Frame(
         fin: false,
         rsv1: false,
         rsv2: false,
@@ -288,12 +288,12 @@ suite "Test ping-pong":
         mask: true,
         data: msg[0..4],
         maskKey: maskKey)
-        .encode())
+        .encode()))
 
     await wsClient.ping()
 
     await wsClient.stream.writer.write(
-      Frame(
+      (await Frame(
         fin: true,
         rsv1: false,
         rsv2: false,
@@ -302,7 +302,7 @@ suite "Test ping-pong":
         mask: true,
         data: msg[5..9],
         maskKey: maskKey)
-        .encode())
+        .encode()))
 
     await wsClient.close()
     check:

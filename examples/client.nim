@@ -3,7 +3,7 @@ import pkg/[
   chronicles,
   stew/byteutils]
 
-import ../ws/ws, ../ws/errors
+import ../ws/ws
 
 proc main() {.async.} =
   let ws = await WebSocket.connect(
