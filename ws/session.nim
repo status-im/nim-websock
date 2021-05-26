@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
-import ./types, ./frame, ./utils, ./stream
+import ./types, ./frame, ./utils, ./stream, ./utf8_dfa
 
 import pkg/chronos/[
         streams/asyncstream,
@@ -295,6 +295,9 @@ proc recv*(
 
       consumed += read
       ws.frame.consumed += read.uint64
+
+    if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
+      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
 
     return consumed.int
 
