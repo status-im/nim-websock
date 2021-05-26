@@ -31,7 +31,7 @@ const utf8Table = [
   1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, # s7..s8
 ]
 
-proc validateUTF8*(text: openArray[byte | char]): bool =
+proc validateUTF8*[T: byte | char](text: openArray[T]): bool =
   var state = 0
   for c in text:
     let x = utf8Table[c.int].int

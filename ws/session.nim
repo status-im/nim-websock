@@ -132,6 +132,9 @@ proc handleClose*(
     # remining payload bytes are reason for closing
     reason = string.fromBytes(payLoad[2..payLoad.high])
 
+    if not ws.binary and validateUTF8(reason) == false:
+      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected in close reason")
+
   var rcode: Status
   if code in {Status.Fulfilled}:
     rcode = Status.Fulfilled
