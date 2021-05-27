@@ -202,27 +202,44 @@ jobs:
           nimble test
 
       - name: Setup Python version
-        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
+        if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
         uses: actions/setup-python@v2
         with:
           python-version: pypy-2.7
 
       - name: Setup and run Autobahn test suite.
-        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
+        # we switch to linux because
+        # kill $(pidof server) not working on macos
+        if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
         run: |
+          sudo apt-get install -y python-dev
           pip install virtualenv
+          pip install markdown2
           virtualenv --python=/usr/bin/python2 autobahn
           source autobahn/bin/activate
           pip install autobahntestsuite
           cd nim-ws
+          mkdir autobahn/reports
+          sed -i "s/COMMIT_SHA_SHORT/${GITHUB_SHA::7}/g" autobahn/index.md
+          sed -i "s/COMMIT_SHA/$GITHUB_SHA/g" autobahn/index.md
+          markdown2 autobahn/index.md > autobahn/reports/index.html
+
           chmod +x ./scripts/start_server.sh
           ./scripts/start_server.sh
           cd autobahn
           wstest --mode fuzzingclient --spec fuzzingclient.json
+          kill $(pidof server)
+
+          cd ..
+          chmod +x ./scripts/start_server_tls.sh
+          ./scripts/start_server_tls.sh
+          cd autobahn
+          wstest --mode fuzzingclient --spec fuzzingclient_tls.json
+          kill $(pidof tlsserver)
 
       - name: Deploy autobahn report.
-        if: runner.os == 'macos' && matrix.target.cpu == 'amd64'
+        if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
         uses: peaceiris/actions-gh-pages@v3
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./nim-ws/autobahn/reports/servers
+          publish_dir: ./nim-ws/autobahn/reports
