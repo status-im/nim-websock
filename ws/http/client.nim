@@ -1,0 +1,155 @@
+{.push raises: [Defect].}
+
+import std/[uri, strutils]
+import pkg/[
+  chronos,
+  chronicles,
+  httputils,
+  stew/byteutils]
+
+import ./common
+
+proc close*(client: HttpClient): Future[void] =
+  client.stream.closeWait()
+
+proc readHeaders(stream: AsyncStreamReader): Future[seq[byte]] {.async.} =
+  var buffer = newSeq[byte](MaxHttpHeadersSize)
+  try:
+    let
+      hlenfut = stream.readUntil(
+        addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
+      ores = await withTimeout(hlenfut, HttpHeadersTimeout)
+
+    if not ores:
+      raise newException(HttpError,
+        "Timeout expired while receiving headers")
+    else:
+      let hlen = hlenfut.read()
+      buffer.setLen(hlen)
+  except CatchableError as exc:
+    debug "Exception reading headers", exc = exc.msg
+    buffer.setLen(0)
+    raise exc
+
+  return buffer
+
+proc generateHeaders(
+  requestUrl: Uri,
+  httpMethod: HttpMethod,
+  version: HttpVersion,
+  headers: HttpTables): string =
+  # GET
+  var headersData = toUpperAscii($httpMethod)
+  headersData.add ' '
+
+  if not requestUrl.path.startsWith("/"): headersData.add '/'
+  headersData.add(requestUrl.path)
+  headersData.add(" HTTP/" & $version & CRLF)
+
+  for (key, val) in headers.items():
+    headersData.add(key & ": " & val.join(", ") & CRLF)
+  headersData.add(CRLF)
+
+  return headersData
+
+proc request*(
+  client: HttpClient,
+  url: string | Uri,
+  httpMethod = MethodGet,
+  headers: HttpTables,
+  body: seq[byte] = @[]): Future[HttpResponse] {.async.} =
+  ## Helper that actually makes the request.
+  ## Does not handle redirects.
+  ##
+
+  if not client.connected:
+    raise newException(HttpError, "No connection to host!")
+
+  let requestUrl =
+    when url is string:
+      url.parseUri()
+    else:
+      url
+
+  if requestUrl.scheme == "":
+    raise newException(HttpError, "No uri scheme supplied.")
+
+  let headerString = generateHeaders(requestUrl, httpMethod, client.version, headers)
+
+  await client.stream.writer.write(headerString)
+  let headersBuf = await client.stream.reader.readHeaders()
+  if headersBuf.len == 0:
+    raise newException(HttpError, "Empty response from server")
+
+  let response = headersBuf.parseResponse()
+  let headers =
+    block:
+      var res = HttpTable.init()
+      for key, value in response.headers():
+        res.add(key, value)
+      res
+
+  return HttpResponse(
+    headers: headers,
+    stream: client.stream,
+    code: HttpCode(response.code),
+    reason: response.reason())
+
+proc connect*(
+  T: typedesc[HttpClient | TlsHttpClient],
+  address: TransportAddress,
+  version = HttpVersion11,
+  flags: set[TransportFlags] = {},
+  tlsFlags: set[TLSFlags] = {},
+  tlsMinVersion = TLSVersion.TLS11,
+  tlsMaxVersion = TLSVersion.TLS12): Future[T] {.async.} =
+
+  let transp = await connect(address)
+  let client = T(
+    hostname: address.host,
+    port: address.port,
+    address: transp.remoteAddress())
+
+  var stream = AsyncStream(
+    reader: newAsyncStreamReader(transp),
+    writer: newAsyncStreamWriter(transp))
+
+  when T is TlsHttpClient:
+    client.tlsFlags = tlsFlags
+    client.minVersion = tlsMinVersion
+    client.maxVersion = tlsMaxVersion
+
+    let tlsStream = newTLSClientAsyncStream(
+      stream.reader,
+      stream.writer,
+      address.host,
+      minVersion = tlsMinVersion,
+      maxVersion = tlsMaxVersion,
+      flags = tlsFlags)
+
+    stream = AsyncStream(
+      reader: tlsStream.reader,
+      writer: tlsStream.writer)
+
+  client.stream = stream
+  client.connected = true
+
+  return client
+
+proc connect*(
+  T: typedesc[HttpClient | TlsHttpClient],
+  host: string,
+  port: int = 80,
+  version = HttpVersion11,
+  flags: set[TransportFlags] = {},
+  tlsFlags: set[TLSFlags] = {},
+  tlsMinVersion = TLSVersion.TLS11,
+  tlsMaxVersion = TLSVersion.TLS12): Future[T]
+  {.raises: [Defect, HttpError].} =
+
+  let address = try:
+    initTAddress(host, port)
+  except TransportAddressError as exc:
+    raise newException(HttpError, exc.msg)
+
+  return T.connect(address, version, flags, tlsFlags, tlsMinVersion, tlsMaxVersion)

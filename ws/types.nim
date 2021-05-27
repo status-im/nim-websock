@@ -19,7 +19,6 @@ const
   WSDefaultFrameSize* = 1 shl 20 # 1mb
   WSMaxMessageSize* = 20 shl 20  # 20mb
   WSGuid* = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-  CRLF* = "\r\n"
 
 type
   ReadyState* {.pure.} = enum

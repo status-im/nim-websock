@@ -151,7 +151,7 @@ proc handleClose*(
     await ws.send(prepareCloseBody(rcode, reason), Opcode.Close)
 
     ws.readyState = ReadyState.Closed
-    await ws.stream.closeWait()
+    # await ws.stream.closeWait()
 
 proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
   ## Handle control frames
@@ -203,7 +203,7 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
   except CatchableError as exc:
     trace "Exception handling control messages", exc = exc.msg
     ws.readyState = ReadyState.Closed
-    await ws.stream.closeWait()
+    # await ws.stream.closeWait()
 
 proc readFrame*(ws: WSSession): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
@@ -227,7 +227,7 @@ proc readFrame*(ws: WSSession): Future[Frame] {.async.} =
   except CatchableError as exc:
     debug "Exception reading frame, dropping socket", exc = exc.msg
     ws.readyState = ReadyState.Closed
-    await ws.stream.closeWait()
+    # await ws.stream.closeWait()
     raise exc
 
 proc ping*(ws: WSSession, data: seq[byte] = @[]): Future[void] =
@@ -307,7 +307,7 @@ proc recv*(
   except WebSocketError as exc:
     debug "Websocket error", exc = exc.msg
     ws.readyState = ReadyState.Closed
-    await ws.stream.closeWait()
+    # await ws.stream.closeWait()
     raise exc
   except CancelledError as exc:
     debug "Cancelling reading", exc = exc.msg
@@ -383,4 +383,3 @@ proc close*(
 
   except CatchableError as exc:
     debug "Exception closing", exc = exc.msg
-
