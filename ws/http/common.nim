@@ -72,17 +72,17 @@ proc sendResponse*(
 
   if data.len > 0:
     if headers.getInt("Content-Length").int != data.len:
-      debug "Wrong content length header, overriding"
+      warn "Wrong content length header, overriding"
       headers.set("Content-Length", $data.len)
 
     if headers.getString("Content-Type") != content:
       headers.set("Content-Type",
         if content.len > 0: content else: "text/html")
 
-  for key, value in headers.stringItems(true):
-    response.add(key.normalizeHeaderName())
+  for key, val in headers.stringItems(true):
+    response.add(key)
     response.add(": ")
-    response.add(value)
+    response.add(val)
     response.add(CRLF)
 
   response.add(CRLF)
@@ -111,3 +111,9 @@ proc sendError*(
   await stream.write(
     response.toBytes() &
     content.toBytes())
+
+proc sendError*(
+  request: HttpRequest,
+  code: HttpCode,
+  version = HttpVersion11): Future[void] =
+  request.stream.writer.sendError(code, version)
