@@ -38,6 +38,7 @@ proc readResponse(stream: AsyncStreamReader): Future[HttpResponseHeader] {.async
     if not ores:
       raise newException(HttpError,
         "Timeout expired while receiving headers")
+
     let hlen = hlenfut.read()
     buffer.setLen(hlen)
 

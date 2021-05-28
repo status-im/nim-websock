@@ -5,8 +5,7 @@ import std/uri
 import pkg/[
   chronos,
   chronicles,
-  httputils,
-  stew/byteutils]
+  httputils]
 
 import ./common
 
