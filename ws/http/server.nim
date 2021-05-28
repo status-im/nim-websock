@@ -15,7 +15,7 @@ type
     Future[void] {.closure, gcsafe, raises: [Defect].}
 
   HttpServer* = ref object of StreamServer
-    callback*: HttpAsyncCallback
+    handler*: HttpAsyncCallback
 
   TlsHttpServer* = ref object of HttpServer
     tlsFlags*: set[TLSFlags]
@@ -80,9 +80,9 @@ proc handleRequest(
 
     if vres == ReqStatus.Success:
       debug "Received valid HTTP request", address = $remoteAddr
-      # Call the user's callback.
-      if server.callback != nil:
-        await server.callback(
+      # Call the user's handler.
+      if server.handler != nil:
+        await server.handler(
           HttpRequest(
             headers: hdrs,
             stream: stream,
@@ -133,8 +133,8 @@ proc handleTlsConnCb(
     maxVersion = tlsHttpServer.maxVersion,
     flags = tlsHttpServer.tlsFlags)
 
-  await HttpServer(tlsHttpServer).handleRequest(
-    AsyncStream(
+  await HttpServer(tlsHttpServer)
+    .handleRequest(AsyncStream(
       reader: stream.reader,
       writer: stream.writer))
 
@@ -147,7 +147,7 @@ proc create*(
   ## Make a new HTTP Server
   ##
 
-  var server = HttpServer(callback: handler)
+  var server = HttpServer(handler: handler)
   server = HttpServer(
     createStreamServer(
       address,
@@ -159,30 +159,34 @@ proc create*(
 
 proc create*(
   _: typedesc[HttpServer],
-  address: string,
+  host: string,
+  port: int,
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {}): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 
-  return HttpServer.create(initTAddress(address), handler, flags)
+  return HttpServer.create(initTAddress(host, port), handler, flags)
 
 proc create*(
   _: typedesc[TlsHttpServer],
   address: TransportAddress,
-  handler: HttpAsyncCallback = nil,
-  tlsPrivateKey, TLSPrivateKey,
+  tlsPrivateKey: TLSPrivateKey,
   tlsCertificate: TLSCertificate,
-  flags: set[ServerFlags] = {ReuseAddr},
+  handler: HttpAsyncCallback = nil,
+  flags: set[ServerFlags] = {},
   tlsFlags: set[TLSFlags] = {},
-  tlsVersion = TLSVersion.TLS12): TlsHttpServer =
+  tlsMinVersion = TLSVersion.TLS12,
+  tlsMaxVersion = TLSVersion.TLS12): TlsHttpServer
+  {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
 
   var server = TlsHttpServer(
-    callback: handler,
+    handler: handler,
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate,
-    tlsVersion: tlsVersion)
+    minVersion: tlsMinVersion,
+    maxVersion: tlsMaxVersion)
 
   server = TlsHttpServer(
     createStreamServer(
@@ -191,26 +195,24 @@ proc create*(
       flags,
       child = StreamServer(server)))
 
-  let server = TlsHttpServer.new(address, handler, flags)
-  server.tlsPrivateKey = tlsPrivateKey
-  server.tlsCertificate = tlsCertificate
-  tlsVersion = tlsVersion
-
   return server
 
 proc create*(
   _: typedesc[TlsHttpServer],
-  address: string,
-  handler: HttpAsyncCallback = nil,
-  tlsPrivateKey, TLSPrivateKey,
+  host: string,
+  port: int,
+  tlsPrivateKey: TLSPrivateKey,
   tlsCertificate: TLSCertificate,
-  flags: set[ServerFlags] = {ReuseAddr},
+  handler: HttpAsyncCallback = nil,
+  flags: set[ServerFlags] = {},
   tlsFlags: set[TLSFlags] = {},
-  tlsVersion = TLSVersion.TLS12): TlsHttpServer =
+  tlsMinVersion = TLSVersion.TLS12,
+  tlsMaxVersion = TLSVersion.TLS12): TlsHttpServer
+  {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   TlsHttpServer.create(
-    initTAddress(address),
-    tlsPrivateKey,
-    tlsCertificate,
-    flags,
-    tlsFlags,
-    tlsVersion)
+    address = initTAddress(host, port),
+    handler = handler,
+    tlsPrivateKey = tlsPrivateKey,
+    tlsCertificate = tlsCertificate,
+    flags = flags,
+    tlsFlags = tlsFlags)

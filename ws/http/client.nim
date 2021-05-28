@@ -27,7 +27,7 @@ type
 proc close*(client: HttpClient): Future[void] =
   client.stream.closeWait()
 
-proc readHeaders(stream: AsyncStreamReader): Future[seq[byte]] {.async.} =
+proc readResponse(stream: AsyncStreamReader): Future[HttpResponseHeader] {.async.} =
   var buffer = newSeq[byte](MaxHttpHeadersSize)
   try:
     let
@@ -38,15 +38,14 @@ proc readHeaders(stream: AsyncStreamReader): Future[seq[byte]] {.async.} =
     if not ores:
       raise newException(HttpError,
         "Timeout expired while receiving headers")
-    else:
-      let hlen = hlenfut.read()
-      buffer.setLen(hlen)
+    let hlen = hlenfut.read()
+    buffer.setLen(hlen)
+
+    return buffer.parseResponse()
   except CatchableError as exc:
     debug "Exception reading headers", exc = exc.msg
     buffer.setLen(0)
     raise exc
-
-  return buffer
 
 proc generateHeaders(
   requestUrl: Uri,
@@ -92,11 +91,7 @@ proc request*(
   let headerString = generateHeaders(requestUrl, httpMethod, client.version, headers)
 
   await client.stream.writer.write(headerString)
-  let headersBuf = await client.stream.reader.readHeaders()
-  if headersBuf.len == 0:
-    raise newException(HttpError, "Empty response from server")
-
-  let response = headersBuf.parseResponse()
+  let response = await client.stream.reader.readResponse()
   let headers =
     block:
       var res = HttpTable.init()
@@ -114,7 +109,6 @@ proc connect*(
   T: typedesc[HttpClient | TlsHttpClient],
   address: TransportAddress,
   version = HttpVersion11,
-  flags: set[TransportFlags] = {},
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS11,
   tlsMaxVersion = TLSVersion.TLS12): Future[T] {.async.} =
@@ -157,7 +151,6 @@ proc connect*(
   host: string,
   port: int = 80,
   version = HttpVersion11,
-  flags: set[TransportFlags] = {},
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS11,
   tlsMaxVersion = TLSVersion.TLS12): Future[T]
@@ -168,4 +161,4 @@ proc connect*(
   except TransportAddressError as exc:
     raise newException(HttpError, exc.msg)
 
-  return T.connect(address, version, flags, tlsFlags, tlsMinVersion, tlsMaxVersion)
+  return T.connect(address, version, tlsFlags, tlsMinVersion, tlsMaxVersion)
