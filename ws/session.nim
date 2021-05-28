@@ -10,11 +10,9 @@
 {.push raises: [Defect].}
 
 import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
-import ./types, ./frame, ./utils, ./stream, ./utf8_dfa
+import ./types, ./frame, ./utils, ./utf8_dfa
 
-import pkg/chronos/[
-        streams/asyncstream,
-        streams/tlsstream]
+import pkg/chronos/[streams/asyncstream]
 
 type
   WSSession* = ref object of WebSocket
