@@ -9,6 +9,21 @@ import pkg/[
 
 import ./common
 
+type
+  HttpClient* = ref object of RootObj
+    connected*: bool
+    hostname*: string
+    address*: TransportAddress
+    version*: HttpVersion
+    port*: Port
+    stream*: AsyncStream
+    buf*: seq[byte]
+
+  TlsHttpClient* = ref object of HttpClient
+    tlsFlags*: set[TLSFlags]
+    minVersion*: TLSVersion
+    maxVersion*: TLSVersion
+
 proc close*(client: HttpClient): Future[void] =
   client.stream.closeWait()
 
@@ -40,11 +55,11 @@ proc generateHeaders(
   headers: HttpTables): string =
   # GET
   var headersData = toUpperAscii($httpMethod)
-  headersData.add ' '
+  headersData.add " "
 
-  if not requestUrl.path.startsWith("/"): headersData.add '/'
-  headersData.add(requestUrl.path)
-  headersData.add(" HTTP/" & $version & CRLF)
+  if not requestUrl.path.startsWith("/"): headersData.add "/"
+  headersData.add(requestUrl.path & " ")
+  headersData.add($version & CRLF)
 
   for (key, val) in headers.items():
     headersData.add(key & ": " & val.join(", ") & CRLF)
@@ -92,7 +107,7 @@ proc request*(
   return HttpResponse(
     headers: headers,
     stream: client.stream,
-    code: HttpCode(response.code),
+    code: response.code,
     reason: response.reason())
 
 proc connect*(
@@ -108,7 +123,8 @@ proc connect*(
   let client = T(
     hostname: address.host,
     port: address.port,
-    address: transp.remoteAddress())
+    address: transp.remoteAddress(),
+    version: version)
 
   var stream = AsyncStream(
     reader: newAsyncStreamReader(transp),

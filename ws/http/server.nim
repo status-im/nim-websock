@@ -10,6 +10,20 @@ import pkg/[
 
 import ./common
 
+type
+  HttpAsyncCallback* = proc (request: HttpRequest):
+    Future[void] {.closure, gcsafe, raises: [Defect].}
+
+  HttpServer* = ref object of StreamServer
+    callback*: HttpAsyncCallback
+
+  TlsHttpServer* = ref object of HttpServer
+    tlsFlags*: set[TLSFlags]
+    tlsPrivateKey*: TLSPrivateKey
+    tlsCertificate*: TLSCertificate
+    minVersion*: TLSVersion
+    maxVersion*: TLSVersion
+
 proc validateRequest(
   stream: AsyncStreamWriter,
   header: HttpRequestHeader): Future[ReqStatus] {.async.} =
@@ -18,18 +32,18 @@ proc validateRequest(
 
   if header.meth notin {MethodGet}:
     debug "GET method is only allowed", address = stream.tsource.remoteAddress()
-    await stream.sendHTTPResponse(Http405, version = header.version)
+    await stream.sendError(Http405, version = header.version)
     return ReqStatus.Error
 
   var hlen = header.contentLength()
   if hlen < 0 or hlen > MaxHttpRequestSize:
     debug "Invalid header length", address = stream.tsource.remoteAddress()
-    await stream.sendHTTPResponse(Http413, version = header.version)
+    await stream.sendError(Http413, version = header.version)
     return ReqStatus.Error
 
   return ReqStatus.Success
 
-proc serveClient(
+proc handleRequest(
   server: HttpServer,
   stream: AsyncStream) {.async.} =
   ## Process transport data to the HTTP server
@@ -44,7 +58,7 @@ proc serveClient(
     if not ores:
       # Timeout
       debug "Timeout expired while receiving headers", address = $remoteAddr
-      await stream.writer.sendHTTPResponse(Http408, version = HttpVersion11)
+      await stream.writer.sendError(Http408, version = HttpVersion11)
       return
 
     let hlen = hlenfut.read()
@@ -53,7 +67,7 @@ proc serveClient(
     if requestData.failed():
       # Header could not be parsed
       debug "Malformed header received", address = $remoteAddr
-      await stream.writer.sendHTTPResponse(Http400, version = HttpVersion11)
+      await stream.writer.sendError(Http400, version = HttpVersion11)
       return
 
     var vres = await stream.writer.validateRequest(requestData)
@@ -83,7 +97,7 @@ proc serveClient(
   except TransportLimitError:
     # size of headers exceeds `MaxHttpHeadersSize`
     debug "Maximum size of headers limit reached", address = $remoteAddr
-    await stream.writer.sendHTTPResponse(Http413, version = HttpVersion11)
+    await stream.writer.sendError(Http413, version = HttpVersion11)
   except TransportIncompleteError:
     # remote peer disconnected
     debug "Remote peer disconnected", address = $remoteAddr
@@ -103,7 +117,7 @@ proc handleConnCb(
     writer: newAsyncStreamWriter(transp))
 
   let httpServer = HttpServer(server)
-  await httpServer.serveClient(stream)
+  await httpServer.handleRequest(stream)
 
 proc handleTlsConnCb(
   server: StreamServer,
@@ -119,7 +133,7 @@ proc handleTlsConnCb(
     maxVersion = tlsHttpServer.maxVersion,
     flags = tlsHttpServer.tlsFlags)
 
-  await HttpServer(tlsHttpServer).serveClient(
+  await HttpServer(tlsHttpServer).handleRequest(
     AsyncStream(
       reader: stream.reader,
       writer: stream.writer))
@@ -128,7 +142,7 @@ proc create*(
   _: typedesc[HttpServer],
   address: TransportAddress,
   handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {ReuseAddr}): HttpServer
+  flags: set[ServerFlags] = {}): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
@@ -147,13 +161,12 @@ proc create*(
   _: typedesc[HttpServer],
   address: string,
   handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {ReuseAddr}): HttpServer
+  flags: set[ServerFlags] = {}): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 
-  let address = initTAddress(address)
-  return HttpServer.create(address, handler, flags)
+  return HttpServer.create(initTAddress(address), handler, flags)
 
 proc create*(
   _: typedesc[TlsHttpServer],

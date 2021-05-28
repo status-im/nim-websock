@@ -1,6 +1,6 @@
 {.push raises: [Defect].}
 
-import std/uri
+import std/[uri]
 import pkg/[
   chronos,
   httputils,
@@ -21,20 +21,6 @@ const
   CRLF* = "\r\n"
 
 type
-  HttpClient* = ref object of RootObj
-    connected*: bool
-    hostname*: string
-    address*: TransportAddress
-    version*: HttpVersion
-    port*: Port
-    stream*: AsyncStream
-    buf*: seq[byte]
-
-  TlsHttpClient* = ref object of HttpClient
-    tlsFlags*: set[TLSFlags]
-    minVersion*: TLSVersion
-    maxVersion*: TLSVersion
-
   ReqStatus* {.pure.} = enum
     Success, Error, ErrorFailure
 
@@ -42,30 +28,17 @@ type
     headers*: HttpTable
     uri*: Uri
     meth*: HttpMethod
-    code*: HttpCode
+    code*: int
     version*: HttpVersion
     stream*: AsyncStream
 
   # TODO: add useful response params, like body len
   HttpResponse* = ref object of RootObj
     headers*: HttpTable
-    code*: HttpCode
+    code*: int
     reason*: string
     version*: HttpVersion
     stream*: AsyncStream
-
-  HttpAsyncCallback* = proc (request: HttpRequest):
-    Future[void] {.closure, gcsafe, raises: [Defect].}
-
-  HttpServer* = ref object of StreamServer
-    callback*: HttpAsyncCallback
-
-  TlsHttpServer* = ref object of HttpServer
-    tlsFlags*: set[TLSFlags]
-    tlsPrivateKey*: TLSPrivateKey
-    tlsCertificate*: TLSCertificate
-    minVersion*: TLSVersion
-    maxVersion*: TLSVersion
 
   HttpError* = object of CatchableError
   HttpHeaderError* = HttpError
@@ -80,25 +53,61 @@ proc closeWait*(stream: AsyncStream) {.async.} =
     stream.writer.closeWait(),
     stream.reader.closeWait())
 
-proc sendHTTPResponse*(
-  stream: AsyncStreamWriter,
+proc sendResponse*(
+  request: HttpRequest,
   code: HttpCode,
-  data: string = "",
-  version = HttpVersion11) {.async.} =
-  ## Send request
+  headers: HttpTables = HttpTable.init(),
+  data: seq[byte] = @[],
+  version = HttpVersion11,
+  content = "") {.async.} =
+  ## Send response
   ##
 
-  var answer: string = $version
-  answer.add(" ")
-  answer.add($code)
-  answer.add(CRLF)
-  answer.add("Date: " & httpDate() & CRLF)
-  if len(data) > 0:
-    answer.add("Content-Type: application/json" & CRLF)
-  answer.add("Content-Length: " & $len(data) & CRLF)
-  answer.add(CRLF)
-  if len(data) > 0:
-    answer.add(data)
+  var headers = headers
+  var response: string = $version
+  response.add(" ")
+  response.add($code)
+  response.add(CRLF)
+  response.add("Date: " & httpDate() & CRLF)
 
-  await stream.write(answer.toBytes())
+  if data.len > 0:
+    if headers.getInt("Content-Length").int != data.len:
+      debug "Wrong content length header, overriding"
+      headers.set("Content-Length", $data.len)
 
+    if headers.getString("Content-Type") != content:
+      headers.set("Content-Type",
+        if content.len > 0: content else: "text/html")
+
+  for key, value in headers.stringItems(true):
+    response.add(key.normalizeHeaderName())
+    response.add(": ")
+    response.add(value)
+    response.add(CRLF)
+
+  response.add(CRLF)
+  await request.stream.writer.write(
+    response.toBytes() & data)
+
+proc sendResponse*(
+  request: HttpRequest,
+  code: HttpCode,
+  headers: HttpTables = HttpTable.init(),
+  data: string,
+  version = HttpVersion11,
+  content = ""): Future[void] =
+  request.sendResponse(code, headers, data.toBytes(), version, content)
+
+proc sendError*(
+  stream: AsyncStreamWriter,
+  code: HttpCode,
+  version = HttpVersion11) {.async.} =
+  let content = $code
+  var response: string = $version
+  response.add(" ")
+  response.add(content & CRLF)
+  response.add(CRLF)
+
+  await stream.write(
+    response.toBytes() &
+    content.toBytes())
