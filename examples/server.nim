@@ -31,12 +31,15 @@ proc process(request: HttpRequest) {.async.} =
     except WebSocketError as exc:
       error "WebSocket error:", exception = exc.msg
 
-    await request.stream.writer.sendHTTPResponse(
-      Http200, data = "Hello World")
-
 when isMainModule:
-  let address = initTAddress("127.0.0.1:8888")
-  let socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
-  let server = HttpServer.create(address, process, flags = socketFlags)
-  info "Server listening at ", data = address
-  waitFor server.join()
+  proc main() {.async.} =
+    let
+      address = initTAddress("127.0.0.1:8888")
+      socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
+      server = HttpServer.create(address, process, flags = socketFlags)
+
+    server.start()
+    info "Server listening at ", data = $server.localAddress()
+    await server.join()
+
+  waitFor(main())
