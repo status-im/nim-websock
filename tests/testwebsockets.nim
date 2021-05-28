@@ -26,8 +26,6 @@ proc waitForClose(ws: WSSession) {.async.} =
   except CatchableError:
     debug "Closing websocket"
 
-
-
 suite "Test handshake":
   teardown:
     server.stop()
