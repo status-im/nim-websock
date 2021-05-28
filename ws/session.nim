@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
-import ./types, ./frame, ./utils, ./stream
+import ./types, ./frame, ./utils, ./stream, ./utf8_dfa
 
 import pkg/chronos/[
         streams/asyncstream,
@@ -131,6 +131,9 @@ proc handleClose*(
 
     # remining payload bytes are reason for closing
     reason = string.fromBytes(payLoad[2..payLoad.high])
+
+    if not ws.binary and validateUTF8(reason) == false:
+      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected in close reason")
 
   var rcode: Status
   if code in {Status.Fulfilled}:
@@ -295,6 +298,9 @@ proc recv*(
 
       consumed += read
       ws.frame.consumed += read.uint64
+
+    if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
+      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
 
     return consumed.int
 

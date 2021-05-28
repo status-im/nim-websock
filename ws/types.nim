@@ -125,6 +125,7 @@ type
   WSInvalidCloseCodeError* = object of WebSocketError
   WSPayloadLengthError* = object of WebSocketError
   WSInvalidOpcodeError* = object of WebSocketError
+  WSInvalidUTF8* = object of WebSocketError
 
 proc `name=`*(self: Extension, name: string) =
   raiseAssert "Can't change extensions name!"
