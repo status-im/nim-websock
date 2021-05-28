@@ -63,7 +63,7 @@ proc connect*(
     case uri.scheme:
     of "wss":
       uri.scheme = "https"
-      await TlsHttpClient.connect(uri.hostname, uri.port.parseInt())
+      await TlsHttpClient.connect(uri.hostname, uri.port.parseInt(), tlsFlags = flags)
     of "ws":
       uri.scheme = "http"
       await HttpClient.connect(uri.hostname, uri.port.parseInt())
@@ -154,11 +154,11 @@ proc tlsConnect*(
   onClose: CloseCb = nil,
   rng: Rng = nil): Future[WSSession] {.async.} =
 
-  var uri = &"wss://${host}:${port}"
+  var uri = &"wss://{host}:{port}"
   if path.startsWith("/"):
     uri.add path
   else:
-    uri.add &"/${path}"
+    uri.add &"/{path}"
 
   return await WebSocket.connect(
     parseUri(uri),
