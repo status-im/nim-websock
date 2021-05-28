@@ -18,6 +18,7 @@ type
   WSSession* = ref object of WebSocket
     stream*: AsyncStream
     frame*: Frame
+    proto*: string
 
 proc prepareCloseBody(code: Status, reason: string): seq[byte] =
   result = reason.toBytes
