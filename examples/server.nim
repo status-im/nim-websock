@@ -6,7 +6,7 @@ import pkg/[chronos,
 
 import ../ws/ws
 
-proc process(request: HttpRequest) {.async.} =
+proc handle(request: HttpRequest) {.async.} =
   debug "Handling request:", uri = request.uri.path
   if request.uri.path == "/ws":
     debug "Initiating web socket connection."
@@ -36,7 +36,7 @@ when isMainModule:
     let
       address = initTAddress("127.0.0.1:8888")
       socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
-      server = HttpServer.create(address, process, flags = socketFlags)
+      server = HttpServer.create(address, handle, flags = socketFlags)
 
     server.start()
     info "Server listening at ", data = $server.localAddress()
