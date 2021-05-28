@@ -61,10 +61,13 @@ proc generateHeaders(
   headersData.add(requestUrl.path & " ")
   headersData.add($version & CRLF)
 
-  for (key, val) in headers.items():
-    headersData.add(key & ": " & val.join(", ") & CRLF)
-  headersData.add(CRLF)
+  for (key, val) in headers.stringItems(true):
+    headersData.add(key)
+    headersData.add(": ")
+    headersData.add(val)
+    headersData.add(CRLF)
 
+  headersData.add(CRLF)
   return headersData
 
 proc request*(
