@@ -37,6 +37,7 @@ type
     Ping = 0x9   ## Denotes a ping.
     Pong = 0xa   ## Denotes a pong.
     # B-F are reserved for further control frames.
+    Reserved = 0xf
 
   HeaderFlag* {.pure, size: sizeof(uint8).} = enum
     rsv3

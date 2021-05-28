@@ -36,20 +36,11 @@ type
   WSServer* = ref object of WebSocket
     protocols: seq[string]
 
-# proc `$`(ht: HttpTables): string =
-#   ## Returns string representation of HttpTable/Ref.
-#   ##
+func toException(e: string): ref WebSocketError =
+  (ref WebSocketError)(msg: e)
 
-#   var res = ""
-#   for key, value in ht.stringItems(true):
-#     res.add(key.normalizeHeaderName())
-#     res.add(": ")
-#     res.add(value)
-#     res.add(CRLF)
-
-#   ## add for end of header mark
-#   res.add(CRLF)
-#   res
+func toException(e: cstring): ref WebSocketError =
+  (ref WebSocketError)(msg: $e)
 
 proc connect*(
   _: type WebSocket,
@@ -65,18 +56,25 @@ proc connect*(
   ## create a new websockets client
   ##
 
-  var key = Base64.encode(genWebSecKey(newRng()))
+  var rng = if isNil(rng): newRng() else: rng
+  var key = Base64.encode(genWebSecKey(rng))
   var uri = uri
-  case uri.scheme
-  of "ws":
-    uri.scheme = "http"
-  of "wss":
-    uri.scheme = "https"
-  else:
-    raise newException(WSWrongUriSchemeError,
-      "uri scheme has to be 'ws' or 'wss'")
+  let client = try:
+    case uri.scheme:
+    of "wss":
+      uri.scheme = "https"
+      await TlsHttpClient.connect(uri.hostname, uri.port.parseInt())
+    of "ws":
+      uri.scheme = "http"
+      await HttpClient.connect(uri.hostname, uri.port.parseInt())
+    else:
+      raise newException(WSWrongUriSchemeError,
+        "uri scheme has to be 'ws' or 'wss'")
+  except CatchableError as exc:
+    raise newException(
+      TransportError, &"Cannot connect to ${uri}, Error: ${exc.msg}")
 
-  var headerData = [
+  let headerData = [
     ("Connection", "Upgrade"),
     ("Upgrade", "websocket"),
     ("Cache-Control", "no-cache"),
@@ -84,37 +82,28 @@ proc connect*(
     ("Sec-WebSocket-Key", key)]
 
   var headers = HttpTable.init(headerData)
-
   if protocols.len != 0:
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
-  let client = try:
-    if uri.scheme == "https":
-      await TlsHttpClient.connect(uri.hostname, uri.port.parseInt())
-    else:
-      await HttpClient.connect(uri.hostname, uri.port.parseInt())
-  except CatchableError as exc:
-    raise newException(
-      TransportError, &"Cannot connect to ${uri}, Error: ${exc.msg}")
-
-  try:
-    let response = await client.request(uri, headers = headers)
-    if response.code.toInt() != ord(Http101).toInt():
-      raise newException(WSFailedUpgradeError,
-            &"Server did not reply with a websocket upgrade: " &
-            &"Header code: ${response.code} Header reason: ${response.reason} " &
-            &"Address: ${client.address}")
+  let response = try:
+     await client.request(uri, headers = headers)
   except CatchableError as exc:
     debug "Websocket failed during handshake", exc = exc.msg
     await client.close()
     raise exc
+
+  if response.code != Http101.toInt():
+    raise newException(WSFailedUpgradeError,
+          &"Server did not reply with a websocket upgrade: " &
+          &"Header code: ${response.code} Header reason: ${response.reason} " &
+          &"Address: ${client.address}")
 
   # Client data should be masked.
   return WSSession(
     stream: client.stream,
     readyState: ReadyState.Open,
     masked: true,
-    rng: if isNil(rng): newRng() else: rng,
+    rng: rng,
     frameSize: frameSize,
     onPing: onPing,
     onPong: onPong,
@@ -186,7 +175,13 @@ proc handleRequest*(
   ws: WSServer,
   request: HttpRequest,
   version: uint = WSDefaultVersion): Future[WSSession]
-  {.async, raises: [Defect, WSHandshakeError, WSProtoMismatchError, ValueError, ResultError[cstring]].} =
+  {.
+    async,
+    raises: [
+      Defect,
+      WSHandshakeError,
+      WSProtoMismatchError]
+  .} =
   ## Creates a new socket from a request.
   ##
 
@@ -225,18 +220,15 @@ proc handleRequest*(
     acceptKey = Base64Pad.encode(
     sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
 
-  var headerData = [
+  var headers = HttpTable.init([
     ("Connection", "Upgrade"),
-    ("Upgrade", "webSocket"),
-    ("Sec-WebSocket-Accept", acceptKey)]
-
-  var headers = HttpTable.init(headerData)
+    ("Upgrade", "websocket"),
+    ("Sec-WebSocket-Accept", acceptKey)])
   if protos.len > 0:
     headers.add("Sec-WebSocket-Protocol", protos[0]) # send back the first matching proto
 
   try:
-    await request.stream.writer.sendHTTPResponse(
-      Http101, $headers)
+    await request.sendResponse(Http101, headers = headers)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:

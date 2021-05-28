@@ -9,7 +9,12 @@
 
 {.push raises: [Defect].}
 
-import pkg/[chronos, chronicles, stew/endians2, stew/results]
+import pkg/[
+  chronos,
+  chronicles,
+  stew/byteutils,
+  stew/endians2,
+  stew/results]
 import ./types
 
 #[
@@ -94,7 +99,6 @@ proc encode*(
     ret.add(len.toBytesBE())
 
   var data = f.data
-
   if f.mask:
     # If we need to mask it generate random mask key and mask the data.
     mask(data, f.maskKey, offset)
