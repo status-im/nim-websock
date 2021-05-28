@@ -2,10 +2,12 @@ import std/uri
 import pkg/[
   chronos,
   chronos/apps/http/httptable,
+  chronos/streams/tlsstream,
   httputils]
 
 import ./http/client, ./http/server, ./http/common
 
-export uri, httputils, client, server, httptable
+export uri, httputils, client, server, httptable, tlsstream
 export TlsHttpClient, HttpClient, HttpServer,
-  HttpResponse, HttpRequest, closeWait, sendResponse
+  HttpResponse, HttpRequest, closeWait, sendResponse,
+  sendError
