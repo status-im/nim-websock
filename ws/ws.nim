@@ -59,8 +59,7 @@ proc connect*(
   var rng = if isNil(rng): newRng() else: rng
   var key = Base64.encode(genWebSecKey(rng))
   var uri = uri
-  let client = try:
-    case uri.scheme:
+  let client = case uri.scheme:
     of "wss":
       uri.scheme = "https"
       await TlsHttpClient.connect(uri.hostname, uri.port.parseInt(), tlsFlags = flags)
@@ -70,9 +69,6 @@ proc connect*(
     else:
       raise newException(WSWrongUriSchemeError,
         "uri scheme has to be 'ws' or 'wss'")
-  except CatchableError as exc:
-    raise newException(
-      TransportError, &"Cannot connect to ${uri}, Error: ${exc.msg}")
 
   let headerData = [
     ("Connection", "Upgrade"),
@@ -82,7 +78,7 @@ proc connect*(
     ("Sec-WebSocket-Key", key)]
 
   var headers = HttpTable.init(headerData)
-  if protocols.len != 0:
+  if protocols.len > 0:
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
   let response = try:
@@ -95,8 +91,14 @@ proc connect*(
   if response.code != Http101.toInt():
     raise newException(WSFailedUpgradeError,
           &"Server did not reply with a websocket upgrade: " &
-          &"Header code: ${response.code} Header reason: ${response.reason} " &
-          &"Address: ${client.address}")
+          &"Header code: {response.code} Header reason: {response.reason} " &
+          &"Address: {client.address}")
+
+  let proto = response.headers.getString("Sec-WebSocket-Protocol")
+  if proto.len > 0 and protocols.len > 0:
+    if proto notin protocols:
+      raise newException(WSFailedUpgradeError,
+        &"Invalid protocol returned {proto}!")
 
   # Client data should be masked.
   return WSSession(
@@ -194,38 +196,37 @@ proc handleRequest*(
     .tryGet() # this method throws
 
   if ws.version != version:
+    await request.stream.writer.sendError(Http426)
+    debug "Websocket version not supported", version = ws.version
+
     raise newException(WSVersionError,
-      "Websocket version not supported, Version: " &
-      request.headers.getString("Sec-WebSocket-Version"))
+      &"Websocket version not supported, Version: {version}")
 
   ws.key = request.headers.getString("Sec-WebSocket-Key").strip()
-  var protos = @[""]
-  if request.headers.contains("Sec-WebSocket-Protocol"):
-    let wantProtos = request.headers.getList("Sec-WebSocket-Protocol")
-    protos = wantProtos.filterIt(
-      it in ws.protocols
-    )
+  let wantProtos = if request.headers.contains("Sec-WebSocket-Protocol"):
+        request.headers.getList("Sec-WebSocket-Protocol")
+     else:
+       @[""]
 
-    let
-      protosString = ws.protocols.join(", ")
-      wantProtosString = wantProtos.join(", ")
-
-    if protos.len <= 0:
-      raise newException(WSProtoMismatchError,
-        &"Protocol mismatch (expected: {protosString}" &
-        &", got: {wantProtosString})")
+  let protos = wantProtos.filterIt(
+    it in ws.protocols
+  )
 
   let
     cKey = ws.key & WSGuid
     acceptKey = Base64Pad.encode(
-    sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
+      sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
 
   var headers = HttpTable.init([
     ("Connection", "Upgrade"),
     ("Upgrade", "websocket"),
     ("Sec-WebSocket-Accept", acceptKey)])
-  if protos.len > 0:
-    headers.add("Sec-WebSocket-Protocol", protos[0]) # send back the first matching proto
+
+  let protocol = if protos.len > 0: protos[0] else: ""
+  if protocol.len > 0:
+    headers.add("Sec-WebSocket-Protocol", protocol) # send back the first matching proto
+  else:
+    debug "Didn't match any protocol", supported = ws.protocols, requested = wantProtos
 
   try:
     await request.sendResponse(Http101, headers = headers)
@@ -238,7 +239,7 @@ proc handleRequest*(
   return WSSession(
     readyState: ReadyState.Open,
     stream: request.stream,
-    proto: protos[0],
+    proto: protocol,
     masked: false,
     rng: ws.rng,
     frameSize: ws.frameSize,
