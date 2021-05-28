@@ -96,7 +96,6 @@ type
     extensions: seq[Extension] # extension active for this session
     version*: uint
     key*: string
-    proto*: string
     readyState*: ReadyState
     masked*: bool # send masked packets
     binary*: bool # is payload binary?
