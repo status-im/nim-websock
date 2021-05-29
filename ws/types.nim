@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import chronos
+import pkg/[chronos, chronos/streams/tlsstream]
 import ./utils
 
 const
@@ -99,6 +99,7 @@ type
     readyState*: ReadyState
     masked*: bool # send masked packets
     binary*: bool # is payload binary?
+    flags*: set[TLSFlags]
     rng*: Rng
     frameSize*: int
     onPing*: ControlCb
