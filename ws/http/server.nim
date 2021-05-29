@@ -159,7 +159,7 @@ proc create*(
 proc create*(
   _: typedesc[HttpServer],
   host: string,
-  port: int,
+  port: Port,
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {}): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
@@ -199,7 +199,7 @@ proc create*(
 proc create*(
   _: typedesc[TlsHttpServer],
   host: string,
-  port: int,
+  port: Port,
   tlsPrivateKey: TLSPrivateKey,
   tlsCertificate: TLSCertificate,
   handler: HttpAsyncCallback = nil,
