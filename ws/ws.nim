@@ -113,41 +113,49 @@ proc connect*(
 
 proc connect*(
   _: type WebSocket,
-  host: string,
-  port: Port,
+  address: TransportAddress,
   path: string,
   protocols: seq[string] = @[],
+  secure = false,
+  flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
-  onClose: CloseCb = nil): Future[WSSession] {.async.} =
+  onClose: CloseCb = nil,
+  rng: Rng = nil): Future[WSSession] {.async.} =
   ## Create a new websockets client
   ## using a string path
   ##
 
-  var uri = "ws://" & host & ":" & $port
+  var uri = if secure:
+      &"wss://"
+    else:
+      &"ws://"
+
+  uri &= address.host & ":" & $address.port
   if path.startsWith("/"):
     uri.add path
   else:
-    uri.add "/" & path
+    uri.add &"/{path}"
 
   return await WebSocket.connect(
-    parseUri(uri),
-    protocols,
-    {},
-    version,
-    frameSize,
-    onPing,
-    onPong,
-    onClose)
+    uri = parseUri(uri),
+    protocols = protocols,
+    flags = flags,
+    version = version,
+    frameSize = frameSize,
+    onPing = onPing,
+    onPong = onPong,
+    onClose = onClose)
 
-proc tlsConnect*(
+proc connect*(
   _: type WebSocket,
   host: string,
   port: Port,
   path: string,
   protocols: seq[string] = @[],
+  secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
@@ -156,22 +164,17 @@ proc tlsConnect*(
   onClose: CloseCb = nil,
   rng: Rng = nil): Future[WSSession] {.async.} =
 
-  var uri = &"wss://{host}:{port}"
-  if path.startsWith("/"):
-    uri.add path
-  else:
-    uri.add &"/{path}"
-
   return await WebSocket.connect(
-    parseUri(uri),
-    protocols,
-    flags,
-    version,
-    frameSize,
-    onPing,
-    onPong,
-    onClose,
-    rng)
+    address = initTAddress(host, port),
+    path = path,
+    protocols = protocols,
+    flags = flags,
+    version = version,
+    frameSize = frameSize,
+    onPing = onPing,
+    onPong = onPong,
+    onClose = onClose,
+    rng = rng)
 
 proc handleRequest*(
   ws: WSServer,
