@@ -210,7 +210,7 @@ jobs:
       - name: Setup and run Autobahn test suite.
         # we switch to linux because
         # kill $(pidof server) not working on macos
-        # if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
+        if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
         run: |
           sudo apt-get install -y python-dev
           pip install virtualenv
@@ -224,18 +224,20 @@ jobs:
           sed -i "s/COMMIT_SHA/$GITHUB_SHA/g" autobahn/index.md
           markdown2 autobahn/index.md > autobahn/reports/index.html
 
-          chmod +x ./scripts/start_server.sh
-          ./scripts/start_server.sh
+          nim c examples/server.nim
+          examples/server &
+          pid=$!
           cd autobahn
           wstest --mode fuzzingclient --spec fuzzingclient.json
-          kill $(pidof server)
-
+          kill $pid
           cd ..
-          chmod +x ./scripts/start_server_tls.sh
-          ./scripts/start_server_tls.sh
+
+          nim c examples/tlsserver.nim
+          examples/tlsserver &
+          pid=$!
           cd autobahn
           wstest --mode fuzzingclient --spec fuzzingclient_tls.json
-          kill $(pidof tlsserver)
+          kill $pid
 
       - name: Deploy autobahn report.
         if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'

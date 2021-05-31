@@ -10,29 +10,31 @@ import ../tests/keys
 
 proc handle(request: HttpRequest) {.async.} =
   debug "Handling request:", uri = request.uri.path
-  if request.uri.path == "/wss":
+  if request.uri.path != "/wss":
     debug "Initiating web socket connection."
-    try:
-        let server = WSServer.new(protos = ["myfancyprotocol"])
-        var ws = await server.handleRequest(request)
-        if ws.readyState != Open:
-            error "Failed to open websocket connection."
-            return
-        debug "Websocket handshake completed."
-        # Only reads header for data frame.
-        echo "receiving server "
-        let recvData = await ws.recv()
-        if recvData.len <= 0:
-            debug "Empty messages"
-            break
+    return
 
-        if ws.readyState == ReadyState.Closed:
-            return
-        debug "Response: ", data = string.fromBytes(recvData)
-        await ws.send(recvData,
-            if ws.binary: Opcode.Binary else: Opcode.Text)
-    except WebSocketError:
-        error "WebSocket error:", exception = getCurrentExceptionMsg()
+  try:
+    let server = WSServer.new(protos = ["myfancyprotocol"])
+    var ws = await server.handleRequest(request)
+    if ws.readyState != Open:
+        error "Failed to open websocket connection."
+        return
+    debug "Websocket handshake completed."
+    # Only reads header for data frame.
+    echo "receiving server "
+    let recvData = await ws.recv()
+    if recvData.len <= 0:
+        debug "Empty messages"
+        break
+
+    if ws.readyState == ReadyState.Closed:
+        return
+    debug "Response: ", data = string.fromBytes(recvData)
+    await ws.send(recvData,
+        if ws.binary: Opcode.Binary else: Opcode.Text)
+  except WebSocketError:
+      error "WebSocket error:", exception = getCurrentExceptionMsg()
 
 when isMainModule:
   proc main() {.async.} =

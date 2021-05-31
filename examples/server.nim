@@ -8,28 +8,29 @@ import ../ws/ws
 
 proc handle(request: HttpRequest) {.async.} =
   debug "Handling request:", uri = request.uri.path
-  if request.uri.path == "/ws":
-    debug "Initiating web socket connection."
-    try:
-      let server = WSServer.new()
-      let ws = await server.handleRequest(request)
-      if ws.readyState != Open:
-        error "Failed to open websocket connection."
-        return
+  if request.uri.path != "/ws":
+    return
 
-      debug "Websocket handshake completed."
-      while true:
-        let recvData = await ws.recv()
-        if ws.readyState == ReadyState.Closed:
-          debug "Websocket closed."
-          break
+  debug "Initiating web socket connection."
+  try:
+    let server = WSServer.new()
+    let ws = await server.handleRequest(request)
+    if ws.readyState != Open:
+      error "Failed to open websocket connection."
+      return
 
-        debug "Client Response: ", size = recvData.len
-        await ws.send(recvData,
-          if ws.binary: Opcode.Binary else: Opcode.Text)
+    debug "Websocket handshake completed."
+    while true:
+      let recvData = await ws.recv()
+      if ws.readyState == ReadyState.Closed:
+        debug "Websocket closed."
+        break
 
-    except WebSocketError as exc:
-      error "WebSocket error:", exception = exc.msg
+      debug "Client Response: ", size = recvData.len
+      await ws.send(recvData,
+        if ws.binary: Opcode.Binary else: Opcode.Text)
+  except WebSocketError as exc:
+    error "WebSocket error:", exception = exc.msg
 
 when isMainModule:
   proc main() {.async.} =
