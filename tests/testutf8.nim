@@ -109,15 +109,15 @@ suite "UTF-8 validator in action":
       flags = {ReuseAddr})
     server.start()
 
-    let wsClient = await WebSocket.connect(
+    let  session = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
     )
 
-    await wsClient.send(testData)
-    await wsClient.close()
+    await  session.send(testData)
+    await  session.close()
 
   test "valid UTF-8 sequence in close reason":
     let testData = "hello world"
@@ -150,15 +150,15 @@ suite "UTF-8 validator in action":
       flags = {ReuseAddr})
     server.start()
 
-    let wsClient = await WebSocket.connect(
+    let  session = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
     )
 
-    await wsClient.send(testData)
-    await wsClient.close(reason = closeReason)
+    await  session.send(testData)
+    await  session.close(reason = closeReason)
 
   test "invalid UTF-8 sequence":
     # TODO: how to check for Invalid UTF8 exception?
@@ -168,6 +168,7 @@ suite "UTF-8 validator in action":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
+      discard await ws.recv()
 
     server = HttpServer.create(
       address,
@@ -175,16 +176,16 @@ suite "UTF-8 validator in action":
       flags = {ReuseAddr})
     server.start()
 
-    let wsClient = await WebSocket.connect(
+    let  session = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"]
     )
 
-    await wsClient.send(testData)
-    await waitForClose(wsClient)
-    check wsClient.readyState == ReadyState.Closed
+    await  session.send(testData)
+    await waitForClose( session)
+    check  session.readyState == ReadyState.Closed
 
   test "invalid UTF-8 sequence close code":
     # TODO: how to check for Invalid UTF8 exception?
@@ -207,14 +208,14 @@ suite "UTF-8 validator in action":
       flags = {ReuseAddr})
     server.start()
 
-    let wsClient = await WebSocket.connect(
+    let  session = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"]
     )
 
-    await wsClient.send(testData)
-    await wsClient.close(reason = closeReason)
-    await waitForClose(wsClient)
-    check wsClient.readyState == ReadyState.Closed
+    await  session.send(testData)
+    await  session.close(reason = closeReason)
+    await waitForClose( session)
+    check  session.readyState == ReadyState.Closed
