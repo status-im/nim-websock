@@ -92,7 +92,7 @@ suite "Test handshake":
 
   test "Should not select incorrect protocol":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let
         server = WSServer.new(protos = ["proto"])
@@ -114,7 +114,7 @@ suite "Test handshake":
 
   test "Test for incorrect version":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(protos = ["ws"])
 
       expect WSVersionError:
@@ -133,7 +133,7 @@ suite "Test handshake":
 
   test "Test for client headers":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       check request.headers.getString("Connection").toUpperAscii() ==
         "Upgrade".toUpperAscii()
       check request.headers.getString("Upgrade").toUpperAscii() ==
@@ -156,7 +156,7 @@ suite "Test handshake":
 
   test "Test for incorrect scheme":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       expect WSProtoMismatchError:
@@ -190,7 +190,7 @@ suite "Test transmission":
   test "Send text message message with payload of length 65535":
     let testString = rndStr(65535)
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
@@ -209,7 +209,7 @@ suite "Test transmission":
   test "Server - test reading simple frame":
     let testString = "Hello!"
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -231,7 +231,7 @@ suite "Test transmission":
   test "Client - test reading simple frame":
     let testString = "Hello!"
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
@@ -268,7 +268,7 @@ suite "Test ping-pong":
     let maxFrameSize = 5
 
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(
         protos = ["proto"],
         onPing = proc(data: openArray[byte]) =
@@ -329,7 +329,7 @@ suite "Test ping-pong":
   test "Server - test ping-pong control messages":
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(
         protos = ["proto"],
         onPong = proc(data: openArray[byte]) =
@@ -360,7 +360,7 @@ suite "Test ping-pong":
   test "Client - test ping-pong control messages":
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(
         protos = ["proto"],
         onPing = proc(data: openArray[byte]) =
@@ -403,7 +403,7 @@ suite "Test framing":
   test "should split message into frames":
     let testString = "1234567890"
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -437,7 +437,7 @@ suite "Test framing":
   test "should fail to read past max message size":
     let testString = "1234567890"
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       await ws.send(testString)
@@ -470,7 +470,7 @@ suite "Test Closing":
 
   test "Server closing":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       await ws.close()
@@ -487,7 +487,7 @@ suite "Test Closing":
 
   test "Server closing with status":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       proc closeServer(status: Status, reason: string): CloseResult{.gcsafe,
           raises: [Defect].} =
@@ -530,7 +530,7 @@ suite "Test Closing":
 
   test "Client closing":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       await waitForClose(ws)
@@ -546,7 +546,7 @@ suite "Test Closing":
 
   test "Client closing with status":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       proc closeServer(status: Status, reason: string): CloseResult{.gcsafe,
           raises: [Defect].} =
         try:
@@ -587,7 +587,7 @@ suite "Test Closing":
 
   test "Server closing with valid close code 3999":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
@@ -615,7 +615,7 @@ suite "Test Closing":
 
   test "Client closing with valid close code 3999":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       proc closeServer(status: Status, reason: string): CloseResult{.gcsafe,
           raises: [Defect].} =
         try:
@@ -643,7 +643,7 @@ suite "Test Closing":
 
   test "Server closing with Payload of length 2":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -662,7 +662,7 @@ suite "Test Closing":
 
   test "Client closing with Payload of length 2":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -694,7 +694,7 @@ suite "Test Payload":
 
   test "Test payload message length":
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
@@ -717,7 +717,7 @@ suite "Test Payload":
   test "Test single empty payload":
     let emptyStr = ""
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -740,7 +740,7 @@ suite "Test Payload":
   test "Test multiple empty payload":
     let emptyStr = ""
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -764,7 +764,7 @@ suite "Test Payload":
     let testData = toBytes("Hello, world!")
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(
         protos = ["proto"],
@@ -807,7 +807,7 @@ suite "Test Binary message with Payload":
   test "Test binary message with single empty payload message":
     let emptyData = newSeq[byte](0)
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -832,7 +832,7 @@ suite "Test Binary message with Payload":
   test "Test binary message with multiple empty payload":
     let emptyData = newSeq[byte](0)
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -862,7 +862,7 @@ suite "Test Binary message with Payload":
     debug "testData", testData = testData
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(
         protos = ["proto"],
@@ -897,7 +897,7 @@ suite "Test Binary message with Payload":
     let testData = rndBin(125)
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path ==  WSPath
+      check request.uri.path == WSPath
 
       let server = WSServer.new(
         protos = ["proto"],
