@@ -53,7 +53,6 @@ proc generateHeaders(
   httpMethod: HttpMethod,
   version: HttpVersion,
   headers: HttpTables): string =
-  # GET
   var headersData = toUpperAscii($httpMethod)
   headersData.add " "
 
