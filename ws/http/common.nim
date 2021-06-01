@@ -24,34 +24,37 @@ type
   ReqStatus* {.pure.} = enum
     Success, Error, ErrorFailure
 
-  HttpRequest* = ref object of RootObj
+  HttpCommon* = ref object of RootObj
     headers*: HttpTable
-    uri*: Uri
-    meth*: HttpMethod
     code*: int
     version*: HttpVersion
     stream*: AsyncStream
 
+  HttpRequest* = ref object of HttpCommon
+    uri*: Uri
+    meth*: HttpMethod
+
   # TODO: add useful response params, like body len
-  HttpResponse* = ref object of RootObj
-    headers*: HttpTable
-    code*: int
+  HttpResponse* = ref object of HttpCommon
     reason*: string
-    version*: HttpVersion
-    stream*: AsyncStream
 
   HttpError* = object of CatchableError
   HttpHeaderError* = HttpError
 
-proc closeWait*(stream: AsyncStream) {.async.} =
-  # TODO: this is most likelly wrong
-  await allFutures(
-    stream.writer.tsource.closeWait(),
-    stream.reader.tsource.closeWait())
+proc closeTransp*(transp: StreamTransport) {.async.} =
+  if not transp.closed():
+    await transp.closeWait()
 
+proc closeStream*(stream: AsyncStreamRW) {.async.} =
+  if not stream.closed():
+    await stream.closeWait()
+
+proc closeWait*(stream: AsyncStream) {.async.} =
   await allFutures(
-    stream.writer.closeWait(),
-    stream.reader.closeWait())
+    stream.reader.tsource.closeTransp(),
+    stream.reader.closeStream(),
+    stream.writer.closeStream()
+  )
 
 proc sendResponse*(
   request: HttpRequest,

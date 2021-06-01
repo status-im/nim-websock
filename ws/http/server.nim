@@ -52,7 +52,8 @@ proc handleRequest(
   let remoteAddr = stream.reader.tsource.remoteAddress()
   debug "Received connection", address = $remoteAddr
   try:
-    let hlenfut = stream.reader.readUntil(addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
+    let hlenfut = stream.reader.readUntil(
+      addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
     let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
     if not ores:
       # Timeout
@@ -77,22 +78,18 @@ proc handleRequest(
           res.add(key, value)
         res
 
-    if vres == ReqStatus.Success:
-      debug "Received valid HTTP request", address = $remoteAddr
-      # Call the user's handler.
-      if server.handler != nil:
-        await server.handler(
-          HttpRequest(
-            headers: hdrs,
-            stream: stream,
-            uri: requestData.uri().parseUri()))
-
-      return
-
     if vres == ReqStatus.ErrorFailure:
       debug "Remote peer disconnected", address = $remoteAddr
       return
 
+    debug "Received valid HTTP request", address = $remoteAddr
+    # Call the user's handler.
+    if server.handler != nil:
+      await server.handler(
+        HttpRequest(
+          headers: hdrs,
+          stream: stream,
+          uri: requestData.uri().parseUri()))
   except TransportLimitError:
     # size of headers exceeds `MaxHttpHeadersSize`
     debug "Maximum size of headers limit reached", address = $remoteAddr

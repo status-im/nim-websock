@@ -16,14 +16,14 @@ proc handle(request: HttpRequest) {.async.} =
     let server = WSServer.new()
     let ws = await server.handleRequest(request)
     if ws.readyState != Open:
-      error "Failed to open websocket connection."
+      error "Failed to open websocket connection"
       return
 
-    debug "Websocket handshake completed."
+    debug "Websocket handshake completed"
     while true:
       let recvData = await ws.recv()
       if ws.readyState == ReadyState.Closed:
-        debug "Websocket closed."
+        debug "Websocket closed"
         break
 
       debug "Client Response: ", size = recvData.len
