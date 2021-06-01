@@ -125,8 +125,8 @@ suite "UTF-8 validator in action":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
 
-      proc onClose(status: Status, reason: string): CloseResult{.gcsafe,
-        raises: [Defect].} =
+      proc onClose(status: Status, reason: string):
+        CloseResult {.gcsafe, raises: [Defect].} =
         try:
           check status == Status.Fulfilled
           check reason == closeReason
@@ -136,7 +136,6 @@ suite "UTF-8 validator in action":
 
       let server = WSServer.new(protos = ["proto"], onClose = onClose)
       let ws = await server.handleRequest(request)
-
       let res = await ws.recv()
       check:
         string.fromBytes(res) == testData

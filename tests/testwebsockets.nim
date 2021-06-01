@@ -195,6 +195,7 @@ suite "Test transmission":
       let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
       check string.fromBytes(servRes) == testString
+      await ws.waitForClose()
 
     server = createServer(
       address = address,
@@ -216,7 +217,7 @@ suite "Test transmission":
       let servRes = await ws.recv()
 
       check string.fromBytes(servRes) == testString
-      await waitForClose(ws)
+      await ws.waitForClose()
 
     server = createServer(
       address = address,
@@ -249,12 +250,12 @@ suite "Test transmission":
     check string.fromBytes(clientRes) == testString
     await waitForClose(session)
 
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
+  # test "AsyncStream leaks test":
+  #   check:
+  #     getTracker("async.stream.reader").isLeaked() == false
+  #     getTracker("async.stream.writer").isLeaked() == false
+  #     getTracker("stream.server").isLeaked() == false
+  #     getTracker("stream.transport").isLeaked() == false
 
 suite "Test ping-pong":
   teardown:
