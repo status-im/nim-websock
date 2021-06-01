@@ -35,6 +35,7 @@ export utils, session, frame, types, http
 type
   WSServer* = ref object of WebSocket
     protocols: seq[string]
+    factories: seq[ExtFactory]
 
 func toException(e: string): ref WebSocketError =
   (ref WebSocketError)(msg: e)
@@ -46,6 +47,7 @@ proc connect*(
   _: type WebSocket,
   uri: Uri,
   protocols: seq[string] = @[],
+  extensions: seq[Ext] = @[],
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
@@ -105,6 +107,7 @@ proc connect*(
     stream: client.stream,
     readyState: ReadyState.Open,
     masked: true,
+    extensions: @extensions,
     rng: rng,
     frameSize: frameSize,
     onPing: onPing,
@@ -116,6 +119,7 @@ proc connect*(
   address: TransportAddress,
   path: string,
   protocols: seq[string] = @[],
+  extensions: seq[Ext] = @[],
   secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
@@ -142,6 +146,7 @@ proc connect*(
   return await WebSocket.connect(
     uri = parseUri(uri),
     protocols = protocols,
+    extensions = extensions,
     flags = flags,
     version = version,
     frameSize = frameSize,
@@ -155,6 +160,7 @@ proc connect*(
   port: Port,
   path: string,
   protocols: seq[string] = @[],
+  extensions: seq[Ext] = @[],
   secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
@@ -168,6 +174,7 @@ proc connect*(
     address = initTAddress(host, port),
     path = path,
     protocols = protocols,
+    extensions = extensions,
     flags = flags,
     version = version,
     frameSize = frameSize,
@@ -253,11 +260,11 @@ proc handleRequest*(
 proc new*(
   _: typedesc[WSServer],
   protos: openArray[string] = [""],
+  factories: openArray[ExtFactory] = [],
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  extensions: openArray[Extension] = [],
   rng: Rng = nil): WSServer =
 
   return WSServer(
@@ -265,6 +272,7 @@ proc new*(
     masked: false,
     rng: if isNil(rng): newRng() else: rng,
     frameSize: frameSize,
+    factories: @factories,
     onPing: onPing,
     onPong: onPong,
     onClose: onClose)

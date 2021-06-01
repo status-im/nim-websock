@@ -9,6 +9,7 @@
 
 {.push raises: [Defect].}
 
+import std/tables
 import pkg/[chronos, chronos/streams/tlsstream]
 import ./utils
 
@@ -89,11 +90,15 @@ type
   CloseCb* = proc(code: Status, reason: string):
     CloseResult {.gcsafe, raises: [Defect].}
 
-  Extension* = ref object of RootObj
+  Ext* = ref object of RootObj
     name*: string
+    options*: Table[string, string]
+
+  ExtFactory* = proc(name: string, options: Table[string, string]):
+    Ext {.raises: [Defect].}
 
   WebSocket* = ref object of RootObj
-    extensions: seq[Extension] # extension active for this session
+    extensions*: seq[Ext]
     version*: uint
     key*: string
     readyState*: ReadyState
@@ -127,11 +132,14 @@ type
   WSInvalidOpcodeError* = object of WebSocketError
   WSInvalidUTF8* = object of WebSocketError
 
-proc `name=`*(self: Extension, name: string) =
+proc `name=`*(self: Ext, name: string) =
   raiseAssert "Can't change extensions name!"
 
-method decode*(self: Extension, frame: Frame): Future[Frame] {.base, async.} =
+method decode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
   raiseAssert "Not implemented!"
 
-method encode*(self: Extension, frame: Frame): Future[Frame] {.base, async.} =
+method encode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
+  raiseAssert "Not implemented!"
+
+method toHttpOptions*(self: Ext): string =
   raiseAssert "Not implemented!"

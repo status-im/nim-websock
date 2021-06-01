@@ -61,7 +61,7 @@ proc send*(
         mask: ws.masked,
         data: data, # allow sending data with close messages
         maskKey: maskKey)
-        .encode()))
+        .encode(extensions = ws.extensions)))
 
     return
 
@@ -212,7 +212,8 @@ proc readFrame*(ws: WSSession): Future[Frame] {.async.} =
   ##
 
   while ws.readyState != ReadyState.Closed:
-    let frame = await Frame.decode(ws.stream.reader, ws.masked)
+    let frame = await Frame.decode(
+      ws.stream.reader, ws.masked, ws.extensions)
     debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
 
     # return the current frame if it's not one of the control frames
