@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import chronos
+import pkg/[chronos, chronos/streams/tlsstream]
 import ./utils
 
 const
@@ -19,7 +19,6 @@ const
   WSDefaultFrameSize* = 1 shl 20 # 1mb
   WSMaxMessageSize* = 20 shl 20  # 20mb
   WSGuid* = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-  CRLF* = "\r\n"
 
 type
   ReadyState* {.pure.} = enum
@@ -38,6 +37,7 @@ type
     Ping = 0x9   ## Denotes a ping.
     Pong = 0xa   ## Denotes a pong.
     # B-F are reserved for further control frames.
+    Reserved = 0xf
 
   HeaderFlag* {.pure, size: sizeof(uint8).} = enum
     rsv3
@@ -96,10 +96,10 @@ type
     extensions: seq[Extension] # extension active for this session
     version*: uint
     key*: string
-    proto*: string
     readyState*: ReadyState
     masked*: bool # send masked packets
     binary*: bool # is payload binary?
+    flags*: set[TLSFlags]
     rng*: Rng
     frameSize*: int
     onPing*: ControlCb

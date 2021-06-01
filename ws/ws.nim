@@ -11,13 +11,13 @@
 
 import std/[tables,
             strutils,
+            strformat,
             sequtils,
             uri,
             parseutils]
 
 import pkg/[chronos,
             chronos/apps/http/httptable,
-            chronos/apps/http/httpserver,
             chronos/streams/asyncstream,
             chronos/streams/tlsstream,
             chronicles,
@@ -28,156 +28,19 @@ import pkg/[chronos,
             stew/base10,
             nimcrypto/sha]
 
-import ./utils, ./stream, ./frame, ./session, /types
+import ./utils, ./frame, ./session, /types, ./http
 
-export utils, session, frame, stream, types
+export utils, session, frame, types, http
 
 type
-  HttpCode* = enum
-    Http101 = 101 # Switching Protocols
-
   WSServer* = ref object of WebSocket
     protocols: seq[string]
 
-proc `$`(ht: HttpTables): string =
-  ## Returns string representation of HttpTable/Ref.
-  var res = ""
-  for key, value in ht.stringItems(true):
-    res.add(key.normalizeHeaderName())
-    res.add(": ")
-    res.add(value)
-    res.add(CRLF)
+func toException(e: string): ref WebSocketError =
+  (ref WebSocketError)(msg: e)
 
-  ## add for end of header mark
-  res.add(CRLF)
-  res
-
-proc handshake*(
-  ws: WSServer,
-  request: HttpRequestRef,
-  stream: AsyncStream,
-  version: uint = WSDefaultVersion): Future[WSSession] {.async.} =
-  ## Handles the websocket handshake.
-  ##
-
-  let
-    reqHeaders = request.headers
-
-  ws.version = Base10.decode(
-    uint,
-    reqHeaders.getString("Sec-WebSocket-Version"))
-    .tryGet() # this method throws
-
-  if ws.version != version:
-    raise newException(WSVersionError,
-      "Websocket version not supported, Version: " &
-      reqHeaders.getString("Sec-WebSocket-Version"))
-
-  ws.key = reqHeaders.getString("Sec-WebSocket-Key").strip()
-  var protos = @[""]
-  if reqHeaders.contains("Sec-WebSocket-Protocol"):
-    let wantProtos = reqHeaders.getList("Sec-WebSocket-Protocol")
-    protos = wantProtos.filterIt(
-      it in ws.protocols
-    )
-
-    if protos.len <= 0:
-      raise newException(WSProtoMismatchError,
-        "Protocol mismatch (expected: " & ws.protocols.join(", ") & ", got: " &
-        wantProtos.join(", ") & ")")
-
-  let
-    cKey = ws.key & WSGuid
-    acceptKey = Base64Pad.encode(
-    sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
-
-  var headerData = [
-    ("Connection", "Upgrade"),
-    ("Upgrade", "webSocket"),
-    ("Sec-WebSocket-Accept", acceptKey)]
-
-  var headers = HttpTable.init(headerData)
-  if protos.len > 0:
-    headers.add("Sec-WebSocket-Protocol", protos[0]) # send back the first matching proto
-
-  try:
-    discard await request.respond(httputils.Http101, "", headers)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    raise newException(WSHandshakeError,
-        "Failed to sent handshake response. Error: " & exc.msg)
-
-  return WSSession(
-    readyState: ReadyState.Open,
-    stream: stream,
-    proto: protos[0],
-    masked: false,
-    rng: ws.rng,
-    frameSize: ws.frameSize,
-    onPing: ws.onPing,
-    onPong: ws.onPong,
-    onClose: ws.onClose)
-
-proc initiateHandshake(
-  uri: Uri,
-  address: TransportAddress,
-  headers: HttpTable,
-  flags: set[TLSFlags] = {}): Future[AsyncStream] {.async.} =
-  ## Initiate handshake with server
-
-  var transp: StreamTransport
-  try:
-    transp = await connect(address)
-  except CatchableError as exc:
-    raise newException(
-      TransportError,
-      "Cannot connect to " & $address & " Error: " & exc.msg)
-
-  let
-    requestHeader = "GET " & uri.path & " HTTP/1.1" & CRLF & $headers
-    reader = newAsyncStreamReader(transp)
-    writer = newAsyncStreamWriter(transp)
-
-  var stream: AsyncStream
-
-  try:
-    var res: seq[byte]
-    if uri.scheme == "https":
-      let tlsstream = newTLSClientAsyncStream(reader, writer, "", flags = flags)
-      stream = AsyncStream(
-        reader: tlsstream.reader,
-        writer: tlsstream.writer)
-
-      await tlsstream.writer.write(requestHeader)
-      res = await tlsstream.reader.readHeaders()
-    else:
-      stream = AsyncStream(
-        reader: reader,
-        writer: writer)
-      await stream.writer.write(requestHeader)
-      res = await stream.reader.readHeaders()
-
-    if res.len == 0:
-      raise newException(ValueError, "Empty response from server")
-
-    let resHeader = res.parseResponse()
-    if resHeader.failed():
-      # Header could not be parsed
-      raise newException(WSMalformedHeaderError, "Malformed header received.")
-
-    if resHeader.code != ord(Http101):
-      raise newException(WSFailedUpgradeError,
-            "Server did not reply with a websocket upgrade:" &
-            " Header code: " & $resHeader.code &
-            " Header reason: " & resHeader.reason() &
-            " Address: " & $transp.remoteAddress())
-  except CatchableError as exc:
-    debug "Websocket failed during handshake", exc = exc.msg
-    await stream.closeWait()
-    raise exc
-
-  return stream
+func toException(e: cstring): ref WebSocketError =
+  (ref WebSocketError)(msg: $e)
 
 proc connect*(
   _: type WebSocket,
@@ -193,18 +56,21 @@ proc connect*(
   ## create a new websockets client
   ##
 
-  var key = Base64.encode(genWebSecKey(newRng()))
+  var rng = if isNil(rng): newRng() else: rng
+  var key = Base64.encode(genWebSecKey(rng))
   var uri = uri
-  case uri.scheme
-  of "ws":
-    uri.scheme = "http"
-  of "wss":
-    uri.scheme = "https"
-  else:
-    raise newException(WSWrongUriSchemeError,
-      "uri scheme has to be 'ws' or 'wss'")
+  let client = case uri.scheme:
+    of "wss":
+      uri.scheme = "https"
+      await TlsHttpClient.connect(uri.hostname, uri.port.parseInt(), tlsFlags = flags)
+    of "ws":
+      uri.scheme = "http"
+      await HttpClient.connect(uri.hostname, uri.port.parseInt())
+    else:
+      raise newException(WSWrongUriSchemeError,
+        "uri scheme has to be 'ws' or 'wss'")
 
-  var headerData = [
+  let headerData = [
     ("Connection", "Upgrade"),
     ("Upgrade", "websocket"),
     ("Cache-Control", "no-cache"),
@@ -212,19 +78,34 @@ proc connect*(
     ("Sec-WebSocket-Key", key)]
 
   var headers = HttpTable.init(headerData)
-
-  if protocols.len != 0:
+  if protocols.len > 0:
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
-  let address = initTAddress(uri.hostname & ":" & uri.port)
-  let stream = await initiateHandshake(uri, address, headers, flags)
+  let response = try:
+     await client.request(uri, headers = headers)
+  except CatchableError as exc:
+    debug "Websocket failed during handshake", exc = exc.msg
+    await client.close()
+    raise exc
+
+  if response.code != Http101.toInt():
+    raise newException(WSFailedUpgradeError,
+          &"Server did not reply with a websocket upgrade: " &
+          &"Header code: {response.code} Header reason: {response.reason} " &
+          &"Address: {client.address}")
+
+  let proto = response.headers.getString("Sec-WebSocket-Protocol")
+  if proto.len > 0 and protocols.len > 0:
+    if proto notin protocols:
+      raise newException(WSFailedUpgradeError,
+        &"Invalid protocol returned {proto}!")
 
   # Client data should be masked.
   return WSSession(
-    stream: stream,
+    stream: client.stream,
     readyState: ReadyState.Open,
     masked: true,
-    rng: if isNil(rng): newRng() else: rng,
+    rng: rng,
     frameSize: frameSize,
     onPing: onPing,
     onPong: onPong,
@@ -232,41 +113,49 @@ proc connect*(
 
 proc connect*(
   _: type WebSocket,
-  host: string,
-  port: Port,
+  address: TransportAddress,
   path: string,
   protocols: seq[string] = @[],
+  secure = false,
+  flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
-  onClose: CloseCb = nil): Future[WSSession] {.async.} =
+  onClose: CloseCb = nil,
+  rng: Rng = nil): Future[WSSession] {.async.} =
   ## Create a new websockets client
   ## using a string path
   ##
 
-  var uri = "ws://" & host & ":" & $port
+  var uri = if secure:
+      &"wss://"
+    else:
+      &"ws://"
+
+  uri &= address.host & ":" & $address.port
   if path.startsWith("/"):
     uri.add path
   else:
-    uri.add "/" & path
+    uri.add &"/{path}"
 
   return await WebSocket.connect(
-    parseUri(uri),
-    protocols,
-    {},
-    version,
-    frameSize,
-    onPing,
-    onPong,
-    onClose)
+    uri = parseUri(uri),
+    protocols = protocols,
+    flags = flags,
+    version = version,
+    frameSize = frameSize,
+    onPing = onPing,
+    onPong = onPong,
+    onClose = onClose)
 
-proc tlsConnect*(
+proc connect*(
   _: type WebSocket,
   host: string,
   port: Port,
   path: string,
   protocols: seq[string] = @[],
+  secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
@@ -275,38 +164,91 @@ proc tlsConnect*(
   onClose: CloseCb = nil,
   rng: Rng = nil): Future[WSSession] {.async.} =
 
-  var uri = "wss://" & host & ":" & $port
-  if path.startsWith("/"):
-    uri.add path
-  else:
-    uri.add "/" & path
-
   return await WebSocket.connect(
-    parseUri(uri),
-    protocols,
-    flags,
-    version,
-    frameSize,
-    onPing,
-    onPong,
-    onClose,
-    rng)
+    address = initTAddress(host, port),
+    path = path,
+    protocols = protocols,
+    flags = flags,
+    version = version,
+    frameSize = frameSize,
+    onPing = onPing,
+    onPong = onPong,
+    onClose = onClose,
+    rng = rng)
 
 proc handleRequest*(
   ws: WSServer,
-  request: HttpRequestRef): Future[WSSession]
-  {.raises: [Defect, WSHandshakeError].} =
+  request: HttpRequest,
+  version: uint = WSDefaultVersion): Future[WSSession]
+  {.
+    async,
+    raises: [
+      Defect,
+      WSHandshakeError,
+      WSProtoMismatchError]
+  .} =
   ## Creates a new socket from a request.
   ##
 
   if not request.headers.contains("Sec-WebSocket-Version"):
     raise newException(WSHandshakeError, "Missing version header")
 
-  let wsStream = AsyncStream(
-    reader: request.connection.reader,
-    writer: request.connection.writer)
+  ws.version = Base10.decode(
+    uint,
+    request.headers.getString("Sec-WebSocket-Version"))
+    .tryGet() # this method throws
 
-  return ws.handshake(request, wsStream)
+  if ws.version != version:
+    await request.stream.writer.sendError(Http426)
+    debug "Websocket version not supported", version = ws.version
+
+    raise newException(WSVersionError,
+      &"Websocket version not supported, Version: {version}")
+
+  ws.key = request.headers.getString("Sec-WebSocket-Key").strip()
+  let wantProtos = if request.headers.contains("Sec-WebSocket-Protocol"):
+        request.headers.getList("Sec-WebSocket-Protocol")
+     else:
+       @[""]
+
+  let protos = wantProtos.filterIt(
+    it in ws.protocols
+  )
+
+  let
+    cKey = ws.key & WSGuid
+    acceptKey = Base64Pad.encode(
+      sha1.digest(cKey.toOpenArray(0, cKey.high)).data)
+
+  var headers = HttpTable.init([
+    ("Connection", "Upgrade"),
+    ("Upgrade", "websocket"),
+    ("Sec-WebSocket-Accept", acceptKey)])
+
+  let protocol = if protos.len > 0: protos[0] else: ""
+  if protocol.len > 0:
+    headers.add("Sec-WebSocket-Protocol", protocol) # send back the first matching proto
+  else:
+    debug "Didn't match any protocol", supported = ws.protocols, requested = wantProtos
+
+  try:
+    await request.sendResponse(Http101, headers = headers)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    raise newException(WSHandshakeError,
+        "Failed to sent handshake response. Error: " & exc.msg)
+
+  return WSSession(
+    readyState: ReadyState.Open,
+    stream: request.stream,
+    proto: protocol,
+    masked: false,
+    rng: ws.rng,
+    frameSize: ws.frameSize,
+    onPing: ws.onPing,
+    onPong: ws.onPong,
+    onClose: ws.onClose)
 
 proc new*(
   _: typedesc[WSServer],

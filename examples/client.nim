@@ -28,6 +28,7 @@ proc main() {.async.} =
       break
     except WebSocketError as exc:
       error "WebSocket error:", exception = exc.msg
+      raise exc
 
     await sleepAsync(100.millis)
 

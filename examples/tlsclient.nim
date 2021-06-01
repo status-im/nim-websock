@@ -16,7 +16,7 @@ proc main() {.async.} =
 
     let reqData = "Hello Server"
     try:
-        echo "sending client "
+        debug "sending client "
         await ws.send(reqData)
         let buff = await ws.recv()
         if buff.len <= 0:

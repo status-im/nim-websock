@@ -9,7 +9,12 @@
 
 {.push raises: [Defect].}
 
-import pkg/[chronos, chronicles, stew/endians2, stew/results]
+import pkg/[
+  chronos,
+  chronicles,
+  stew/byteutils,
+  stew/endians2,
+  stew/results]
 import ./types
 
 #[
@@ -94,7 +99,6 @@ proc encode*(
     ret.add(len.toBytesBE())
 
   var data = f.data
-
   if f.mask:
     # If we need to mask it generate random mask key and mask the data.
     mask(data, f.maskKey, offset)
@@ -118,6 +122,7 @@ proc decode*(
   ##
 
   var header = newSeq[byte](2)
+  debug "Reading new frame"
   await reader.readExactly(addr header[0], 2)
   if header.len != 2:
     debug "Invalid websocket header length"
@@ -137,7 +142,7 @@ proc decode*(
   frame.rsv3 = HeaderFlag.rsv3 in hf
 
   let opcode = (b0 and 0x0f)
-  if opcode > ord(Opcode.high):
+  if opcode > ord(Opcode.Pong):
     raise newException(WSOpcodeMismatchError, "Wrong opcode!")
 
   frame.opcode = (opcode).Opcode

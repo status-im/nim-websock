@@ -13,7 +13,6 @@ import
     stew/byteutils,
     asynctest,
     chronos,
-    chronos/apps/http/httpserver,
     chronicles
   ],
   ../ws/[ws, utf8_dfa]
@@ -81,21 +80,17 @@ proc waitForClose(ws: WSSession) {.async.} =
 
 # TODO: use new test framework from dryajov
 # if it is ready.
-var server: HttpServerRef
+var server: HttpServer
 let address = initTAddress("127.0.0.1:8888")
 
 suite "UTF-8 validator in action":
   teardown:
-    await server.stop()
+    server.stop()
     await server.closeWait()
 
   test "valid UTF-8 sequence":
     let testData = "hello world"
-    proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      if r.isErr():
-        return dumbResponse()
-
-      let request = r.get()
+    proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
 
       let server = WSServer.new(protos = ["proto"])
@@ -108,32 +103,30 @@ suite "UTF-8 validator in action":
 
       await waitForClose(ws)
 
-    let res = HttpServerRef.new(address, process)
-    server = res.get()
+    server = HttpServer.create(
+      address,
+      handle,
+      flags = {ReuseAddr})
     server.start()
 
-    let wsClient = await WebSocket.connect(
+    let session = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
     )
 
-    await wsClient.send(testData)
-    await wsClient.close()
+    await session.send(testData)
+    await session.close()
 
   test "valid UTF-8 sequence in close reason":
     let testData = "hello world"
     let closeReason = "i want to close"
-    proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      if r.isErr():
-        return dumbResponse()
-
-      let request = r.get()
+    proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
 
-      proc onClose(status: Status, reason: string): CloseResult{.gcsafe,
-        raises: [Defect].} =
+      proc onClose(status: Status, reason: string):
+        CloseResult {.gcsafe, raises: [Defect].} =
         try:
           check status == Status.Fulfilled
           check reason == closeReason
@@ -143,7 +136,6 @@ suite "UTF-8 validator in action":
 
       let server = WSServer.new(protos = ["proto"], onClose = onClose)
       let ws = await server.handleRequest(request)
-
       let res = await ws.recv()
       check:
         string.fromBytes(res) == testData
@@ -151,57 +143,54 @@ suite "UTF-8 validator in action":
 
       await waitForClose(ws)
 
-    let res = HttpServerRef.new(address, process)
-    server = res.get()
+    server = HttpServer.create(
+      address,
+      handle,
+      flags = {ReuseAddr})
     server.start()
 
-    let wsClient = await WebSocket.connect(
+    let session = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"],
     )
 
-    await wsClient.send(testData)
-    await wsClient.close(reason = closeReason)
+    await session.send(testData)
+    await session.close(reason = closeReason)
 
   test "invalid UTF-8 sequence":
     # TODO: how to check for Invalid UTF8 exception?
     let testData = "hello world\xc0\xaf"
-    proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      if r.isErr():
-        return dumbResponse()
-
-      let request = r.get()
+    proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
+      discard await ws.recv()
 
-    let res = HttpServerRef.new(address, process)
-    server = res.get()
+    server = HttpServer.create(
+      address,
+      handle,
+      flags = {ReuseAddr})
     server.start()
 
-    let wsClient = await WebSocket.connect(
+    let session = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"]
     )
 
-    await wsClient.send(testData)
-    await waitForClose(wsClient)
-    check wsClient.readyState == ReadyState.Closed
+    await session.send(testData)
+    await waitForClose( session)
+    check session.readyState == ReadyState.Closed
 
   test "invalid UTF-8 sequence close code":
     # TODO: how to check for Invalid UTF8 exception?
     let testData = "hello world"
     let closeReason = "i want to close\xc0\xaf"
-    proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
-      if r.isErr():
-        return dumbResponse()
-
-      let request = r.get()
+    proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
 
       let server = WSServer.new(protos = ["proto"])
@@ -212,18 +201,20 @@ suite "UTF-8 validator in action":
         string.fromBytes(res) == testData
         ws.binary == false
 
-    let res = HttpServerRef.new(address, process)
-    server = res.get()
+    server = HttpServer.create(
+      address,
+      handle,
+      flags = {ReuseAddr})
     server.start()
 
-    let wsClient = await WebSocket.connect(
+    let session = await WebSocket.connect(
       "127.0.0.1",
       Port(8888),
       path = "/ws",
       protocols = @["proto"]
     )
 
-    await wsClient.send(testData)
-    await wsClient.close(reason = closeReason)
-    await waitForClose(wsClient)
-    check wsClient.readyState == ReadyState.Closed
+    await session.send(testData)
+    await session.close(reason = closeReason)
+    await waitForClose( session)
+    check session.readyState == ReadyState.Closed
