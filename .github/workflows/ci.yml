@@ -208,8 +208,6 @@ jobs:
           python-version: pypy-2.7
 
       - name: Setup and run Autobahn test suite.
-        # we switch to linux because
-        # kill $(pidof server) not working on macos
         if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
         run: |
           sudo apt-get install -y python-dev
@@ -219,10 +217,6 @@ jobs:
           source autobahn/bin/activate
           pip install autobahntestsuite
           cd nim-ws
-          mkdir autobahn/reports
-          sed -i "s/COMMIT_SHA_SHORT/${GITHUB_SHA::7}/g" autobahn/index.md
-          sed -i "s/COMMIT_SHA/$GITHUB_SHA/g" autobahn/index.md
-          markdown2 autobahn/index.md > autobahn/reports/index.html
 
           nim c examples/server.nim
           examples/server &
@@ -238,6 +232,10 @@ jobs:
           cd autobahn
           wstest --mode fuzzingclient --spec fuzzingclient_tls.json
           kill $pid
+
+          # collect generated report and make a nice summary
+          node summary.js ${GITHUB_SHA} > index.md
+          markdown2 --extras tables index.md > reports/index.html
 
       - name: Deploy autobahn report.
         if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
