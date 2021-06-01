@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
-import ./types, ./frame, ./utils, ./utf8_dfa
+import ./types, ./frame, ./utils, ./utf8_dfa, ./http
 
 import pkg/chronos/[streams/asyncstream]
 
@@ -101,7 +101,7 @@ proc handleClose*(
     opcode = frame.opcode
     readyState = ws.readyState
 
-  debug "Handling close sequence"
+  debug "Handling close"
 
   if ws.readyState notin {ReadyState.Open}:
     debug "Connection isn't open, abortig close sequence!"
@@ -132,7 +132,8 @@ proc handleClose*(
     reason = string.fromBytes(payLoad[2..payLoad.high])
 
     if not ws.binary and validateUTF8(reason) == false:
-      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected in close reason")
+      raise newException(WSInvalidUTF8,
+        "Invalid UTF8 sequence detected in close reason")
 
   var rcode: Status
   if code in {Status.Fulfilled}:
@@ -150,11 +151,20 @@ proc handleClose*(
     await ws.send(prepareCloseBody(rcode, reason), Opcode.Close)
 
     ws.readyState = ReadyState.Closed
-    # await ws.stream.closeWait()
+    await ws.stream.closeWait()
 
 proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
   ## Handle control frames
   ##
+
+  logScope:
+    fin = frame.fin
+    masked = frame.mask
+    opcode = frame.opcode
+    readyState = ws.readyState
+    len = frame.length
+
+  debug "Handling control frame"
 
   if not frame.fin:
     raise newException(WSFragmentedControlFrameError,
@@ -164,70 +174,53 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
     raise newException(WSPayloadTooLarge,
       "Control message payload is greater than 125 bytes!")
 
-  try:
-    var payLoad = newSeq[byte](frame.length.int)
-    if frame.length > 0:
-      payLoad.setLen(frame.length.int)
-      # Read control frame payload.
-      await ws.stream.reader.readExactly(addr payLoad[0], frame.length.int)
-      if frame.mask:
-        mask(
-          payLoad.toOpenArray(0, payLoad.high),
-          frame.maskKey)
+  var payLoad = newSeq[byte](frame.length.int)
+  if frame.length > 0:
+    payLoad.setLen(frame.length.int)
+    # Read control frame payload.
+    await ws.stream.reader.readExactly(addr payLoad[0], frame.length.int)
+    if frame.mask:
+      mask(
+        payLoad.toOpenArray(0, payLoad.high),
+        frame.maskKey)
 
-    # Process control frame payload.
-    case frame.opcode:
-    of Opcode.Ping:
-      if not isNil(ws.onPing):
-        try:
-          ws.onPing(payLoad)
-        except CatchableError as exc:
-          debug "Exception in Ping callback, this is most likelly a bug", exc = exc.msg
+  # Process control frame payload.
+  case frame.opcode:
+  of Opcode.Ping:
+    if not isNil(ws.onPing):
+      try:
+        ws.onPing(payLoad)
+      except CatchableError as exc:
+        debug "Exception in Ping callback, this is most likelly a bug", exc = exc.msg
 
-      # send pong to remote
-      await ws.send(payLoad, Opcode.Pong)
-    of Opcode.Pong:
-      if not isNil(ws.onPong):
-        try:
-          ws.onPong(payLoad)
-        except CatchableError as exc:
-          debug "Exception in Pong callback, this is most likelly a bug", exc = exc.msg
-    of Opcode.Close:
-      await ws.handleClose(frame, payLoad)
-    else:
-      raise newException(WSInvalidOpcodeError, "Invalid control opcode!")
-  except WebSocketError as exc:
-    debug "Handled websocket exception", exc = exc.msg
-    raise exc
-  except CatchableError as exc:
-    trace "Exception handling control messages", exc = exc.msg
-    ws.readyState = ReadyState.Closed
-    # await ws.stream.closeWait()
+    # send pong to remote
+    await ws.send(payLoad, Opcode.Pong)
+  of Opcode.Pong:
+    if not isNil(ws.onPong):
+      try:
+        ws.onPong(payLoad)
+      except CatchableError as exc:
+        debug "Exception in Pong callback, this is most likelly a bug", exc = exc.msg
+  of Opcode.Close:
+    await ws.handleClose(frame, payLoad)
+  else:
+    raise newException(WSInvalidOpcodeError, "Invalid control opcode!")
 
 proc readFrame*(ws: WSSession): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
   ##
 
-  try:
-    while ws.readyState != ReadyState.Closed:
-      let frame = await Frame.decode(ws.stream.reader, ws.masked)
-      debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
+  while ws.readyState != ReadyState.Closed:
+    let frame = await Frame.decode(ws.stream.reader, ws.masked)
+    debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
 
-      # return the current frame if it's not one of the control frames
-      if frame.opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
-        await ws.handleControl(frame) # process control frames# process control frames
-        continue
+    # return the current frame if it's not one of the control frames
+    if frame.opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
+      await ws.handleControl(frame) # process control frames# process control frames
+      continue
 
-      return frame
-  except WebSocketError as exc:
-    trace "Websocket error", exc = exc.msg
-    raise exc
-  except CatchableError as exc:
-    debug "Exception reading frame, dropping socket", exc = exc.msg
-    ws.readyState = ReadyState.Closed
-    # await ws.stream.closeWait()
-    raise exc
+    return frame
 
 proc ping*(ws: WSSession, data: seq[byte] = @[]): Future[void] =
   ws.send(data, opcode = Opcode.Ping)
@@ -302,17 +295,11 @@ proc recv*(
       raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
 
     return consumed.int
-
-  except WebSocketError as exc:
-    debug "Websocket error", exc = exc.msg
-    ws.readyState = ReadyState.Closed
-    # await ws.stream.closeWait()
-    raise exc
-  except CancelledError as exc:
-    debug "Cancelling reading", exc = exc.msg
-    raise exc
   except CatchableError as exc:
+    ws.readyState = ReadyState.Closed
+    await ws.stream.closeWait()
     debug "Exception reading frames", exc = exc.msg
+    raise exc
 
 proc recv*(
   ws: WSSession,
@@ -329,34 +316,25 @@ proc recv*(
   ## In all other cases it awaits a full message.
   ##
   var res: seq[byte]
-  try:
-    while ws.readyState != ReadyState.Closed:
-      var buf = newSeq[byte](ws.frameSize)
-      let read = await ws.recv(addr buf[0], buf.len)
-      if read <= 0:
-        break
+  while ws.readyState != ReadyState.Closed:
+    var buf = newSeq[byte](ws.frameSize)
+    let read = await ws.recv(addr buf[0], buf.len)
+    if read <= 0:
+      break
 
-      buf.setLen(read)
-      if res.len + buf.len > size:
-        raise newException(WSMaxMessageSizeError, "Max message size exceeded")
+    buf.setLen(read)
+    if res.len + buf.len > size:
+      raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
-      res.add(buf)
+    res.add(buf)
 
-      # no more frames
-      if isNil(ws.frame):
-        break
+    # no more frames
+    if isNil(ws.frame):
+      break
 
-      # read the entire message, exit
-      if ws.frame.fin and ws.frame.remainder().int <= 0:
-        break
-  except WebSocketError as exc:
-    debug "Websocket error", exc = exc.msg
-    raise exc
-  except CancelledError as exc:
-    debug "Cancelling reading", exc = exc.msg
-    raise exc
-  except CatchableError as exc:
-    debug "Exception reading frames", exc = exc.msg
+    # read the entire message, exit
+    if ws.frame.fin and ws.frame.remainder().int <= 0:
+      break
 
   return res
 
@@ -379,6 +357,5 @@ proc close*(
     # read frames until closed
     while ws.readyState != ReadyState.Closed:
       discard await ws.recv()
-
   except CatchableError as exc:
     debug "Exception closing", exc = exc.msg
