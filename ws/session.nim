@@ -12,7 +12,7 @@
 import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
 import ./types, ./frame, ./utils, ./utf8_dfa, ./http
 
-import pkg/chronos/[streams/asyncstream]
+import pkg/chronos/streams/asyncstream
 
 type
   WSSession* = ref object of WebSocket
@@ -104,7 +104,7 @@ proc handleClose*(
   debug "Handling close"
 
   if ws.readyState notin {ReadyState.Open}:
-    debug "Connection isn't open, abortig close sequence!"
+    debug "Connection isn't open, aborting close sequence!"
     return
 
   var
@@ -128,7 +128,7 @@ proc handleClose*(
       raise newException(WSInvalidCloseCodeError,
         "Status code out of range!")
 
-    # remining payload bytes are reason for closing
+    # remaining payload bytes are reason for closing
     reason = string.fromBytes(payLoad[2..payLoad.high])
 
     if not ws.binary and validateUTF8(reason) == false:
@@ -191,7 +191,7 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
       try:
         ws.onPing(payLoad)
       except CatchableError as exc:
-        debug "Exception in Ping callback, this is most likelly a bug", exc = exc.msg
+        debug "Exception in Ping callback, this is most likely a bug", exc = exc.msg
 
     # send pong to remote
     await ws.send(payLoad, Opcode.Pong)
@@ -200,7 +200,7 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
       try:
         ws.onPong(payLoad)
       except CatchableError as exc:
-        debug "Exception in Pong callback, this is most likelly a bug", exc = exc.msg
+        debug "Exception in Pong callback, this is most likely a bug", exc = exc.msg
   of Opcode.Close:
     await ws.handleClose(frame, payLoad)
   else:

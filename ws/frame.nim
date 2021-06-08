@@ -15,6 +15,7 @@ import pkg/[
   stew/byteutils,
   stew/endians2,
   stew/results]
+
 import ./types
 
 #[
@@ -147,10 +148,6 @@ proc decode*(
 
   frame.opcode = (opcode).Opcode
 
-  # If any of the rsv are set close the socket.
-  if frame.rsv1 or frame.rsv2 or frame.rsv3:
-    raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")
-
   # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
   var finalLen: uint64 = 0
 
@@ -189,5 +186,9 @@ proc decode*(
   if extensions.len > 0:
     for e in extensions[extensions.high..extensions.low]:
       frame = await e.decode(frame)
+
+  # If any of the rsv are set close the socket.
+  if frame.rsv1 or frame.rsv2 or frame.rsv3:
+    raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")
 
   return frame
