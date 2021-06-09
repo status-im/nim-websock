@@ -130,7 +130,7 @@ const
   StatusGoingAway* = StatusCodes(1001)
   StatusProtocolError* = StatusCodes(1002)
   StatusCannotAccept* = StatusCodes(1003)
-  StatusReserved1* = StatusCodes(1004)                     # 1004 reserved
+  StatusReserved* = StatusCodes(1004)                      # 1004 reserved
   StatusNoStatus* = StatusCodes(1005)                      # use by clients
   StatusClosedAbnormally* = StatusCodes(1006)              # use by clients
   StatusInconsistent* = StatusCodes(1007)
@@ -138,22 +138,20 @@ const
   StatusTooLarge* = StatusCodes(1009)
   StatusNoExtensions* = StatusCodes(1010)
   StatusUnexpectedError* = StatusCodes(1011)
-  StatusReserved2* = StatusCodes(1015)                      # 1015 reserved
-  StatusLibsCodes* = (StatusCodes(3000)..StatusCodes(3999))   # 3000-3999 reserved for libs
-  StatusAppsCodes* = (StatusCodes(4000)..StatusCodes(4999))   # 4000-4999 reserved for apps
+  StatusFailedTls* = StatusCodes(1015)                            # passed to applications to indicate TLS errors
+  StatusReservedProtocol* = StatusCodes(1016)..StatusCodes(2999)  # reserved for this protocol
+  StatusLibsCodes* = (StatusCodes(3000)..StatusCodes(3999))       # 3000-3999 reserved for libs
+  StatusAppsCodes* = (StatusCodes(4000)..StatusCodes(4999))       # 4000-4999 reserved for apps
 
 proc `<=`*(a, b: StatusCodes): bool = a.uint16 <= b.uint16
-proc `<=`*(a: HSlice[StatusCodes, StatusCodes], b: StatusCodes): bool = a.a <= b
 proc `>=`*(a, b: StatusCodes): bool = a.uint16 >= b.uint16
-proc `>=`*(a: HSlice[StatusCodes, StatusCodes], b: StatusCodes): bool = a.a >= b
 proc `<`*(a, b: StatusCodes): bool = a.uint16 < b.uint16
-proc `<`*(a: HSlice[StatusCodes, StatusCodes], b: StatusCodes): bool = a.a < b
 proc `>`*(a, b: StatusCodes): bool = a.uint16 > b.uint16
-proc `>`*(a: HSlice[StatusCodes, StatusCodes], b: StatusCodes): bool = a.a > b
 proc `==`*(a, b: StatusCodes): bool = a.uint16 == b.uint16
-proc `==`*(a: HSlice[StatusCodes, StatusCodes], b: StatusCodes): bool = a.a == b
-proc high*(a: HSlice[StatusCodes, StatusCodes]): uint16 = a.a.uint16
-proc low*(a: HSlice[StatusCodes, StatusCodes]): uint16 = a.b.uint16
+
+proc high*(a: HSlice[StatusCodes, StatusCodes]): uint16 = a.b.uint16
+proc low*(a: HSlice[StatusCodes, StatusCodes]): uint16 = a.a.uint16
+
 proc `$`*(a: StatusCodes): string = $(a.int)
 
 proc `name=`*(self: Ext, name: string) =
