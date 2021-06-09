@@ -793,6 +793,38 @@ suite "Test Payload":
       ping
       pong
 
+  test "Send text message with multiple frames":
+    const FrameSize = 3000
+    let testData = rndStr(FrameSize * 3)
+    var ping, pong = false
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+      let res = await ws.recv()
+      await ws.send(res, if ws.binary: Opcode.Binary else: Opcode.Text)
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+    server.start()
+
+    let ws = await connectClient(
+      address = address,
+      frameSize = FrameSize
+    )
+
+    await ws.send(testData)
+    let echoed = await ws.recv()
+    await ws.close()
+
+    check:
+      string.fromBytes(echoed) == testData
+      ws.binary == false
+
 #   test "AsyncStream leaks test":
 #     check:
 #       getTracker("async.stream.reader").isLeaked() == false
@@ -928,6 +960,38 @@ suite "Test Binary message with Payload":
 
     await session.send(testData, Opcode.Binary)
     await session.close()
+
+  test "Send binary message with multiple frames":
+    const FrameSize = 3000
+    let testData = rndBin(FrameSize * 3)
+    var ping, pong = false
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+      let res = await ws.recv()
+      await ws.send(res, if ws.binary: Opcode.Binary else: Opcode.Text)
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+    server.start()
+
+    let ws = await connectClient(
+      address = address,
+      frameSize = FrameSize
+    )
+
+    await ws.send(testData, Opcode.Binary)
+    let echoed = await ws.recv()
+    await ws.close()
+
+    check:
+      echoed == testData
+      ws.binary == true
 
 #   test "AsyncStream leaks test":
 #     check:

@@ -68,7 +68,7 @@ proc send*(
   let maxSize = ws.frameSize
   var i = 0
   while ws.readyState notin {ReadyState.Closing}:
-    let len = min(data.len, (maxSize + i))
+    let len = min(data.len - i, maxSize)
     await ws.stream.writer.write(
       (await Frame(
         fin: if (i + len >= data.len): true else: false,
@@ -77,7 +77,7 @@ proc send*(
         rsv3: false,
         opcode: if i > 0: Opcode.Cont else: opcode, # fragments have to be `Continuation` frames
         mask: ws.masked,
-        data: data[i ..< len],
+        data: data[i ..< i+len],
         maskKey: maskKey)
         .encode()))
 
@@ -258,6 +258,8 @@ proc recv*(
         if ws.frame.opcode == Opcode.Cont:
           raise newException(WSOpcodeMismatchError,
             "Expected Text or Binary frame")
+        
+        ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
       elif (not ws.frame.fin and ws.frame.remainder() <= 0):
         ws.frame = await ws.readFrame()
         # This could happen if the connection is closed.
@@ -268,8 +270,7 @@ proc recv*(
         if ws.frame.opcode != Opcode.Cont:
           raise newException(WSOpcodeMismatchError,
             "Expected Continuation frame")
-
-      ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
+      
       if ws.frame.fin and ws.frame.remainder() <= 0:
         ws.frame = nil
         break
