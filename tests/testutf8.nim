@@ -76,7 +76,7 @@ proc waitForClose(ws: WSSession) {.async.} =
     while ws.readystate != ReadyState.Closed:
       discard await ws.recv()
   except CatchableError:
-    debug "Closing websocket"
+    trace "Closing websocket"
 
 # TODO: use new test framework from dryajov
 # if it is ready.
