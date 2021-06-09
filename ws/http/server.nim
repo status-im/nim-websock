@@ -30,13 +30,13 @@ proc validateRequest(
   ##
 
   if header.meth notin {MethodGet}:
-    debug "GET method is only allowed", address = stream.tsource.remoteAddress()
+    trace "GET method is only allowed", address = stream.tsource.remoteAddress()
     await stream.sendError(Http405, version = header.version)
     return ReqStatus.Error
 
   var hlen = header.contentLength()
   if hlen < 0 or hlen > MaxHttpRequestSize:
-    debug "Invalid header length", address = stream.tsource.remoteAddress()
+    trace "Invalid header length", address = stream.tsource.remoteAddress()
     await stream.sendError(Http413, version = header.version)
     return ReqStatus.Error
 
@@ -50,14 +50,14 @@ proc handleRequest(
 
   var buffer = newSeq[byte](MaxHttpHeadersSize)
   let remoteAddr = stream.reader.tsource.remoteAddress()
-  debug "Received connection", address = $remoteAddr
+  trace "Received connection", address = $remoteAddr
   try:
     let hlenfut = stream.reader.readUntil(
       addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
     let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
     if not ores:
       # Timeout
-      debug "Timeout expired while receiving headers", address = $remoteAddr
+      trace "Timeout expired while receiving headers", address = $remoteAddr
       await stream.writer.sendError(Http408, version = HttpVersion11)
       return
 
@@ -66,7 +66,7 @@ proc handleRequest(
     let requestData = buffer.parseRequest()
     if requestData.failed():
       # Header could not be parsed
-      debug "Malformed header received", address = $remoteAddr
+      trace "Malformed header received", address = $remoteAddr
       await stream.writer.sendError(Http400, version = HttpVersion11)
       return
 
@@ -79,10 +79,10 @@ proc handleRequest(
         res
 
     if vres == ReqStatus.ErrorFailure:
-      debug "Remote peer disconnected", address = $remoteAddr
+      trace "Remote peer disconnected", address = $remoteAddr
       return
 
-    debug "Received valid HTTP request", address = $remoteAddr
+    trace "Received valid HTTP request", address = $remoteAddr
     # Call the user's handler.
     if server.handler != nil:
       await server.handler(
@@ -92,15 +92,15 @@ proc handleRequest(
           uri: requestData.uri().parseUri()))
   except TransportLimitError:
     # size of headers exceeds `MaxHttpHeadersSize`
-    debug "maximum size of headers limit reached", address = $remoteAddr
+    trace "maximum size of headers limit reached", address = $remoteAddr
     await stream.writer.sendError(Http413, version = HttpVersion11)
   except TransportIncompleteError:
     # remote peer disconnected
-    debug "Remote peer disconnected", address = $remoteAddr
+    trace "Remote peer disconnected", address = $remoteAddr
   except TransportOsError as exc:
-    debug "Problems with networking", address = $remoteAddr, error = exc.msg
+    trace "Problems with networking", address = $remoteAddr, error = exc.msg
   except CatchableError as exc:
-    debug "Unknown exception", address = $remoteAddr, error = exc.msg
+    trace "Unknown exception", address = $remoteAddr, error = exc.msg
   finally:
     await stream.closeWait()
 
@@ -151,6 +151,8 @@ proc create*(
       flags,
       child = StreamServer(server)))
 
+  trace "Created HTTP Server", host = $address
+
   return server
 
 proc create*(
@@ -190,6 +192,8 @@ proc create*(
       handleTlsConnCb,
       flags,
       child = StreamServer(server)))
+
+  trace "Created TLS HTTP Server", host = $address
 
   return server
 
