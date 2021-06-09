@@ -18,6 +18,9 @@ import pkg/[
 
 import ./types
 
+logScope:
+  topics = "ws-frame"
+
 #[
   +---------------------------------------------------------------+
   |0                   1                   2                   3  |
@@ -66,7 +69,7 @@ proc encode*(
       f = await e.encode(f)
 
   var ret: seq[byte]
-  var b0 = (f.opcode.uint8 and 0x0F) # 0th byte: opcodes and flags.
+  var b0 = (f.opcode.uint8 and 0x0f) # 0th byte: opcodes and flags.
   if f.fin:
     b0 = b0 or 128'u8
 
@@ -78,7 +81,7 @@ proc encode*(
 
   if f.data.len <= 125:
     b1 = f.data.len.uint8
-  elif f.data.len > 125 and f.data.len <= 0xFFFF:
+  elif f.data.len > 125 and f.data.len <= 0xffff:
     b1 = 126'u8
   else:
     b1 = 127'u8
@@ -89,12 +92,12 @@ proc encode*(
   ret.add(uint8 b1)
 
   # Only need more bytes if data len is 7+16 bits, or 7+64 bits.
-  if f.data.len > 125 and f.data.len <= 0xFFFF:
+  if f.data.len > 125 and f.data.len <= 0xffff:
     # Data len is 7+16 bits.
     var len = f.data.len.uint16
-    ret.add ((len shr 8) and 0xFF).uint8
-    ret.add (len and 0xFF).uint8
-  elif f.data.len > 0xFFFF:
+    ret.add ((len shr 8) and 0xff).uint8
+    ret.add (len and 0xff).uint8
+  elif f.data.len > 0xffff:
     # Data len is 7+64 bits.
     var len = f.data.len.uint64
     ret.add(len.toBytesBE())
@@ -183,9 +186,9 @@ proc decode*(
     for i in 0..<maskKey.len:
       frame.maskKey[i] = cast[char](maskKey[i])
 
-  if extensions.len > 0:
-    for e in extensions[extensions.high..extensions.low]:
-      frame = await e.decode(frame)
+  # if extensions.len > 0:
+  #   for e in extensions[extensions.high..extensions.low]:
+  #     frame = await e.decode(frame)
 
   # If any of the rsv are set close the socket.
   if frame.rsv1 or frame.rsv2 or frame.rsv3:

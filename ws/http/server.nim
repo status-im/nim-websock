@@ -92,7 +92,7 @@ proc handleRequest(
           uri: requestData.uri().parseUri()))
   except TransportLimitError:
     # size of headers exceeds `MaxHttpHeadersSize`
-    debug "Maximum size of headers limit reached", address = $remoteAddr
+    debug "maximum size of headers limit reached", address = $remoteAddr
     await stream.writer.sendError(Http413, version = HttpVersion11)
   except TransportIncompleteError:
     # remote peer disconnected

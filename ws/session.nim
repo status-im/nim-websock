@@ -9,18 +9,16 @@
 
 {.push raises: [Defect].}
 
+import std/strformat
 import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
-import ./types, ./frame, ./utils, ./utf8_dfa, ./http
+import ./types, ./frame, ./utils, ./utf8dfa, ./http
 
 import pkg/chronos/streams/asyncstream
 
-type
-  WSSession* = ref object of WebSocket
-    stream*: AsyncStream
-    frame*: Frame
-    proto*: string
+logScope:
+  topics = "ws-session"
 
-proc prepareCloseBody(code: Status, reason: string): seq[byte] =
+proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
   result = reason.toBytes
   if ord(code) > 999:
     result = @(ord(code).uint16.toBytesBE()) & result
@@ -61,25 +59,26 @@ proc send*(
         mask: ws.masked,
         data: data, # allow sending data with close messages
         maskKey: maskKey)
-        .encode(extensions = ws.extensions)))
+        .encode()))
 
     return
 
   let maxSize = ws.frameSize
   var i = 0
   while ws.readyState notin {ReadyState.Closing}:
-    let len = min(data.len, (maxSize + i))
-    await ws.stream.writer.write(
-      (await Frame(
-        fin: if (i + len >= data.len): true else: false,
+    let len = min(data.len, maxSize)
+    let frame = Frame(
+        fin: if (len + i >= data.len): true else: false,
         rsv1: false,
         rsv2: false,
         rsv3: false,
         opcode: if i > 0: Opcode.Cont else: opcode, # fragments have to be `Continuation` frames
         mask: ws.masked,
-        data: data[i ..< len],
+        data: data[i ..< len + i],
         maskKey: maskKey)
-        .encode()))
+
+    let encoded = await frame.encode(extensions = ws.extensions)
+    await ws.stream.writer.write(encoded)
 
     i += len
     if i >= data.len:
@@ -108,7 +107,7 @@ proc handleClose*(
     return
 
   var
-    code = Status.Fulfilled
+    code = StatusFulfilled
     reason = ""
 
   if payLoad.len == 1:
@@ -116,17 +115,17 @@ proc handleClose*(
       "Invalid close frame with payload length 1!")
 
   if payLoad.len > 1:
-    # first two bytes are the status
-    let ccode = uint16.fromBytesBE(payLoad[0..<2])
-    if ccode <= 999 or ccode > 1015:
-      raise newException(WSInvalidCloseCodeError,
-        "Invalid code in close message!")
-
     try:
-      code = Status(ccode)
+      code = StatusCodes(uint16.fromBytesBE(payLoad[0..<2]))
     except RangeError:
       raise newException(WSInvalidCloseCodeError,
         "Status code out of range!")
+
+    if StatusNotUsed >= code or
+      code == StatusReserved1 or
+      code == StatusReserved2:
+      raise newException(WSInvalidCloseCodeError,
+        "Can't use reserved status code")
 
     # remaining payload bytes are reason for closing
     reason = string.fromBytes(payLoad[2..payLoad.high])
@@ -135,20 +134,22 @@ proc handleClose*(
       raise newException(WSInvalidUTF8,
         "Invalid UTF8 sequence detected in close reason")
 
-  var rcode: Status
-  if code in {Status.Fulfilled}:
-    rcode = Status.Fulfilled
+  debug "Handling close message", code, reason
+
+  var rcode = StatusFulfilled
+  var rreason = ""
 
   if not isNil(ws.onClose):
     try:
-      (rcode, reason) = ws.onClose(code, reason)
+      (rcode, rreason) = ws.onClose(code, reason)
     except CatchableError as exc:
       debug "Exception in Close callback, this is most likely a bug", exc = exc.msg
 
   # don't respond to a terminated connection
   if ws.readyState != ReadyState.Closing:
     ws.readyState = ReadyState.Closing
-    await ws.send(prepareCloseBody(rcode, reason), Opcode.Close)
+    debug "Sending close", code = rcode, rreason
+    await ws.send(prepareCloseBody(rcode, rreason), Opcode.Close)
 
     ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
@@ -206,15 +207,22 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
   else:
     raise newException(WSInvalidOpcodeError, "Invalid control opcode!")
 
-proc readFrame*(ws: WSSession): Future[Frame] {.async.} =
+proc readFrame*(ws: WSSession, extensions: seq[Ext] = @[]): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
   ##
 
   while ws.readyState != ReadyState.Closed:
     let frame = await Frame.decode(
-      ws.stream.reader, ws.masked, ws.extensions)
-    debug "Decoded new frame", opcode = frame.opcode, len = frame.length, mask = frame.mask
+      ws.stream.reader, ws.masked, extensions)
+
+    logScope:
+      opcode = frame.opcode
+      len = frame.length
+      mask = frame.mask
+      fin = frame.fin
+
+    debug "Decoded new frame"
 
     # return the current frame if it's not one of the control frames
     if frame.opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
@@ -232,57 +240,51 @@ proc recv*(
   size: int): Future[int] {.async.} =
   ## Attempts to read up to `size` bytes
   ##
-  ## Will read as many frames as necessary
+  ## Read as many frames as necessary
   ## to fill the buffer until either
   ## the message ends (frame.fin) or
-  ## the buffer is full. If no data is on
-  ## the pipe will await until at least
-  ## one byte is available
+  ## the buffer is full.
+  ##
+  ## If no data is on the pipe it awaits
+  ## until at least one byte is available
   ##
 
   var consumed = 0
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
+    var first = true
+    if isNil(ws.frame):
+      ws.frame = await ws.readFrame()
+
     while consumed < size:
-      # we might have to read more than
-      # one frame to fill the buffer
-
-      # TODO: Figure out a cleaner way to handle
-      # retrieving new frames
       if isNil(ws.frame):
-        ws.frame = await ws.readFrame()
-
-        if isNil(ws.frame):
-          return consumed
-
-        if ws.frame.opcode == Opcode.Cont:
-          raise newException(WSOpcodeMismatchError,
-            "Expected Text or Binary frame")
-      elif (not ws.frame.fin and ws.frame.remainder() <= 0):
-        ws.frame = await ws.readFrame()
-        # This could happen if the connection is closed.
-
-        if isNil(ws.frame):
-          return consumed
-
-        if ws.frame.opcode != Opcode.Cont:
-          raise newException(WSOpcodeMismatchError,
-            "Expected Continuation frame")
-
-      ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
-      if ws.frame.fin and ws.frame.remainder() <= 0:
-        ws.frame = nil
+        debug "Empty frame, breaking"
         break
 
-      let len = min(ws.frame.remainder().int, size - consumed)
-      if len == 0:
-        continue
+      logScope:
+        fin = ws.frame.fin
+        len = ws.frame.length
+        consumed = ws.frame.consumed
+        remainder = ws.frame.remainder
+        opcode = ws.frame.opcode
 
+      if first:
+        ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
+        debug "Setting binary flag", binary = ws.binary
+
+      let len = min(ws.frame.remainder.int, size - consumed)
+      if len <= 0:
+        debug "Not enough bytes to read, breaking"
+        break
+
+      echo "READING FROM ", consumed
       let read = await ws.stream.reader.readOnce(addr pbuffer[consumed], len)
       if read <= 0:
-        continue
+        debug "Didn't read any bytes, breaking"
+        break
 
       if ws.frame.mask:
+        debug "Unmasking frame"
         # unmask data using offset
         mask(
           pbuffer.toOpenArray(consumed, (consumed + read) - 1),
@@ -291,16 +293,31 @@ proc recv*(
 
       consumed += read
       ws.frame.consumed += read.uint64
+      first = false
 
-    if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
-      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
+      debug "Read data from frame", read
+      # all has been consumed from the frame
+      # read the next frame
+      if ws.frame.remainder <= 0:
+        if ws.frame.fin: # we're at the end of the message, break
+          debug "Read all frames, breaking"
+          ws.frame = nil
+          break
 
-    return consumed.int
+        ws.frame = await ws.readFrame()
+
+    # if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
+    #   raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
+
+    return consumed
   except CatchableError as exc:
     ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
     debug "Exception reading frames", exc = exc.msg
     raise exc
+  finally:
+    if not isNil(ws.frame) and (ws.frame.fin and ws.frame.remainder <= 0):
+      ws.frame = nil
 
 proc recv*(
   ws: WSSession,
@@ -341,7 +358,7 @@ proc recv*(
 
 proc close*(
   ws: WSSession,
-  code: Status = Status.Fulfilled,
+  code = StatusFulfilled,
   reason: string = "") {.async.} =
   ## Close the Socket, sends close packet.
   ##

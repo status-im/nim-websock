@@ -9,6 +9,9 @@ import pkg/[
 
 import ./common
 
+logScope:
+  topics = "http-client"
+
 type
   HttpClient* = ref object of RootObj
     connected*: bool

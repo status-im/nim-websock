@@ -22,13 +22,15 @@ proc handle(request: HttpRequest) {.async.} =
     debug "Websocket handshake completed"
     while true:
       let recvData = await ws.recv()
+
+      debug "Client Response: ", size = recvData.len, binary = ws.binary
+      await ws.send(recvData,
+        if ws.binary: Opcode.Binary else: Opcode.Text)
+
       if ws.readyState == ReadyState.Closed:
         debug "Websocket closed"
         break
 
-      debug "Client Response: ", size = recvData.len
-      await ws.send(recvData,
-        if ws.binary: Opcode.Binary else: Opcode.Text)
   except WebSocketError as exc:
     error "WebSocket error:", exception = exc.msg
 

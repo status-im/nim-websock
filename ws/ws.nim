@@ -32,6 +32,9 @@ import ./utils, ./frame, ./session, /types, ./http
 
 export utils, session, frame, types, http
 
+logScope:
+  topics = "ws-server"
+
 type
   WSServer* = ref object of WebSocket
     protocols: seq[string]
