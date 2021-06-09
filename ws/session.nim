@@ -38,7 +38,7 @@ proc send*(
     dataSize = data.len
     masked = ws.masked
 
-  debug "Sending data to remote"
+  trace "Sending data to remote"
 
   var maskKey: array[4, char]
   if ws.masked:
@@ -100,32 +100,39 @@ proc handleClose*(
     opcode = frame.opcode
     readyState = ws.readyState
 
-  debug "Handling close"
+  trace "Handling close"
 
-  if ws.readyState notin {ReadyState.Open}:
-    debug "Connection isn't open, aborting close sequence!"
+  if ws.readyState != ReadyState.Open:
+    trace "Connection isn't open, aborting close sequence!"
     return
 
   var
     code = StatusFulfilled
     reason = ""
 
-  if payLoad.len == 1:
+  case payload.len:
+  of 0:
+    code = StatusNoStatus
+  of 1:
     raise newException(WSPayloadLengthError,
       "Invalid close frame with payload length 1!")
-
-  if payLoad.len > 1:
+  else:
     try:
       code = StatusCodes(uint16.fromBytesBE(payLoad[0..<2]))
     except RangeError:
       raise newException(WSInvalidCloseCodeError,
         "Status code out of range!")
 
-    if StatusNotUsed >= code or
-      code == StatusReserved1 or
-      code == StatusReserved2:
+    if code in StatusNotUsed or
+      code in StatusReservedProtocol:
       raise newException(WSInvalidCloseCodeError,
-        "Can't use reserved status code")
+        &"Can't use reserved status code: {code}")
+
+    if code == StatusReserved or
+      code == StatusNoStatus or
+      code == StatusClosedAbnormally:
+      raise newException(WSInvalidCloseCodeError,
+        &"Can't use reserved status code: {code}")
 
     # remaining payload bytes are reason for closing
     reason = string.fromBytes(payLoad[2..payLoad.high])
@@ -134,22 +141,21 @@ proc handleClose*(
       raise newException(WSInvalidUTF8,
         "Invalid UTF8 sequence detected in close reason")
 
-  debug "Handling close message", code, reason
-
-  var rcode = StatusFulfilled
-  var rreason = ""
-
+  trace "Handling close message", code, reason
   if not isNil(ws.onClose):
     try:
-      (rcode, rreason) = ws.onClose(code, reason)
+      (code, reason) = ws.onClose(code, reason)
     except CatchableError as exc:
-      debug "Exception in Close callback, this is most likely a bug", exc = exc.msg
+      trace "Exception in Close callback, this is most likely a bug", exc = exc.msg
+  else:
+    code = StatusFulfilled
+    reason = ""
 
   # don't respond to a terminated connection
   if ws.readyState != ReadyState.Closing:
     ws.readyState = ReadyState.Closing
-    debug "Sending close", code = rcode, rreason
-    await ws.send(prepareCloseBody(rcode, rreason), Opcode.Close)
+    trace "Sending close", code, reason
+    await ws.send(prepareCloseBody(code, reason), Opcode.Close)
 
     ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
@@ -165,7 +171,7 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
     readyState = ws.readyState
     len = frame.length
 
-  debug "Handling control frame"
+  trace "Handling control frame"
 
   if not frame.fin:
     raise newException(WSFragmentedControlFrameError,
@@ -192,7 +198,7 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
       try:
         ws.onPing(payLoad)
       except CatchableError as exc:
-        debug "Exception in Ping callback, this is most likely a bug", exc = exc.msg
+        trace "Exception in Ping callback, this is most likely a bug", exc = exc.msg
 
     # send pong to remote
     await ws.send(payLoad, Opcode.Pong)
@@ -201,7 +207,7 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
       try:
         ws.onPong(payLoad)
       except CatchableError as exc:
-        debug "Exception in Pong callback, this is most likely a bug", exc = exc.msg
+        trace "Exception in Pong callback, this is most likely a bug", exc = exc.msg
   of Opcode.Close:
     await ws.handleClose(frame, payLoad)
   else:
@@ -222,7 +228,7 @@ proc readFrame*(ws: WSSession, extensions: seq[Ext] = @[]): Future[Frame] {.asyn
       mask = frame.mask
       fin = frame.fin
 
-    debug "Decoded new frame"
+    trace "Decoded new frame"
 
     # return the current frame if it's not one of the control frames
     if frame.opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
@@ -238,53 +244,70 @@ proc recv*(
   ws: WSSession,
   data: pointer,
   size: int): Future[int] {.async.} =
-  ## Attempts to read up to `size` bytes
+  ## Attempts to read up to ``size`` bytes
   ##
-  ## Read as many frames as necessary
-  ## to fill the buffer until either
-  ## the message ends (frame.fin) or
-  ## the buffer is full.
+  ## If ``size`` is less than the data in
+  ## the frame, allow reading partial frames
   ##
-  ## If no data is on the pipe it awaits
+  ## If no data is left in the pipe await
   ## until at least one byte is available
+  ##
+  ## Otherwise, read as many frames as needed
+  ## up to ``size`` bytes, note that we do break
+  ## at message boundaries (``fin`` flag set).
+  ##
+  ## Use this to stream data from frames
   ##
 
   var consumed = 0
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
     var first = true
+
+    # reset previous frame if nothing is left in it
+    if not isNil(ws.frame) and ws.frame.remainder <= 0:
+      trace "Resetting previous frame"
+      first = ws.frame.fin # set as first frame if last frame was final
+      ws.frame = nil
+
     if isNil(ws.frame):
       ws.frame = await ws.readFrame()
 
     while consumed < size:
       if isNil(ws.frame):
-        debug "Empty frame, breaking"
+        trace "Empty frame, breaking"
         break
 
       logScope:
+        first = first
         fin = ws.frame.fin
         len = ws.frame.length
         consumed = ws.frame.consumed
         remainder = ws.frame.remainder
         opcode = ws.frame.opcode
+        masked = ws.frame.mask
+
+      if first == (ws.frame.opcode == Opcode.Cont):
+        error "Opcode mismatch!"
+        raise newException(WSOpcodeMismatchError,
+          &"Opcode mismatch: first: {first}, opcode: {ws.frame.opcode}")
 
       if first:
         ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
-        debug "Setting binary flag", binary = ws.binary
+        trace "Setting binary flag"
 
       let len = min(ws.frame.remainder.int, size - consumed)
       if len <= 0:
-        debug "Not enough bytes to read, breaking"
+        trace "Nothing left to read, breaking!"
         break
 
-      echo "READING FROM ", consumed
       let read = await ws.stream.reader.readOnce(addr pbuffer[consumed], len)
       if read <= 0:
-        debug "Didn't read any bytes, breaking"
+        trace "Didn't read any bytes, breaking"
         break
 
       if ws.frame.mask:
-        debug "Unmasking frame"
+        trace "Unmasking frame"
         # unmask data using offset
         mask(
           pbuffer.toOpenArray(consumed, (consumed + read) - 1),
@@ -293,27 +316,28 @@ proc recv*(
 
       consumed += read
       ws.frame.consumed += read.uint64
-      first = false
 
-      debug "Read data from frame", read
+      trace "Read data from frame", read
       # all has been consumed from the frame
       # read the next frame
       if ws.frame.remainder <= 0:
+        first = false
+
         if ws.frame.fin: # we're at the end of the message, break
-          debug "Read all frames, breaking"
+          trace "Read all frames, breaking"
           ws.frame = nil
           break
 
         ws.frame = await ws.readFrame()
 
-    # if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
-    #   raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
+    if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
+      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
 
     return consumed
   except CatchableError as exc:
     ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
-    debug "Exception reading frames", exc = exc.msg
+    trace "Exception reading frames", exc = exc.msg
     raise exc
   finally:
     if not isNil(ws.frame) and (ws.frame.fin and ws.frame.remainder <= 0):
@@ -335,15 +359,14 @@ proc recv*(
   ##
   var res: seq[byte]
   while ws.readyState != ReadyState.Closed:
-    var buf = newSeq[byte](ws.frameSize)
+    var buf = newSeq[byte](min(size, ws.frameSize))
     let read = await ws.recv(addr buf[0], buf.len)
-    if read <= 0:
-      break
 
     buf.setLen(read)
     if res.len + buf.len > size:
       raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
+    trace "Read message", size = read
     res.add(buf)
 
     # no more frames
@@ -352,6 +375,7 @@ proc recv*(
 
     # read the entire message, exit
     if ws.frame.fin and ws.frame.remainder().int <= 0:
+      trace "Read full message, breaking!"
       break
 
   return res
@@ -376,4 +400,4 @@ proc close*(
     while ws.readyState != ReadyState.Closed:
       discard await ws.recv()
   except CatchableError as exc:
-    debug "Exception closing", exc = exc.msg
+    trace "Exception closing", exc = exc.msg

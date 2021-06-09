@@ -126,10 +126,10 @@ proc decode*(
   ##
 
   var header = newSeq[byte](2)
-  debug "Reading new frame"
+  trace "Reading new frame"
   await reader.readExactly(addr header[0], 2)
   if header.len != 2:
-    debug "Invalid websocket header length"
+    trace "Invalid websocket header length"
     raise newException(WSMalformedHeaderError,
       "Invalid websocket header length")
 
