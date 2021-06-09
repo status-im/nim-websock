@@ -5,13 +5,15 @@ import pkg/[chronos,
              httputils]
 
 import ../ws/ws
+import ../tests/keys
 
 proc handle(request: HttpRequest) {.async.} =
-  debug "Handling request:", uri = request.uri.path
-  if request.uri.path != "/ws":
+  trace "Handling request:", uri = request.uri.path
+  let path = when defined tls: "/wss" else: "/ws"
+  if request.uri.path != path:
     return
 
-  debug "Initiating web socket connection."
+  trace "Initiating web socket connection."
   try:
     let server = WSServer.new()
     let ws = await server.handleRequest(request)
@@ -19,17 +21,13 @@ proc handle(request: HttpRequest) {.async.} =
       error "Failed to open websocket connection"
       return
 
-    debug "Websocket handshake completed"
-    while true:
+    trace "Websocket handshake completed"
+    while ws.readyState != ReadyState.Closed:
       let recvData = await ws.recv()
 
-      debug "Client Response: ", size = recvData.len, binary = ws.binary
+      trace "Client Response: ", size = recvData.len, binary = ws.binary
       await ws.send(recvData,
         if ws.binary: Opcode.Binary else: Opcode.Text)
-
-      if ws.readyState == ReadyState.Closed:
-        debug "Websocket closed"
-        break
 
   except WebSocketError as exc:
     error "WebSocket error:", exception = exc.msg
@@ -39,10 +37,18 @@ when isMainModule:
     let
       address = initTAddress("127.0.0.1:8888")
       socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
-      server = HttpServer.create(address, handle, flags = socketFlags)
+      server = when defined tls:
+        TlsHttpServer.create(
+          address = address,
+          handler = handle,
+          tlsPrivateKey = TLSPrivateKey.init(SecureKey),
+          tlsCertificate = TLSCertificate.init(SecureCert),
+          flags = socketFlags)
+      else:
+        HttpServer.create(address, handle, flags = socketFlags)
 
     server.start()
-    info "Server listening at ", data = $server.localAddress()
+    trace "Server listening on ", data = $server.localAddress()
     await server.join()
 
   waitFor(main())
