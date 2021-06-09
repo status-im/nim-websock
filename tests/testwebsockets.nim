@@ -33,7 +33,7 @@ proc waitForClose(ws: WSSession) {.async.} =
     while ws.readystate != ReadyState.Closed:
       discard await ws.recv()
   except CatchableError:
-    debug "Closing websocket"
+    trace "Closing websocket"
 
 proc createServer(
   address = initTAddress("127.0.0.1:8888"),
@@ -175,13 +175,6 @@ suite "Test handshake":
         parseUri(uri),
         protocols = @["proto"])
 
-  # test "AsyncStream leaks test":
-  #   check:
-  #     getTracker("async.stream.reader").isLeaked() == false
-  #     getTracker("async.stream.writer").isLeaked() == false
-  #     getTracker("stream.server").isLeaked() == false
-  #     getTracker("stream.transport").isLeaked() == false
-
 suite "Test transmission":
   teardown:
     server.stop()
@@ -249,13 +242,6 @@ suite "Test transmission":
     var clientRes = await session.recv()
     check string.fromBytes(clientRes) == testString
     await waitForClose(session)
-
-  # test "AsyncStream leaks test":
-  #   check:
-  #     getTracker("async.stream.reader").isLeaked() == false
-  #     getTracker("async.stream.writer").isLeaked() == false
-  #     getTracker("stream.server").isLeaked() == false
-  #     getTracker("stream.transport").isLeaked() == false
 
 suite "Test ping-pong":
   teardown:
@@ -378,13 +364,6 @@ suite "Test ping-pong":
     await session.ping(str.toBytes())
     await session.close()
 
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
-
 suite "Test framing":
   teardown:
     server.stop()
@@ -444,13 +423,6 @@ suite "Test framing":
     expect WSMaxMessageSizeError:
       discard await session.recv(5)
     await waitForClose(session)
-
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
 
 suite "Test Closing":
   teardown:
@@ -580,7 +552,7 @@ suite "Test Closing":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
-      await ws.close(code = StatusReserved2)
+      await ws.close(code = StatusCodes(StatusLibsCodes.high))
 
     server = createServer(
       address = address,
@@ -588,11 +560,11 @@ suite "Test Closing":
       flags = {ReuseAddr})
     server.start()
 
-    proc closeClient(status: StatusCodes, reason: string): CloseResult{.gcsafe,
-        raises: [Defect].} =
+    proc closeClient(status: StatusCodes, reason: string): CloseResult
+      {.gcsafe, raises: [Defect].} =
       try:
-        check status == StatusReserved2
-        return (StatusReserved2, "Reserved StatusCodes")
+        check status == StatusCodes(StatusLibsCodes.high)
+        return (StatusCodes(StatusLibsCodes.high), "Reserved StatusCodes")
       except Exception as exc:
         raise newException(Defect, exc.msg)
 
@@ -668,13 +640,6 @@ suite "Test Closing":
 
     # Close with payload of length 2
     await session.close(reason = "HH")
-
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
 
 suite "Test Payload":
   teardown:
@@ -906,13 +871,6 @@ suite "Test Payload":
       string.fromBytes(echoed) == testData
       ws.binary == false
 
-  # test "AsyncStream leaks test":
-  #   check:
-  #     getTracker("async.stream.reader").isLeaked() == false
-  #     getTracker("async.stream.writer").isLeaked() == false
-  #     getTracker("stream.server").isLeaked() == false
-  #     getTracker("stream.transport").isLeaked() == false
-
 suite "Test Binary message with Payload":
   teardown:
     server.stop()
@@ -973,7 +931,7 @@ suite "Test Binary message with Payload":
 
   test "Send binary data with small text payload":
     let testData = rndBin(10)
-    debug "testData", testData = testData
+    trace "testData", testData = testData
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -1054,6 +1012,7 @@ suite "Test Binary message with Payload":
 
       check:
         ws.binary == true
+        res == testData
 
       await ws.send(res, Opcode.Binary)
       await waitForClose(ws)
@@ -1071,15 +1030,12 @@ suite "Test Binary message with Payload":
 
     await ws.send(testData, Opcode.Binary)
     let echoed = await ws.recv()
+
+    check:
+      echoed == testData
+
     await ws.close()
 
     check:
       echoed == testData
       ws.binary == true
-
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
