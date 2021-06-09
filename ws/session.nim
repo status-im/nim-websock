@@ -359,23 +359,13 @@ proc recv*(
       let len = min(ws.frame.remainder.int, size - consumed)
       if len > 0:
         trace "Reading bytes from frame stream", len
-        let read = await ws.stream.reader.readOnce(addr pbuffer[consumed], len)
+        let read = await ws.frame.read(ws.stream.reader, addr pbuffer[consumed], len)
         if read <= 0:
           trace "Didn't read any bytes, breaking"
           break
 
         trace "Read data from frame", read
-
-        if ws.frame.mask:
-          trace "Unmasking frame"
-          # unmask data using offset
-          mask(
-            pbuffer.toOpenArray(consumed, (consumed + read) - 1),
-            ws.frame.maskKey,
-            ws.frame.consumed.int)
-
         consumed += read
-        ws.frame.consumed += read.uint64
 
       # all has been consumed from the frame
       # read the next frame

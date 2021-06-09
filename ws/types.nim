@@ -61,6 +61,7 @@ type
     maskKey*: MaskKey          ## Masking key
     length*: uint64            ## Message size.
     consumed*: uint64          ## how much has been consumed from the frame
+    offset*: int               ## offset of buffered payload data
 
   StatusCodes* = distinct range[0..4999]
 
