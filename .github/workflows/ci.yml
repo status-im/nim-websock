@@ -232,8 +232,8 @@ jobs:
           kill $pid
           cd ..
 
-          nim c examples/tlsserver.nim
-          examples/tlsserver &
+          nim -d:tls c examples/server.nim
+          examples/server &
           pid=$!
           cd autobahn
           wstest --mode fuzzingclient --spec fuzzingclient_tls.json
