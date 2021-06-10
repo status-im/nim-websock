@@ -58,7 +58,6 @@ template remainder*(frame: Frame): uint64 =
 
 proc encode*(
   frame: Frame,
-  offset = 0,
   extensions: seq[Ext] = @[]): Future[seq[byte]] {.async.} =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
@@ -105,7 +104,7 @@ proc encode*(
   var data = f.data
   if f.mask:
     # If we need to mask it generate random mask key and mask the data.
-    mask(data, f.maskKey, offset)
+    mask(data, f.maskKey)
 
     # Write mask key next.
     ret.add(f.maskKey[0].uint8)
