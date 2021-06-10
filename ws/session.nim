@@ -23,11 +23,13 @@ proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
   if ord(code) > 999:
     result = @(ord(code).uint16.toBytesBE()) & result
 
-proc send*(
+proc writeMessage*(
   ws: WSSession,
   data: seq[byte] = @[],
-  opcode: Opcode) {.async.} =
-  ## Send a frame
+  opcode: Opcode,
+  extensions: seq[Ext]) {.async.} =
+  ## Send a frame applying the supplied
+  ## extensions
   ##
 
   if ws.readyState == ReadyState.Closed:
@@ -77,12 +79,21 @@ proc send*(
         data: data[i ..< len + i],
         maskKey: maskKey)
 
-    let encoded = await frame.encode(extensions = ws.extensions)
+    let encoded = await frame.encode(extensions)
     await ws.stream.writer.write(encoded)
 
     i += len
     if i >= data.len:
       break
+
+proc send*(
+  ws: WSSession,
+  data: seq[byte] = @[],
+  opcode: Opcode): Future[void] =
+  ## Send a frame
+  ##
+
+  return ws.writeMessage(data, opcode, ws.extensions)
 
 proc send*(ws: WSSession, data: string): Future[void] =
   send(ws, data.toBytes(), Opcode.Text)
@@ -271,7 +282,7 @@ proc recv*(
       ws.frame = nil
 
     if isNil(ws.frame):
-      ws.frame = await ws.readFrame()
+      ws.frame = await ws.readFrame(ws.extensions)
 
     while consumed < size:
       if isNil(ws.frame):
@@ -328,7 +339,7 @@ proc recv*(
           ws.frame = nil
           break
 
-        ws.frame = await ws.readFrame()
+        ws.frame = await ws.readFrame(ws.extensions)
 
     if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
       raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
