@@ -74,10 +74,6 @@ proc writeControl*(
     raise newException(WSInvalidOpcodeError,
       &"Attempting to send a control frame with an invalid opcode {opcode}!")
 
-  if ws.readyState in {ReadyState.Closing} and opcode notin {Opcode.Close}:
-    trace "Can only respond with Close opcode to a closing connection"
-    return
-
   let frame = Frame(
       fin: true,
       rsv1: false,
@@ -102,7 +98,11 @@ proc send*(
   ##
 
   if ws.readyState == ReadyState.Closed:
-    raise newException(WSClosedError, "Socket is closed!")
+    raise newException(WSClosedError, "WebSocket is closed!")
+
+  if ws.readyState in {ReadyState.Closing} and opcode notin {Opcode.Close}:
+    trace "Can only respond with Close opcode to a closing connection"
+    return
 
   logScope:
     opcode = opcode
@@ -198,7 +198,14 @@ proc handleClose*(
     await ws.send(prepareCloseBody(code, reason), Opcode.Close)
 
     ws.readyState = ReadyState.Closed
-    await ws.stream.closeWait()
+
+  # TODO: Under TLS, the response takes longer
+  # to depart and fails to write the resp code
+  # and cleanly close the connection. Definitely
+  # looks like a bug, but not sure if it's chronos
+  # or us?
+  await sleepAsync(10.millis)
+  await ws.stream.closeWait()
 
 proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
   ## Handle control frames
@@ -378,9 +385,10 @@ proc recv*(
 
     return consumed
   except CatchableError as exc:
-    ws.readyState = ReadyState.Closed
-    # await ws.stream.closeWait()
     trace "Exception reading frames", exc = exc.msg
+
+    ws.readyState = ReadyState.Closed
+    await ws.stream.closeWait()
     raise exc
   finally:
     if not isNil(ws.frame) and (ws.frame.fin and ws.frame.remainder <= 0):
