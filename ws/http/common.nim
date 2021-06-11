@@ -53,8 +53,7 @@ proc closeWait*(stream: AsyncStream) {.async.} =
   await allFutures(
     stream.reader.tsource.closeTransp(),
     stream.reader.closeStream(),
-    stream.writer.closeStream()
-  )
+    stream.writer.closeStream())
 
 proc sendResponse*(
   request: HttpRequest,
@@ -112,8 +111,7 @@ proc sendError*(
   response.add(CRLF)
 
   await stream.write(
-    response.toBytes() &
-    content.toBytes())
+    response.toBytes() & content.toBytes())
 
 proc sendError*(
   request: HttpRequest,

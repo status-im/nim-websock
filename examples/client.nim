@@ -6,12 +6,19 @@ import pkg/[
 import ../ws/ws
 
 proc main() {.async.} =
-  let ws = await WebSocket.connect(
-    "127.0.0.1",
-    Port(8888),
-    path = "/ws")
+  let ws = when defined tls:
+    await WebSocket.connect(
+        "127.0.0.1",
+        Port(8888),
+        path = "/wss",
+        flags = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName})
+    else:
+      await WebSocket.connect(
+        "127.0.0.1",
+        Port(8888),
+        path = "/ws")
 
-  debug "Websocket client: ", State = ws.readyState
+  trace "Websocket client: ", State = ws.readyState
 
   let reqData = "Hello Server"
   while true:
@@ -22,7 +29,7 @@ proc main() {.async.} =
         break
 
       let dataStr = string.fromBytes(buff)
-      debug "Server Response: ", data = dataStr
+      trace "Server Response: ", data = dataStr
 
       assert dataStr == reqData
       break

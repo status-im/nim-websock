@@ -9,6 +9,9 @@ import pkg/[
 
 import ./common
 
+logScope:
+  topics = "http-client"
+
 type
   HttpClient* = ref object of RootObj
     connected*: bool
@@ -44,7 +47,7 @@ proc readResponse(stream: AsyncStreamReader): Future[HttpResponseHeader] {.async
 
     return buffer.parseResponse()
   except CatchableError as exc:
-    debug "Exception reading headers", exc = exc.msg
+    trace "Exception reading headers", exc = exc.msg
     buffer.setLen(0)
     raise exc
 

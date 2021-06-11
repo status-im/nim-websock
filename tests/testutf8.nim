@@ -15,7 +15,7 @@ import
     chronos,
     chronicles
   ],
-  ../ws/[ws, utf8_dfa]
+  ../ws/[ws, utf8dfa]
 
 suite "UTF-8 DFA validator":
   test "single octet":
@@ -76,7 +76,7 @@ proc waitForClose(ws: WSSession) {.async.} =
     while ws.readystate != ReadyState.Closed:
       discard await ws.recv()
   except CatchableError:
-    debug "Closing websocket"
+    trace "Closing websocket"
 
 # TODO: use new test framework from dryajov
 # if it is ready.
@@ -125,10 +125,10 @@ suite "UTF-8 validator in action":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
 
-      proc onClose(status: Status, reason: string):
+      proc onClose(status: StatusCodes, reason: string):
         CloseResult {.gcsafe, raises: [Defect].} =
         try:
-          check status == Status.Fulfilled
+          check status == StatusFulfilled
           check reason == closeReason
           return (status, reason)
         except Exception as exc:
@@ -137,6 +137,8 @@ suite "UTF-8 validator in action":
       let server = WSServer.new(protos = ["proto"], onClose = onClose)
       let ws = await server.handleRequest(request)
       let res = await ws.recv()
+      await waitForClose(ws)
+
       check:
         string.fromBytes(res) == testData
         ws.binary == false
@@ -168,6 +170,7 @@ suite "UTF-8 validator in action":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       discard await ws.recv()
+      await waitForClose(ws)
 
     server = HttpServer.create(
       address,
@@ -183,7 +186,7 @@ suite "UTF-8 validator in action":
     )
 
     await session.send(testData)
-    await waitForClose( session)
+    await session.close()
     check session.readyState == ReadyState.Closed
 
   test "invalid UTF-8 sequence close code":
@@ -201,6 +204,8 @@ suite "UTF-8 validator in action":
         string.fromBytes(res) == testData
         ws.binary == false
 
+      await waitForClose(ws)
+
     server = HttpServer.create(
       address,
       handle,
@@ -216,5 +221,4 @@ suite "UTF-8 validator in action":
 
     await session.send(testData)
     await session.close(reason = closeReason)
-    await waitForClose( session)
     check session.readyState == ReadyState.Closed

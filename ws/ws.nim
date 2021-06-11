@@ -23,7 +23,6 @@ import pkg/[chronos,
             chronicles,
             httputils,
             stew/byteutils,
-            stew/endians2,
             stew/base64,
             stew/base10,
             nimcrypto/sha]
@@ -31,6 +30,9 @@ import pkg/[chronos,
 import ./utils, ./frame, ./session, /types, ./http
 
 export utils, session, frame, types, http
+
+logScope:
+  topics = "ws-server"
 
 type
   WSServer* = ref object of WebSocket
@@ -86,7 +88,7 @@ proc connect*(
   let response = try:
      await client.request(uri, headers = headers)
   except CatchableError as exc:
-    debug "Websocket failed during handshake", exc = exc.msg
+    trace "Websocket failed during handshake", exc = exc.msg
     await client.close()
     raise exc
 
@@ -207,7 +209,7 @@ proc handleRequest*(
 
   if ws.version != version:
     await request.stream.writer.sendError(Http426)
-    debug "Websocket version not supported", version = ws.version
+    trace "Websocket version not supported", version = ws.version
 
     raise newException(WSVersionError,
       &"Websocket version not supported, Version: {version}")
@@ -236,7 +238,7 @@ proc handleRequest*(
   if protocol.len > 0:
     headers.add("Sec-WebSocket-Protocol", protocol) # send back the first matching proto
   else:
-    debug "Didn't match any protocol", supported = ws.protocols, requested = wantProtos
+    trace "Didn't match any protocol", supported = ws.protocols, requested = wantProtos
 
   try:
     await request.sendResponse(Http101, headers = headers)

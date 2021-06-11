@@ -62,40 +62,17 @@ type
     length*: uint64            ## Message size.
     consumed*: uint64          ## how much has been consumed from the frame
 
-  Status* {.pure.} = enum
-    # 0-999 not used
-    Fulfilled = 1000
-    GoingAway = 1001
-    ProtocolError = 1002
-    CannotAccept = 1003
-    # 1004 reserved
-    NoStatus = 1005         # use by clients
-    ClosedAbnormally = 1006 # use by clients
-    Inconsistent = 1007
-    PolicyError = 1008
-    TooLarge = 1009
-    NoExtensions = 1010
-    UnexpectedError = 1011
-    ReservedCode = 3999     # use by clients
-                            # 3000-3999 reserved for libs
-                            # 4000-4999 reserved for applications
+  StatusCodes* = distinct range[0..4999]
 
   ControlCb* = proc(data: openArray[byte] = [])
     {.gcsafe, raises: [Defect].}
 
   CloseResult* = tuple
-    code: Status
+    code: StatusCodes
     reason: string
 
-  CloseCb* = proc(code: Status, reason: string):
+  CloseCb* = proc(code: StatusCodes, reason: string):
     CloseResult {.gcsafe, raises: [Defect].}
-
-  Ext* = ref object of RootObj
-    name*: string
-    options*: Table[string, string]
-
-  ExtFactory* = proc(name: string, options: Table[string, string]):
-    Ext {.raises: [Defect].}
 
   WebSocket* = ref object of RootObj
     extensions*: seq[Ext]
@@ -111,6 +88,21 @@ type
     onPong*: ControlCb
     onClose*: CloseCb
 
+  WSSession* = ref object of WebSocket
+    stream*: AsyncStream
+    frame*: Frame
+    proto*: string
+
+  Ext* = ref object of RootObj
+    name*: string
+    options*: Table[string, string]
+    session*: WSSession
+
+  ExtFactory* = proc(
+    name: string,
+    session: WSSession,
+    options: Table[string, string]): Ext {.raises: [Defect].}
+
   WebSocketError* = object of CatchableError
   WSMalformedHeaderError* = object of WebSocketError
   WSFailedUpgradeError* = object of WebSocketError
@@ -125,12 +117,42 @@ type
   WSClosedError* = object of WebSocketError
   WSSendError* = object of WebSocketError
   WSPayloadTooLarge* = object of WebSocketError
-  WSReserverdOpcodeError* = object of WebSocketError
+  WSReservedOpcodeError* = object of WebSocketError
   WSFragmentedControlFrameError* = object of WebSocketError
   WSInvalidCloseCodeError* = object of WebSocketError
   WSPayloadLengthError* = object of WebSocketError
   WSInvalidOpcodeError* = object of WebSocketError
   WSInvalidUTF8* = object of WebSocketError
+
+const
+  StatusNotUsed* = (StatusCodes(0)..StatusCodes(999))
+  StatusFulfilled* = StatusCodes(1000)
+  StatusGoingAway* = StatusCodes(1001)
+  StatusProtocolError* = StatusCodes(1002)
+  StatusCannotAccept* = StatusCodes(1003)
+  StatusReserved* = StatusCodes(1004)                      # 1004 reserved
+  StatusNoStatus* = StatusCodes(1005)                      # use by clients
+  StatusClosedAbnormally* = StatusCodes(1006)              # use by clients
+  StatusInconsistent* = StatusCodes(1007)
+  StatusPolicyError* = StatusCodes(1008)
+  StatusTooLarge* = StatusCodes(1009)
+  StatusNoExtensions* = StatusCodes(1010)
+  StatusUnexpectedError* = StatusCodes(1011)
+  StatusFailedTls* = StatusCodes(1015)                            # passed to applications to indicate TLS errors
+  StatusReservedProtocol* = StatusCodes(1016)..StatusCodes(2999)  # reserved for this protocol
+  StatusLibsCodes* = (StatusCodes(3000)..StatusCodes(3999))       # 3000-3999 reserved for libs
+  StatusAppsCodes* = (StatusCodes(4000)..StatusCodes(4999))       # 4000-4999 reserved for apps
+
+proc `<=`*(a, b: StatusCodes): bool = a.uint16 <= b.uint16
+proc `>=`*(a, b: StatusCodes): bool = a.uint16 >= b.uint16
+proc `<`*(a, b: StatusCodes): bool = a.uint16 < b.uint16
+proc `>`*(a, b: StatusCodes): bool = a.uint16 > b.uint16
+proc `==`*(a, b: StatusCodes): bool = a.uint16 == b.uint16
+
+proc high*(a: HSlice[StatusCodes, StatusCodes]): uint16 = a.b.uint16
+proc low*(a: HSlice[StatusCodes, StatusCodes]): uint16 = a.a.uint16
+
+proc `$`*(a: StatusCodes): string = $(a.int)
 
 proc `name=`*(self: Ext, name: string) =
   raiseAssert "Can't change extensions name!"
@@ -141,5 +163,5 @@ method decode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
 method encode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
   raiseAssert "Not implemented!"
 
-method toHttpOptions*(self: Ext): string =
+method toHttpOptions*(self: Ext): string {.base.} =
   raiseAssert "Not implemented!"

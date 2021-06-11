@@ -15,7 +15,11 @@ import pkg/[
   stew/byteutils,
   stew/endians2,
   stew/results]
+
 import ./types
+
+logScope:
+  topics = "ws-frame"
 
 #[
   +---------------------------------------------------------------+
@@ -54,7 +58,6 @@ template remainder*(frame: Frame): uint64 =
 
 proc encode*(
   frame: Frame,
-  offset = 0,
   extensions: seq[Ext] = @[]): Future[seq[byte]] {.async.} =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
@@ -65,7 +68,7 @@ proc encode*(
       f = await e.encode(f)
 
   var ret: seq[byte]
-  var b0 = (f.opcode.uint8 and 0x0F) # 0th byte: opcodes and flags.
+  var b0 = (f.opcode.uint8 and 0x0f) # 0th byte: opcodes and flags.
   if f.fin:
     b0 = b0 or 128'u8
 
@@ -77,7 +80,7 @@ proc encode*(
 
   if f.data.len <= 125:
     b1 = f.data.len.uint8
-  elif f.data.len > 125 and f.data.len <= 0xFFFF:
+  elif f.data.len > 125 and f.data.len <= 0xffff:
     b1 = 126'u8
   else:
     b1 = 127'u8
@@ -88,12 +91,12 @@ proc encode*(
   ret.add(uint8 b1)
 
   # Only need more bytes if data len is 7+16 bits, or 7+64 bits.
-  if f.data.len > 125 and f.data.len <= 0xFFFF:
+  if f.data.len > 125 and f.data.len <= 0xffff:
     # Data len is 7+16 bits.
     var len = f.data.len.uint16
-    ret.add ((len shr 8) and 0xFF).uint8
-    ret.add (len and 0xFF).uint8
-  elif f.data.len > 0xFFFF:
+    ret.add ((len shr 8) and 0xff).uint8
+    ret.add (len and 0xff).uint8
+  elif f.data.len > 0xffff:
     # Data len is 7+64 bits.
     var len = f.data.len.uint64
     ret.add(len.toBytesBE())
@@ -101,7 +104,7 @@ proc encode*(
   var data = f.data
   if f.mask:
     # If we need to mask it generate random mask key and mask the data.
-    mask(data, f.maskKey, offset)
+    mask(data, f.maskKey)
 
     # Write mask key next.
     ret.add(f.maskKey[0].uint8)
@@ -122,10 +125,10 @@ proc decode*(
   ##
 
   var header = newSeq[byte](2)
-  debug "Reading new frame"
+  trace "Reading new frame"
   await reader.readExactly(addr header[0], 2)
   if header.len != 2:
-    debug "Invalid websocket header length"
+    trace "Invalid websocket header length"
     raise newException(WSMalformedHeaderError,
       "Invalid websocket header length")
 
@@ -146,10 +149,6 @@ proc decode*(
     raise newException(WSOpcodeMismatchError, "Wrong opcode!")
 
   frame.opcode = (opcode).Opcode
-
-  # If any of the rsv are set close the socket.
-  if frame.rsv1 or frame.rsv2 or frame.rsv3:
-    raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")
 
   # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
   var finalLen: uint64 = 0
@@ -187,7 +186,11 @@ proc decode*(
       frame.maskKey[i] = cast[char](maskKey[i])
 
   if extensions.len > 0:
-    for e in extensions[extensions.high..extensions.low]:
-      frame = await e.decode(frame)
+    for i in countdown(extensions.high, extensions.low):
+      frame = await extensions[i].decode(frame)
+
+  # If any of the rsv are set close the socket.
+  if frame.rsv1 or frame.rsv2 or frame.rsv3:
+    raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")
 
   return frame

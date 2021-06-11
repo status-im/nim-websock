@@ -9,7 +9,7 @@
 
 import
   pkg/[asynctest, chronos],
-  ../ws/ext_utils
+  ../ws/extensions
 
 suite "extension parser":
   test "single extension":
@@ -222,47 +222,47 @@ suite "extension parser":
     var app: seq[AppExt]
     let res = parseExt("filename=foo.html, filename=bar.html", app)
     check res == false
-  
+
   test "emptydisposition":
     var app: seq[AppExt]
     let res = parseExt(" ; filename=foo.html", app)
     check res == false
-    
+
   test "doublecolon":
     var app: seq[AppExt]
     let res = parseExt(": inline; attachment; filename=foo.html", app)
     check res == false
-    
+
   test "attbrokenquotedfn":
     var app: seq[AppExt]
     let res = parseExt(" attachment; filename=\"foo.html\".txt", app)
     check res == false
-    
+
   test "attbrokenquotedfn2":
     var app: seq[AppExt]
     let res = parseExt("attachment; filename=\"bar", app)
     check res == false
-    
+
   test "attbrokenquotedfn3":
     var app: seq[AppExt]
     let res = parseExt("attachment; filename=foo\"bar;baz\"qux", app)
     check res == false
-    
+
   test "attmissingdelim":
     var app: seq[AppExt]
     let res = parseExt("attachment; foo=foo filename=bar", app)
     check res == false
-    
+
   test "attmissingdelim2":
     var app: seq[AppExt]
     let res = parseExt("attachment; filename=bar foo=foo", app)
     check res == false
-    
+
   test "attmissingdelim3":
     var app: seq[AppExt]
     let res = parseExt("attachment filename=bar", app)
     check res == false
-    
+
   test "attreversed":
     var app: seq[AppExt]
     let res = parseExt("filename=foo.html; attachment", app)

@@ -5,85 +5,16 @@ import pkg/[
   chronicles,
   stew/byteutils]
 
-import ./asynctest
 import ../ws/ws
-import ./keys
 
-var server: HttpServer
+import ./asynctest
+import ./helpers
 
 let
-  address = initTAddress("127.0.0.1:8888")
-  socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
-  clientFlags = {NoVerifyHost, NoVerifyServerName}
-  secureKey = TLSPrivateKey.init(SecureKey)
-  secureCert = TLSCertificate.init(SecureCert)
+  address* = initTAddress("127.0.0.1:8888")
 
-const WSPath = when defined secure: "/wss" else: "/ws"
-
-proc rndStr*(size: int): string =
-  for _ in .. size:
-    add(result, char(rand(int('A') .. int('z'))))
-
-proc rndBin*(size: int): seq[byte] =
-   for _ in .. size:
-      add(result, byte(rand(0 .. 255)))
-
-proc waitForClose(ws: WSSession) {.async.} =
-  try:
-    while ws.readystate != ReadyState.Closed:
-      discard await ws.recv()
-  except CatchableError:
-    debug "Closing websocket"
-
-proc createServer(
-  address = initTAddress("127.0.0.1:8888"),
-  tlsPrivateKey = secureKey,
-  tlsCertificate = secureCert,
-  handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = socketFlags,
-  tlsFlags: set[TLSFlags] = {},
-  tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12): HttpServer =
-  when defined secure:
-    TlsHttpServer.create(
-      address = address,
-      tlsPrivateKey = tlsPrivateKey,
-      tlsCertificate = tlsCertificate,
-      handler = handler,
-      flags = flags,
-      tlsFlags = tlsFlags,
-      tlsMinVersion = tlsMinVersion,
-      tlsMaxVersion = tlsMaxVersion)
-  else:
-    HttpServer.create(
-      address = address,
-      handler = handler,
-      flags = flags)
-
-proc connectClient*(
-  address = initTAddress("127.0.0.1:8888"),
-  path = WSPath,
-  protocols: seq[string] = @["proto"],
-  flags: set[TLSFlags] = clientFlags,
-  version = WSDefaultVersion,
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
-  let secure = when defined secure: true else: false
-  return await WebSocket.connect(
-    address = address,
-    flags = flags,
-    path = path,
-    secure = secure,
-    protocols = protocols,
-    version = version,
-    frameSize = frameSize,
-    onPing = onPing,
-    onPong = onPong,
-    onClose = onClose,
-    rng = rng)
+var
+  server: HttpServer
 
 suite "Test handshake":
   teardown:
@@ -175,25 +106,20 @@ suite "Test handshake":
         parseUri(uri),
         protocols = @["proto"])
 
-  # test "AsyncStream leaks test":
-  #   check:
-  #     getTracker("async.stream.reader").isLeaked() == false
-  #     getTracker("async.stream.writer").isLeaked() == false
-  #     getTracker("stream.server").isLeaked() == false
-  #     getTracker("stream.transport").isLeaked() == false
-
 suite "Test transmission":
   teardown:
     server.stop()
     await server.closeWait()
 
-  test "Send text message message with payload of length 65535":
-    let testString = rndStr(65535)
+  test "Server - test reading simple frame":
+    let testString = "Hello!"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
+
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
+
       check string.fromBytes(servRes) == testString
       await ws.waitForClose()
 
@@ -207,15 +133,13 @@ suite "Test transmission":
     await session.send(testString)
     await session.close()
 
-  test "Server - test reading simple frame":
-    let testString = "Hello!"
+  test "Send text message message with payload of length 65535":
+    let testString = rndStr(65535)
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
-
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
-
       check string.fromBytes(servRes) == testString
       await ws.waitForClose()
 
@@ -250,82 +174,10 @@ suite "Test transmission":
     check string.fromBytes(clientRes) == testString
     await waitForClose(session)
 
-  # test "AsyncStream leaks test":
-  #   check:
-  #     getTracker("async.stream.reader").isLeaked() == false
-  #     getTracker("async.stream.writer").isLeaked() == false
-  #     getTracker("stream.server").isLeaked() == false
-  #     getTracker("stream.transport").isLeaked() == false
-
 suite "Test ping-pong":
   teardown:
     server.stop()
     await server.closeWait()
-
-  test "Send text Message fragmented into 2 fragments, one ping with payload in-between":
-    var ping, pong = false
-    let testString = "1234567890"
-    let msg = toBytes(testString)
-    let maxFrameSize = 5
-
-    proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path == WSPath
-      let server = WSServer.new(
-        protos = ["proto"],
-        onPing = proc(data: openArray[byte]) =
-          ping = true
-        )
-
-      let ws = await server.handleRequest(request)
-
-      let respData = await ws.recv()
-      check string.fromBytes(respData) == testString
-      await waitForClose(ws)
-
-    server = createServer(
-      address = address,
-      handler = handle,
-      flags = {ReuseAddr})
-    server.start()
-
-    let session = await connectClient(
-      address = initTAddress("127.0.0.1:8888"),
-      frameSize = maxFrameSize,
-      onPong = proc(data: openArray[byte]) =
-        pong = true
-    )
-
-    let maskKey = genMaskKey(newRng())
-    await session.stream.writer.write(
-      (await Frame(
-        fin: false,
-        rsv1: false,
-        rsv2: false,
-        rsv3: false,
-        opcode: Opcode.Text,
-        mask: true,
-        data: msg[0..4],
-        maskKey: maskKey)
-        .encode()))
-
-    await session.ping()
-
-    await session.stream.writer.write(
-      (await Frame(
-        fin: true,
-        rsv1: false,
-        rsv2: false,
-        rsv3: false,
-        opcode: Opcode.Cont,
-        mask: true,
-        data: msg[5..9],
-        maskKey: maskKey)
-        .encode()))
-
-    await session.close()
-    check:
-      ping
-      pong
 
   test "Server - test ping-pong control messages":
     var ping, pong = false
@@ -389,12 +241,59 @@ suite "Test ping-pong":
     await session.ping()
     await session.close()
 
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
+  test "Send ping with small text payload":
+    let testData = toBytes("Hello, world!")
+    var ping, pong = false
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(
+        protos = ["proto"],
+        onPing = proc(data: openArray[byte]) =
+          ping = data == testData)
+
+      let ws = await server.handleRequest(request)
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+    server.start()
+
+    let session = await connectClient(
+      address = initTAddress("127.0.0.1:8888"),
+      onPong = proc(data: openArray[byte]) =
+        pong = true
+    )
+
+    await session.ping(testData)
+    await session.close()
+    check:
+      ping
+      pong
+
+  test "Test ping payload message length":
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+
+      expect WSPayloadTooLarge:
+        discard await ws.recv()
+
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+    server.start()
+
+    let str = rndStr(126)
+    let session = await connectClient()
+    await session.ping(str.toBytes())
+    await session.close()
 
 suite "Test framing":
   teardown:
@@ -408,13 +307,13 @@ suite "Test framing":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let frame1 = await ws.readFrame()
+      let frame1 = await ws.readFrame(@[])
       check not isNil(frame1)
       var data1 = newSeq[byte](frame1.remainder().int)
       let read1 = await ws.stream.reader.readOnce(addr data1[0], data1.len)
       check read1 == 5
 
-      let frame2 = await ws.readFrame()
+      let frame2 = await ws.readFrame(@[])
       check not isNil(frame2)
       var data2 = newSeq[byte](frame2.remainder().int)
       let read2 = await ws.stream.reader.readOnce(addr data2[0], data2.len)
@@ -454,15 +353,7 @@ suite "Test framing":
 
     expect WSMaxMessageSizeError:
       discard await session.recv(5)
-
     await waitForClose(session)
-
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
 
 suite "Test Closing":
   teardown:
@@ -490,15 +381,15 @@ suite "Test Closing":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
-      proc closeServer(status: Status, reason: string): CloseResult{.gcsafe,
+      proc closeServer(status: StatusCodes, reason: string): CloseResult{.gcsafe,
           raises: [Defect].} =
         try:
-          check status == Status.TooLarge
+          check status == StatusTooLarge
           check reason == "Message too big!"
         except Exception as exc:
           raise newException(Defect, exc.msg)
 
-        return (Status.Fulfilled, "")
+        return (StatusFulfilled, "")
 
       let server = WSServer.new(
         protos = ["proto"],
@@ -514,11 +405,11 @@ suite "Test Closing":
       flags = {ReuseAddr})
     server.start()
 
-    proc clientClose(status: Status, reason: string): CloseResult {.gcsafe,
+    proc clientClose(status: StatusCodes, reason: string): CloseResult {.gcsafe,
       raises: [Defect].} =
       try:
-        check status == Status.Fulfilled
-        return (Status.TooLarge, "Message too big!")
+        check status == StatusFulfilled
+        return (StatusTooLarge, "Message too big!")
       except Exception as exc:
         raise newException(Defect, exc.msg)
 
@@ -548,11 +439,11 @@ suite "Test Closing":
   test "Client closing with status":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
-      proc closeServer(status: Status, reason: string): CloseResult{.gcsafe,
+      proc closeServer(status: StatusCodes, reason: string): CloseResult{.gcsafe,
           raises: [Defect].} =
         try:
-          check status == Status.Fulfilled
-          return (Status.TooLarge, "Message too big!")
+          check status == StatusFulfilled
+          return (StatusTooLarge, "Message too big!")
         except Exception as exc:
           raise newException(Defect, exc.msg)
 
@@ -570,12 +461,12 @@ suite "Test Closing":
       flags = {ReuseAddr})
     server.start()
 
-    proc clientClose(status: Status, reason: string): CloseResult {.gcsafe,
+    proc clientClose(status: StatusCodes, reason: string): CloseResult {.gcsafe,
       raises: [Defect].} =
       try:
-        check status == Status.TooLarge
+        check status == StatusTooLarge
         check reason == "Message too big!"
-        return (Status.Fulfilled, "")
+        return (StatusFulfilled, "")
       except Exception as exc:
         raise newException(Defect, exc.msg)
 
@@ -592,7 +483,7 @@ suite "Test Closing":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
-      await ws.close(code = Status.ReservedCode)
+      await ws.close(code = StatusCodes(StatusLibsCodes.high))
 
     server = createServer(
       address = address,
@@ -600,11 +491,11 @@ suite "Test Closing":
       flags = {ReuseAddr})
     server.start()
 
-    proc closeClient(status: Status, reason: string): CloseResult{.gcsafe,
-        raises: [Defect].} =
+    proc closeClient(status: StatusCodes, reason: string): CloseResult
+      {.gcsafe, raises: [Defect].} =
       try:
-        check status == Status.ReservedCode
-        return (Status.ReservedCode, "Reserved Status")
+        check status == StatusCodes(StatusLibsCodes.high)
+        return (StatusCodes(StatusLibsCodes.high), "Reserved StatusCodes")
       except Exception as exc:
         raise newException(Defect, exc.msg)
 
@@ -617,11 +508,11 @@ suite "Test Closing":
   test "Client closing with valid close code 3999":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
-      proc closeServer(status: Status, reason: string): CloseResult{.gcsafe,
+      proc closeServer(status: StatusCodes, reason: string): CloseResult{.gcsafe,
           raises: [Defect].} =
         try:
-          check status == Status.ReservedCode
-          return (Status.ReservedCode, "Reserved Status")
+          check status == StatusCodes(3999)
+          return (StatusCodes(3999), "Reserved StatusCodes")
         except Exception as exc:
           raise newException(Defect, exc.msg)
 
@@ -640,7 +531,7 @@ suite "Test Closing":
     server.start()
 
     let session = await connectClient()
-    await session.close(code = Status.ReservedCode)
+    await session.close(code = StatusCodes(3999))
 
   test "Server closing with Payload of length 2":
     proc handle(request: HttpRequest) {.async.} =
@@ -681,41 +572,12 @@ suite "Test Closing":
     # Close with payload of length 2
     await session.close(reason = "HH")
 
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
-
 suite "Test Payload":
   teardown:
     server.stop()
     await server.closeWait()
 
-  test "Test payload message length":
-    proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path == WSPath
-      let server = WSServer.new(protos = ["proto"])
-      let ws = await server.handleRequest(request)
-
-      expect WSPayloadTooLarge:
-        discard await ws.recv()
-
-      await waitForClose(ws)
-
-    server = createServer(
-      address = address,
-      handler = handle,
-      flags = {ReuseAddr})
-    server.start()
-
-    let str = rndStr(126)
-    let session = await connectClient()
-    await session.ping(str.toBytes())
-    await session.close()
-
-  test "Test single empty payload":
+  test "Test payload of length 0":
     let emptyStr = ""
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -724,8 +586,12 @@ suite "Test Payload":
       let ws = await server.handleRequest(request)
       let servRes = await ws.recv()
 
-      check string.fromBytes(servRes) == emptyStr
-      await waitForClose(ws)
+      check:
+        servRes.len == 0
+        string.fromBytes(servRes) == emptyStr
+
+      await ws.send(emptyStr)
+      await ws.waitForClose()
 
     server = createServer(
       address = address,
@@ -734,20 +600,32 @@ suite "Test Payload":
     server.start()
 
     let session = await connectClient()
-
     await session.send(emptyStr)
+    let clientRes = await session.recv()
+
+    check:
+      clientRes.len == 0
+      string.fromBytes(clientRes) == emptyStr
+
     await session.close()
 
-  test "Test multiple empty payload":
+  test "Test multiple payloads of length 0":
     let emptyStr = ""
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
+      for _ in 0..<3:
+        let servRes = await ws.recv()
 
-      check string.fromBytes(servRes) == emptyStr
+        check:
+          servRes.len == 0
+          string.fromBytes(servRes) == emptyStr
+
+      for i in 0..3:
+        await ws.send(emptyStr)
+
       await waitForClose(ws)
 
     server = createServer(
@@ -757,22 +635,35 @@ suite "Test Payload":
     server.start()
 
     let session = await connectClient()
+
     for i in 0..3:
       await session.send(emptyStr)
+
+    for _ in 0..<3:
+      let clientRes = await session.recv()
+
+      check:
+        clientRes.len == 0
+        string.fromBytes(clientRes) == emptyStr
+
     await session.close()
 
-  test "Send ping with small text payload":
-    let testData = toBytes("Hello, world!")
+  test "Send two fragments":
     var ping, pong = false
+    let testString = "1234567890"
+    let msg = toBytes(testString)
+    let maxFrameSize = 5
+
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
-
-      let server = WSServer.new(
-        protos = ["proto"],
-        onPing = proc(data: openArray[byte]) =
-          ping = data == testData)
+      let server = WSServer.new(protos = ["proto"])
 
       let ws = await server.handleRequest(request)
+      let respData = await ws.recv()
+
+      check:
+        string.fromBytes(respData) == testString
+
       await waitForClose(ws)
 
     server = createServer(
@@ -783,22 +674,133 @@ suite "Test Payload":
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
+      frameSize = maxFrameSize)
+
+    let maskKey = genMaskKey(newRng())
+    await session.stream.writer.write(
+      (await Frame(
+        fin: false,
+        rsv1: false,
+        rsv2: false,
+        rsv3: false,
+        opcode: Opcode.Text,
+        mask: true,
+        data: msg[0..4],
+        maskKey: maskKey)
+        .encode()))
+
+    await session.stream.writer.write(
+      (await Frame(
+        fin: true,
+        rsv1: false,
+        rsv2: false,
+        rsv3: false,
+        opcode: Opcode.Cont,
+        mask: true,
+        data: msg[5..9],
+        maskKey: maskKey)
+        .encode()))
+
+    await session.close()
+
+  test "Send two fragments with a ping with payload in-between":
+    var ping, pong = false
+    let testString = "1234567890"
+    let msg = toBytes(testString)
+    let maxFrameSize = 5
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+      let server = WSServer.new(
+        protos = ["proto"],
+        onPing = proc(data: openArray[byte]) =
+          ping = true
+        )
+
+      let ws = await server.handleRequest(request)
+      let respData = await ws.recv()
+      check:
+        string.fromBytes(respData)   == testString
+
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+    server.start()
+
+    let session = await connectClient(
+      address = initTAddress("127.0.0.1:8888"),
+      frameSize = maxFrameSize,
       onPong = proc(data: openArray[byte]) =
         pong = true
     )
 
-    await session.ping(testData)
+    let maskKey = genMaskKey(newRng())
+    await session.stream.writer.write(
+      (await Frame(
+        fin: false,
+        rsv1: false,
+        rsv2: false,
+        rsv3: false,
+        opcode: Opcode.Text,
+        mask: true,
+        data: msg[0..4],
+        maskKey: maskKey)
+        .encode()))
+
+    await session.ping()
+
+    await session.stream.writer.write(
+      (await Frame(
+        fin: true,
+        rsv1: false,
+        rsv2: false,
+        rsv3: false,
+        opcode: Opcode.Cont,
+        mask: true,
+        data: msg[5..9],
+        maskKey: maskKey)
+        .encode()))
+
     await session.close()
     check:
       ping
       pong
 
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
+  test "Send text message with multiple frames":
+    const FrameSize = 3000
+    let testData = rndStr(FrameSize * 3)
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+      let res = await ws.recv()
+
+      check ws.binary == false
+      await ws.send(res, Opcode.Text)
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+    server.start()
+
+    let ws = await connectClient(
+      address = address,
+      frameSize = FrameSize
+    )
+
+    await ws.send(testData)
+    let echoed = await ws.recv()
+    await ws.close()
+
+    check:
+      string.fromBytes(echoed) == testData
+      ws.binary == false
 
 suite "Test Binary message with Payload":
   teardown:
@@ -860,7 +862,7 @@ suite "Test Binary message with Payload":
 
   test "Send binary data with small text payload":
     let testData = rndBin(10)
-    debug "testData", testData = testData
+    trace "testData", testData = testData
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -929,9 +931,42 @@ suite "Test Binary message with Payload":
     await session.send(testData, Opcode.Binary)
     await session.close()
 
-#   test "AsyncStream leaks test":
-#     check:
-#       getTracker("async.stream.reader").isLeaked() == false
-#       getTracker("async.stream.writer").isLeaked() == false
-#       getTracker("stream.server").isLeaked() == false
-#       getTracker("stream.transport").isLeaked() == false
+  test "Send binary message with multiple frames":
+    const FrameSize = 3000
+    let testData = rndBin(FrameSize * 3)
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+      let res = await ws.recv()
+
+      check:
+        ws.binary == true
+        res == testData
+
+      await ws.send(res, Opcode.Binary)
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+    server.start()
+
+    let ws = await connectClient(
+      address = address,
+      frameSize = FrameSize
+    )
+
+    await ws.send(testData, Opcode.Binary)
+    let echoed = await ws.recv()
+
+    check:
+      echoed == testData
+
+    await ws.close()
+
+    check:
+      echoed == testData
+      ws.binary == true
