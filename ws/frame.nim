@@ -186,8 +186,8 @@ proc decode*(
       frame.maskKey[i] = cast[char](maskKey[i])
 
   if extensions.len > 0:
-    for e in extensions[extensions.high..extensions.low]:
-      frame = await e.decode(frame)
+    for i in countdown(extensions.high, extensions.low):
+      frame = await extensions[i].decode(frame)
 
   # If any of the rsv are set close the socket.
   if frame.rsv1 or frame.rsv2 or frame.rsv3:
