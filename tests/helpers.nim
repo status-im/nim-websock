@@ -1,0 +1,81 @@
+import std/[strutils, random]
+import pkg/[
+  chronos,
+  chronos/streams/tlsstream,
+  httputils,
+  chronicles,
+  stew/byteutils]
+
+import ../ws/ws
+import ./keys
+
+let
+  WSSecureKey* = TLSPrivateKey.init(SecureKey)
+  WSSecureCert* = TLSCertificate.init(SecureCert)
+
+const WSPath* = when defined secure: "/wss" else: "/ws"
+
+proc rndStr*(size: int): string =
+  for _ in 0..<size:
+    add(result, char(rand(int('A') .. int('z'))))
+
+proc rndBin*(size: int): seq[byte] =
+   for _ in 0..<size:
+      add(result, byte(rand(0 .. 255)))
+
+proc waitForClose*(ws: WSSession) {.async.} =
+  try:
+    while ws.readystate != ReadyState.Closed:
+      discard await ws.recv()
+  except CatchableError:
+    trace "Closing websocket"
+
+proc createServer*(
+  address = initTAddress("127.0.0.1:8888"),
+  tlsPrivateKey = SecureKey,
+  tlsCertificate = SecureCert,
+  handler: HttpAsyncCallback = nil,
+  flags: set[ServerFlags] = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr},
+  tlsFlags: set[TLSFlags] = {},
+  tlsMinVersion = TLSVersion.TLS12,
+  tlsMaxVersion = TLSVersion.TLS12): HttpServer =
+  when defined secure:
+    TlsHttpServer.create(
+      address = address,
+      tlsPrivateKey = tlsPrivateKey,
+      tlsCertificate = tlsCertificate,
+      handler = handler,
+      flags = flags,
+      tlsFlags = tlsFlags,
+      tlsMinVersion = tlsMinVersion,
+      tlsMaxVersion = tlsMaxVersion)
+  else:
+    HttpServer.create(
+      address = address,
+      handler = handler,
+      flags = flags)
+
+proc connectClient*(
+  address = initTAddress("127.0.0.1:8888"),
+  path = WSPath,
+  protocols: seq[string] = @["proto"],
+  flags: set[TLSFlags] = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
+  version = WSDefaultVersion,
+  frameSize = WSDefaultFrameSize,
+  onPing: ControlCb = nil,
+  onPong: ControlCb = nil,
+  onClose: CloseCb = nil,
+  rng: Rng = nil): Future[WSSession] {.async.} =
+  let secure = when defined secure: true else: false
+  return await WebSocket.connect(
+    address = address,
+    flags = flags,
+    path = path,
+    secure = secure,
+    protocols = protocols,
+    version = version,
+    frameSize = frameSize,
+    onPing = onPing,
+    onPong = onPong,
+    onClose = onClose,
+    rng = rng)

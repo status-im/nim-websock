@@ -5,85 +5,16 @@ import pkg/[
   chronicles,
   stew/byteutils]
 
-import ./asynctest
 import ../ws/ws
-import ./keys
 
-var server: HttpServer
+import ./asynctest
+import ./helpers
 
 let
-  address = initTAddress("127.0.0.1:8888")
-  socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
-  clientFlags = {NoVerifyHost, NoVerifyServerName}
-  secureKey = TLSPrivateKey.init(SecureKey)
-  secureCert = TLSCertificate.init(SecureCert)
+  address* = initTAddress("127.0.0.1:8888")
 
-const WSPath = when defined secure: "/wss" else: "/ws"
-
-proc rndStr*(size: int): string =
-  for _ in 0..<size:
-    add(result, char(rand(int('A') .. int('z'))))
-
-proc rndBin*(size: int): seq[byte] =
-   for _ in 0..<size:
-      add(result, byte(rand(0 .. 255)))
-
-proc waitForClose(ws: WSSession) {.async.} =
-  try:
-    while ws.readystate != ReadyState.Closed:
-      discard await ws.recv()
-  except CatchableError:
-    trace "Closing websocket"
-
-proc createServer(
-  address = initTAddress("127.0.0.1:8888"),
-  tlsPrivateKey = secureKey,
-  tlsCertificate = secureCert,
-  handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = socketFlags,
-  tlsFlags: set[TLSFlags] = {},
-  tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12): HttpServer =
-  when defined secure:
-    TlsHttpServer.create(
-      address = address,
-      tlsPrivateKey = tlsPrivateKey,
-      tlsCertificate = tlsCertificate,
-      handler = handler,
-      flags = flags,
-      tlsFlags = tlsFlags,
-      tlsMinVersion = tlsMinVersion,
-      tlsMaxVersion = tlsMaxVersion)
-  else:
-    HttpServer.create(
-      address = address,
-      handler = handler,
-      flags = flags)
-
-proc connectClient*(
-  address = initTAddress("127.0.0.1:8888"),
-  path = WSPath,
-  protocols: seq[string] = @["proto"],
-  flags: set[TLSFlags] = clientFlags,
-  version = WSDefaultVersion,
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
-  let secure = when defined secure: true else: false
-  return await WebSocket.connect(
-    address = address,
-    flags = flags,
-    path = path,
-    secure = secure,
-    protocols = protocols,
-    version = version,
-    frameSize = frameSize,
-    onPing = onPing,
-    onPong = onPong,
-    onClose = onClose,
-    rng = rng)
+var
+  server: HttpServer
 
 suite "Test handshake":
   teardown:
