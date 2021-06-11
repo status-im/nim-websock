@@ -197,6 +197,8 @@ suite "UTF-8 validator in action":
       await ws.close(reason = closeReason)
       await waitForClose(ws)
 
+      await waitForClose(ws)
+
     server = HttpServer.create(
       address,
       handle,
