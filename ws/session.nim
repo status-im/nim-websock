@@ -23,47 +23,16 @@ proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
   if ord(code) > 999:
     result = @(ord(code).uint16.toBytesBE()) & result
 
-proc writeMessage*(
-  ws: WSSession,
+proc writeMessage*(ws: WSSession,
   data: seq[byte] = @[],
   opcode: Opcode,
+  maskKey: MaskKey,
   extensions: seq[Ext]) {.async.} =
-  ## Send a frame applying the supplied
-  ## extensions
-  ##
-
-  if ws.readyState == ReadyState.Closed:
-    raise newException(WSClosedError, "Socket is closed!")
-
-  logScope:
-    opcode = opcode
-    dataSize = data.len
-    masked = ws.masked
-
-  trace "Sending data to remote"
-
-  var maskKey: array[4, char]
-  if ws.masked:
-    maskKey = genMaskKey(ws.rng)
 
   if opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
-
-    if ws.readyState in {ReadyState.Closing} and opcode notin {Opcode.Close}:
-      return
-
-    await ws.stream.writer.write(
-      (await Frame(
-        fin: true,
-        rsv1: false,
-        rsv2: false,
-        rsv3: false,
-        opcode: opcode,
-        mask: ws.masked,
-        data: data, # allow sending data with close messages
-        maskKey: maskKey)
-        .encode()))
-
-    return
+    warn "Attempting to send a data frame with an invalid opcode!"
+    raise newException(WSInvalidOpcodeError,
+      &"Attempting to send a data frame with an invalid opcode {opcode}!")
 
   let maxSize = ws.frameSize
   var i = 0
@@ -86,16 +55,76 @@ proc writeMessage*(
     if i >= data.len:
       break
 
+proc writeControl*(
+  ws: WSSession,
+  data: seq[byte] = @[],
+  opcode: Opcode,
+  maskKey: MaskKey) {.async.} =
+  ## Send a frame applying the supplied
+  ## extensions
+  ##
+
+  logScope:
+    opcode = opcode
+    dataSize = data.len
+    masked = ws.masked
+
+  if opcode in {Opcode.Text, Opcode.Cont, Opcode.Binary}:
+    warn "Attempting to send a control frame with an invalid opcode!"
+    raise newException(WSInvalidOpcodeError,
+      &"Attempting to send a control frame with an invalid opcode {opcode}!")
+
+  if ws.readyState in {ReadyState.Closing} and opcode notin {Opcode.Close}:
+    trace "Can only respond with Close opcode to a closing connection"
+    return
+
+  let frame = Frame(
+      fin: true,
+      rsv1: false,
+      rsv2: false,
+      rsv3: false,
+      opcode: opcode,
+      mask: ws.masked,
+      data: data,
+      maskKey: maskKey)
+
+  let encoded = await frame.encode()
+  await ws.stream.writer.write(encoded)
+
+  trace "Wrote control frame"
+
 proc send*(
   ws: WSSession,
   data: seq[byte] = @[],
-  opcode: Opcode): Future[void] =
+  opcode: Opcode): Future[void]
+  {.raises: [Defect, WSClosedError].} =
   ## Send a frame
   ##
 
-  return ws.writeMessage(data, opcode, ws.extensions)
+  if ws.readyState == ReadyState.Closed:
+    raise newException(WSClosedError, "Socket is closed!")
 
-proc send*(ws: WSSession, data: string): Future[void] =
+  logScope:
+    opcode = opcode
+    dataSize = data.len
+    masked = ws.masked
+
+  trace "Sending data to remote"
+
+  let maskKey = if ws.masked:
+      genMaskKey(ws.rng)
+    else:
+      default(MaskKey)
+
+  if opcode in {Opcode.Text, Opcode.Cont, Opcode.Binary}:
+    return ws.writeMessage(data, opcode, maskKey, ws.extensions)
+
+  return ws.writeControl(data, opcode, maskKey)
+
+proc send*(
+  ws: WSSession,
+  data: string): Future[void]
+  {.raises: [Defect, WSClosedError].} =
   send(ws, data.toBytes(), Opcode.Text)
 
 proc handleClose*(
@@ -248,7 +277,10 @@ proc readFrame*(ws: WSSession, extensions: seq[Ext] = @[]): Future[Frame] {.asyn
 
     return frame
 
-proc ping*(ws: WSSession, data: seq[byte] = @[]): Future[void] =
+proc ping*(
+  ws: WSSession,
+  data: seq[byte] = @[]): Future[void]
+  {.raises: [Defect, WSClosedError].} =
   ws.send(data, opcode = Opcode.Ping)
 
 proc recv*(
@@ -347,7 +379,7 @@ proc recv*(
     return consumed
   except CatchableError as exc:
     ws.readyState = ReadyState.Closed
-    await ws.stream.closeWait()
+    # await ws.stream.closeWait()
     trace "Exception reading frames", exc = exc.msg
     raise exc
   finally:
