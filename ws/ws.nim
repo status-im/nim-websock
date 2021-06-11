@@ -23,7 +23,6 @@ import pkg/[chronos,
             chronicles,
             httputils,
             stew/byteutils,
-            stew/endians2,
             stew/base64,
             stew/base10,
             nimcrypto/sha]

@@ -32,8 +32,8 @@ proc waitForClose*(ws: WSSession) {.async.} =
 
 proc createServer*(
   address = initTAddress("127.0.0.1:8888"),
-  tlsPrivateKey = SecureKey,
-  tlsCertificate = SecureCert,
+  tlsPrivateKey = WSSecureKey,
+  tlsCertificate = WSSecureCert,
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr},
   tlsFlags: set[TLSFlags] = {},

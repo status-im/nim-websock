@@ -3,7 +3,6 @@ import pkg/[chronos, stew/byteutils]
 
 import ../../ws/ws
 import ../asyncunit
-import ../helpers
 
 type
   ExtHandler = proc(ext: Ext, frame: Frame): Future[Frame] {.raises: [Defect].}
