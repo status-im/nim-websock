@@ -313,12 +313,19 @@ proc recv*(
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
     var first = true
-
-    # reset previous frame if nothing is left in it
-    if not isNil(ws.frame) and ws.frame.remainder <= 0:
-      trace "Resetting previous frame"
-      first = ws.frame.fin # set as first frame if last frame was final
-      ws.frame = nil
+    if not isNil(ws.frame):
+      if ws.frame.fin and ws.frame.remainder > 0:
+        trace "Continue reading from the same frame"
+        first = true
+      elif not ws.frame.fin and ws.frame.remainder > 0:
+        trace "Restarting reads in the middle of a frame in a multiframe message"
+        first = false
+      elif ws.frame.fin and ws.frame.remainder <= 0:
+        trace "Resetting an already consumed frame"
+        ws.frame = nil
+      elif not ws.frame.fin and ws.frame.remainder <= 0:
+        trace "No more bytes left and message EOF, resetting frame"
+        ws.frame = nil
 
     if isNil(ws.frame):
       ws.frame = await ws.readFrame(ws.extensions)
@@ -351,6 +358,7 @@ proc recv*(
         trace "Nothing left to read, breaking!"
         break
 
+      trace "Reading bytes from frame stream", len
       let read = await ws.stream.reader.readOnce(addr pbuffer[consumed], len)
       if read <= 0:
         trace "Didn't read any bytes, breaking"
@@ -386,12 +394,14 @@ proc recv*(
     return consumed
   except CatchableError as exc:
     trace "Exception reading frames", exc = exc.msg
-
     ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
+
     raise exc
   finally:
-    if not isNil(ws.frame) and (ws.frame.fin and ws.frame.remainder <= 0):
+    if not isNil(ws.frame) and
+      (ws.frame.fin and ws.frame.remainder <= 0):
+      trace "Last frame in message and no more bytes left to read, reseting current frame"
       ws.frame = nil
 
 proc recv*(
@@ -425,7 +435,7 @@ proc recv*(
       break
 
     # read the entire message, exit
-    if ws.frame.fin and ws.frame.remainder().int <= 0:
+    if ws.frame.fin and ws.frame.remainder <= 0:
       trace "Read full message, breaking!"
       break
 
