@@ -41,6 +41,7 @@ proc getCaseCount(): Future[int] {.async.} =
 
 proc generateReport() {.async.} =
   try:
+    trace "request autobahn server to generate report"
     let ws = await connectServer("/updateReports?agent=" & agent)
     while true:
       let buff = await ws.recv()
@@ -55,17 +56,24 @@ proc main() {.async.} =
   trace "case count", count=caseCount
 
   for i in 1..caseCount:
+    trace "runcase", no=i
     let path = "/runCase?case=$1&agent=$2" % [$i, agent]
     try:
       let ws = await connectServer(path)
-      # echo back
-      let data = await ws.recv()
-      let opCode = if ws.binary:
-                     Opcode.Binary
-                   else:
-                     Opcode.Text
-      await ws.send(data, opCode)
-      await ws.close()
+
+      while ws.readystate != ReadyState.Closed:
+        # echo back
+        let data = await ws.recv()
+        let opCode = if ws.binary:
+                       Opcode.Binary
+                     else:
+                       Opcode.Text
+
+        if ws.readyState == ReadyState.Closed:
+          break
+
+        await ws.send(data, opCode)
+
     except WebSocketError as exc:
       error "WebSocket error", exception = exc.msg
 
