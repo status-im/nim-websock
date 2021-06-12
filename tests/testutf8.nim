@@ -162,14 +162,13 @@ suite "UTF-8 validator in action":
     await session.close(reason = closeReason)
 
   test "invalid UTF-8 sequence":
-    # TODO: how to check for Invalid UTF8 exception?
     let testData = "hello world\xc0\xaf"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      discard await ws.recv()
+      await ws.send(testData)
       await waitForClose(ws)
 
     server = HttpServer.create(
@@ -185,25 +184,17 @@ suite "UTF-8 validator in action":
       protocols = @["proto"]
     )
 
-    await session.send(testData)
-    await session.close()
-    check session.readyState == ReadyState.Closed
+    expect WSInvalidUTF8:
+      let data = await session.recv()
 
   test "invalid UTF-8 sequence close code":
-    # TODO: how to check for Invalid UTF8 exception?
-    let testData = "hello world"
     let closeReason = "i want to close\xc0\xaf"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-
-      let res = await ws.recv()
-      check:
-        string.fromBytes(res) == testData
-        ws.binary == false
-
+      await ws.close(reason = closeReason)
       await waitForClose(ws)
 
     server = HttpServer.create(
@@ -219,6 +210,5 @@ suite "UTF-8 validator in action":
       protocols = @["proto"]
     )
 
-    await session.send(testData)
-    await session.close(reason = closeReason)
-    check session.readyState == ReadyState.Closed
+    expect WSInvalidUTF8:
+      let data = await session.recv()
