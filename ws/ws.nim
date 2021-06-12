@@ -61,7 +61,7 @@ proc connect*(
   ##
 
   var rng = if isNil(rng): newRng() else: rng
-  var key = Base64.encode(genWebSecKey(rng))
+  var key = Base64Pad.encode(genWebSecKey(rng))
   var uri = uri
   let client = case uri.scheme:
     of "wss":
@@ -79,7 +79,8 @@ proc connect*(
     ("Upgrade", "websocket"),
     ("Cache-Control", "no-cache"),
     ("Sec-WebSocket-Version", $version),
-    ("Sec-WebSocket-Key", key)]
+    ("Sec-WebSocket-Key", key),
+    ("Host", uri.hostname & ":" & uri.port)]
 
   var headers = HttpTable.init(headerData)
   if protocols.len > 0:
@@ -177,6 +178,7 @@ proc connect*(
     path = path,
     protocols = protocols,
     extensions = extensions,
+    secure = secure,
     flags = flags,
     version = version,
     frameSize = frameSize,

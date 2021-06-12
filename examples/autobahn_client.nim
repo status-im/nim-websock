@@ -3,30 +3,35 @@ import
   pkg/[chronos, chronicles, stew/byteutils],
   ../ws/[ws, types, frame]
 
-type
-  Arg = object
-    host: string
-    port: Port
-    path: string
+const
+  clientFlags = {NoVerifyHost, NoVerifyServerName}
 
-proc getCaseCount(arg: Arg): Future[int] {.async.} =
-  let path = arg.path & "/getCaseCount"
+const agent = when defined tls:
+                "nim-ws-tls-client"
+              else:
+                "nim-ws-client"
+const secure = defined tls
 
+proc connectServer(path: string): Future[WSSession] {.async.} =
+  let ws = await WebSocket.connect(
+    host = "127.0.0.1",
+    port = Port(9001),
+    path = path,
+    secure=secure,
+    flags=clientFlags
+  )
+  return ws
+
+proc getCaseCount(): Future[int] {.async.} =
   var caseCount = 0
   block:
     try:
-      let ws = await WebSocket.connect(arg.host, arg.port, path)
-
+      let ws = await connectServer("/getCaseCount")
       let buff = await ws.recv()
-      if buff.len <= 0:
-        break
-
       let dataStr = string.fromBytes(buff)
       caseCount = parseInt(dataStr)
-
       await ws.close()
       break
-
     except WebSocketError as exc:
       error "WebSocket error", exception = exc.msg
     except ValueError as exc:
@@ -34,43 +39,36 @@ proc getCaseCount(arg: Arg): Future[int] {.async.} =
 
   return caseCount
 
-proc generateReport(arg: Arg) {.async.} =
-  let path = arg.path & "/updateReports?agent=nim-ws"
+proc generateReport() {.async.} =
   try:
-    let ws = await WebSocket.connect(arg.host, arg.port, path)
-
+    let ws = await connectServer("/updateReports?agent=" & agent)
     while true:
       let buff = await ws.recv()
       if buff.len <= 0:
         break
-
     await ws.close()
-
   except WebSocketError as exc:
     error "WebSocket error", exception = exc.msg
 
 proc main() {.async.} =
-  let arg = Arg(host: "127.0.0.1", port: Port(9001))
-  let caseCount = await getCaseCount(arg)
-  notice "case count", count=caseCount
+  let caseCount = await getCaseCount()
+  trace "case count", count=caseCount
 
   for i in 1..caseCount:
-    let path = "$1/runCase?case=$2&agent=nim-ws" % [arg.path, $i]
+    let path = "/runCase?case=$1&agent=$2" % [$i, agent]
     try:
-      let ws = await WebSocket.connect(arg.host, arg.port, path)
-
+      let ws = await connectServer(path)
       # echo back
-      while true:
-        let data = await ws.recv()
-        if data.len <= 0:
-          break
-
-        await ws.send(data, if ws.binary: Opcode.Binary else: Opcode.Text)
-
+      let data = await ws.recv()
+      let opCode = if ws.binary:
+                     Opcode.Binary
+                   else:
+                     Opcode.Text
+      await ws.send(data, opCode)
       await ws.close()
     except WebSocketError as exc:
       error "WebSocket error", exception = exc.msg
 
-  await generateReport(arg)
+  await generateReport()
 
 waitFor main()

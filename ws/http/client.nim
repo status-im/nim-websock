@@ -59,8 +59,11 @@ proc generateHeaders(
   var headersData = toUpperAscii($httpMethod)
   headersData.add " "
 
-  if not requestUrl.path.startsWith("/"): headersData.add "/"
-  headersData.add(requestUrl.path & " ")
+  if not requestUrl.path.startsWith("/"): headersData.add "/"    
+  headersData.add(requestUrl.path)  
+  if requestUrl.query.len > 0:
+    headersData.add("?" & requestUrl.query)  
+  headersData.add(" ")  
   headersData.add($version & CRLF)
 
   for (key, val) in headers.stringItems(true):

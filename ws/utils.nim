@@ -40,5 +40,5 @@ proc genWebSecKey*(rng: Rng): seq[byte] =
   proc r(): byte = byte(rand(rng, 255))
   ## Generates a random key of 16 random chars.
   for i in 0..15:
-    key.add(r())
+    key[i] = r()
   return key
