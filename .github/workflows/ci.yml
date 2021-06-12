@@ -239,6 +239,19 @@ jobs:
           wstest --mode fuzzingclient --spec fuzzingclient_tls.json
           kill $pid
 
+          wstest --mode fuzzingserver --spec fuzzingserver.json &
+          pid=$!
+          cd ..
+          nim c -r examples/autobahn_client
+          kill $pid
+
+          cd autobahn
+          wstest --mode fuzzingserver --spec fuzzingserver_tls.json &
+          pid=$!
+          cd ..
+          nim c -r -d:tls examples/autobahn_client
+          kill $pid
+
       - name: Deploy autobahn report.
         if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
         uses: peaceiris/actions-gh-pages@v3

@@ -17,6 +17,14 @@ pip install autobahntestsuite
   * autobahn: `wstest --mode fuzzingclient --spec fuzzingclient.json`
   * Reports will be generated in `reports/server` which can be configured in `fuzzingclient.json`
 
-* wss server: `nim c -r examples/tlsserver.nim`
+* wss server: `nim c -r -d:tls examples/server.nim`
   * autobahn: `wstest --mode fuzzingclient --spec fuzzingclient_tls.json`
   * Reports will be generated in `reports/server_tls` which can be configured in `fuzzingclient_tls.json`
+
+* ws client:
+  * autobahn: `wstest --mode fuzzingserver --spec fuzzingserver.json`
+  * ws: `nim c -r examples/autobahn_client.nim`
+
+* wss client:
+  * autobahn: `wstest --mode fuzzingserver --spec fuzzingserver_tls.json`
+  * ws: `nim c -r -d:tls examples/autobahn_client.nim`
