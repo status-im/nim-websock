@@ -51,9 +51,9 @@ proc closeStream*(stream: AsyncStreamRW) {.async.} =
 
 proc closeWait*(stream: AsyncStream) {.async.} =
   await allFutures(
-    stream.reader.tsource.closeTransp(),
     stream.reader.closeStream(),
-    stream.writer.closeStream())
+    stream.writer.closeStream(),
+    stream.reader.tsource.closeTransp())
 
 proc sendResponse*(
   request: HttpRequest,
