@@ -146,18 +146,34 @@ proc handleTlsConnCb(
   finally:
     await stream.closeWait()
 
-proc accept*(server: HttpServer): Future[HttpRequest]
+proc accept*(server: HttpServer | TlsHttpServer): Future[HttpRequest]
   {.async, raises: [Defect, HttpError].} =
 
   if not isNil(server.handler):
     raise newException(HttpError,
       "Callback already registered - cannot mix callback and accepts stypes!")
 
-  let transport = await StreamServer(server).accept()
-  return await server.parseRequest(
-    AsyncStream(
-      reader: newAsyncStreamReader(transport),
-      writer: newAsyncStreamWriter(transport)))
+  let transp = await StreamServer(server).accept()
+  var stream: AsyncStream
+  when server is TlsHttpServer:
+    let tlsStream = newTLSServerAsyncStream(
+      newAsyncStreamReader(transp),
+      newAsyncStreamWriter(transp),
+      server.tlsPrivateKey,
+      server.tlsCertificate,
+      minVersion = server.minVersion,
+      maxVersion = server.maxVersion,
+      flags = server.tlsFlags)
+
+    stream = AsyncStream(
+      reader: tlsStream.reader,
+      writer: tlsStream.writer)
+  else:
+    stream = AsyncStream(
+      reader: newAsyncStreamReader(transp),
+      writer: newAsyncStreamWriter(transp))
+
+  return await server.parseRequest(stream)
 
 proc create*(
   _: typedesc[HttpServer],

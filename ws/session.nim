@@ -379,7 +379,6 @@ proc recv*(
 
         ws.frame = await ws.readFrame(ws.extensions)
 
-      trace "Read data from frame", read
       # all has been consumed from the frame
       # read the next frame
       if ws.frame.remainder <= 0:

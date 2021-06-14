@@ -7,7 +7,4 @@ import pkg/[
 
 import ./http/client, ./http/server, ./http/common
 
-export uri, httputils, client, server, httptable, tlsstream
-export TlsHttpClient, HttpClient, HttpServer,
-  HttpResponse, HttpRequest, closeWait, sendResponse,
-  sendError
+export uri, httputils, client, server, httptable, tlsstream, common
