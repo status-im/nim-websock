@@ -23,3 +23,9 @@ task test, "run tests":
 
   exec "nim --hints:off -d:secure c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
+
+  exec "nim --hints:off -d:accepts c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info ./tests/testwebsockets.nim"
+  rmFile "./tests/testwebsockets"
+
+  exec "nim --hints:off -d:secure -d:accepts c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info ./tests/testwebsockets.nim"
+  rmFile "./tests/testwebsockets"

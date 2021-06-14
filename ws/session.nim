@@ -379,18 +379,6 @@ proc recv*(
 
         ws.frame = await ws.readFrame(ws.extensions)
 
-      # all has been consumed from the frame
-      # read the next frame
-      if ws.frame.remainder <= 0:
-        first = false
-
-        if ws.frame.fin: # we're at the end of the message, break
-          trace "Read all frames, breaking"
-          ws.frame = nil
-          break
-
-        ws.frame = await ws.readFrame(ws.extensions)
-
     if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
       raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
 

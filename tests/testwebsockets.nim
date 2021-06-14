@@ -34,7 +34,6 @@ suite "Test handshake":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -55,7 +54,6 @@ suite "Test handshake":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     expect WSFailedUpgradeError:
       let session = await connectClient(
@@ -80,26 +78,11 @@ suite "Test handshake":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     expect WSFailedUpgradeError:
       discard await connectClient()
 
   test "Test for incorrect scheme":
-    proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path == WSPath
-
-      let server = WSServer.new(protos = ["proto"])
-      expect WSProtoMismatchError:
-        let ws = await server.handleRequest(request)
-        check ws.readyState == ReadyState.Closed
-
-    server = createServer(
-      address = address,
-      handler = handle,
-      flags = {ReuseAddr})
-    server.start()
-
     let uri = "wx://127.0.0.1:8888/ws"
     expect WSWrongUriSchemeError:
       discard await WebSocket.connect(
@@ -127,7 +110,6 @@ suite "Test transmission":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     await session.send(testString)
@@ -147,7 +129,6 @@ suite "Test transmission":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     await session.send(testString)
@@ -167,7 +148,6 @@ suite "Test transmission":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     var clientRes = await session.recv()
@@ -197,7 +177,6 @@ suite "Test ping-pong":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -230,7 +209,6 @@ suite "Test ping-pong":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -259,7 +237,6 @@ suite "Test ping-pong":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -288,7 +265,6 @@ suite "Test ping-pong":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let str = rndStr(126)
     let session = await connectClient()
@@ -325,7 +301,6 @@ suite "Test framing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -347,7 +322,6 @@ suite "Test framing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
 
@@ -371,7 +345,6 @@ suite "Test Closing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     await waitForClose(session)
@@ -403,7 +376,6 @@ suite "Test Closing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     proc clientClose(status: StatusCodes, reason: string): CloseResult {.gcsafe,
       raises: [Defect].} =
@@ -431,7 +403,6 @@ suite "Test Closing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     await session.close()
@@ -459,7 +430,6 @@ suite "Test Closing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     proc clientClose(status: StatusCodes, reason: string): CloseResult {.gcsafe,
       raises: [Defect].} =
@@ -489,7 +459,6 @@ suite "Test Closing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     proc closeClient(status: StatusCodes, reason: string): CloseResult
       {.gcsafe, raises: [Defect].} =
@@ -528,7 +497,6 @@ suite "Test Closing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     await session.close(code = StatusCodes(3999))
@@ -547,7 +515,6 @@ suite "Test Closing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     await waitForClose(session)
@@ -565,7 +532,6 @@ suite "Test Closing":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
 
@@ -597,7 +563,6 @@ suite "Test Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     await session.send(emptyStr)
@@ -632,7 +597,6 @@ suite "Test Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
 
@@ -670,7 +634,6 @@ suite "Test Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -728,7 +691,6 @@ suite "Test Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -787,7 +749,6 @@ suite "Test Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let ws = await connectClient(
       address = address,
@@ -826,7 +787,6 @@ suite "Test Binary message with Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
     await session.send(emptyData, Opcode.Binary)
@@ -852,7 +812,6 @@ suite "Test Binary message with Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient()
 
@@ -885,7 +844,6 @@ suite "Test Binary message with Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -920,7 +878,6 @@ suite "Test Binary message with Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let session = await connectClient(
       address = initTAddress("127.0.0.1:8888"),
@@ -952,7 +909,6 @@ suite "Test Binary message with Payload":
       address = address,
       handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
     let ws = await connectClient(
       address = address,
