@@ -102,20 +102,43 @@ proc parseRequest(
 proc handleConnCb(
   server: StreamServer,
   transp: StreamTransport) {.async.} =
-    let tlsStream = newTLSServerAsyncStream(
-      newAsyncStreamWriter(transp),
-      httpServer.tlsPrivateKey,
-      httpServer.tlsCertificate,
-      minVersion = httpServer.minVersion,
-      maxVersion = httpServer.maxVersion,
-      flags = httpServer.tlsFlags)
-
+  var stream: AsyncStream
+  try:
     stream = AsyncStream(
-        reader: tlsStream.reader,
-        writer: tlsStream.writer)
+      reader: newAsyncStreamReader(transp),
+      writer: newAsyncStreamWriter(transp))
 
-    let request = await HttpServer(httpServer)
-      .parseRequest(stream)
+    let httpServer = HttpServer(server)
+    let request = await httpServer.parseRequest(stream)
+
+    await httpServer.handler(request)
+  except CatchableError as exc:
+    debug "Exception in HttpHandler", exc = exc.msg
+  finally:
+    await stream.closeWait()
+
+proc handleTlsConnCb(
+  server: StreamServer,
+  transp: StreamTransport) {.async.} =
+
+  let tlsHttpServer = TlsHttpServer(server)
+  let tlsStream = newTLSServerAsyncStream(
+    newAsyncStreamReader(transp),
+    newAsyncStreamWriter(transp),
+    tlsHttpServer.tlsPrivateKey,
+    tlsHttpServer.tlsCertificate,
+    minVersion = tlsHttpServer.minVersion,
+    maxVersion = tlsHttpServer.maxVersion,
+    flags = tlsHttpServer.tlsFlags)
+
+  var stream: ASyncStream
+  try:
+    stream = AsyncStream(
+      reader: tlsStream.reader,
+      writer: tlsStream.writer)
+
+    let httpServer = HttpServer(server)
+    let request = await httpServer.parseRequest(stream)
 
     await httpServer.handler(request)
   except CatchableError as exc:
@@ -127,8 +150,8 @@ proc accept*(server: HttpServer): Future[HttpRequest]
   {.async, raises: [Defect, HttpError].} =
 
   if not isNil(server.handler):
-    raise newException(HttpError, "Callback already registered" &
-      "- cannot mix callback and accepts stypes!")
+    raise newException(HttpError,
+      "Callback already registered - cannot mix callback and accepts stypes!")
 
   let transport = await StreamServer(server).accept()
   return await server.parseRequest(

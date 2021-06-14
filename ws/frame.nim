@@ -56,10 +56,11 @@ proc mask*(
 template remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
 
-proc read*(frame: Frame,
-           reader: AsyncStreamReader,
-           pbytes: pointer,
-           nbytes: int): Future[int] {.async.} =
+proc read*(
+  frame: Frame,
+  reader: AsyncStreamReader,
+  pbytes: pointer,
+  nbytes: int): Future[int] {.async.} =
 
   # read data from buffered payload if available
   # e.g. data processed by extensions
@@ -79,8 +80,7 @@ proc read*(frame: Frame,
     mask(
       pbuf.toOpenArray(0, readLen - 1),
       frame.maskKey,
-      frame.consumed.int
-    )
+      frame.consumed.int)
 
   frame.consumed += readLen.uint64
   return readLen
