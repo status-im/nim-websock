@@ -56,6 +56,35 @@ proc mask*(
 template remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
 
+proc read*(frame: Frame,
+           reader: AsyncStreamReader,
+           pbytes: pointer,
+           nbytes: int): Future[int] {.async.} =
+
+  # read data from buffered payload if available
+  # e.g. data processed by extensions
+  var readLen = 0
+  if frame.offset < frame.data.len:
+    readLen = min(frame.data.len - frame.offset, nbytes)
+    copyMem(pbytes, addr frame.data[frame.offset], readLen)
+    frame.offset += readLen
+
+  var pbuf = cast[ptr UncheckedArray[byte]](pbytes)
+  if readLen < nbytes:
+    let len  = min(nbytes - readLen, frame.remainder.int - readLen)
+    readLen += await reader.readOnce(addr pbuf[readLen], len)
+
+  if frame.mask and readLen > 0:
+    # unmask data using offset
+    mask(
+      pbuf.toOpenArray(0, readLen - 1),
+      frame.maskKey,
+      frame.consumed.int
+    )
+
+  frame.consumed += readLen.uint64
+  return readLen
+
 proc encode*(
   frame: Frame,
   extensions: seq[Ext] = @[]): Future[seq[byte]] {.async.} =
