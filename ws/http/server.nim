@@ -42,9 +42,9 @@ proc validateRequest(
 
   return ReqStatus.Success
 
-proc handleRequest(
+proc parseRequest(
   server: HttpServer,
-  stream: AsyncStream) {.async.} =
+  stream: AsyncStream): Future[HttpRequest] {.async.} =
   ## Process transport data to the HTTP server
   ##
 
@@ -82,14 +82,11 @@ proc handleRequest(
       trace "Remote peer disconnected", address = $remoteAddr
       return
 
-    trace "Received valid HTTP request", address = $remoteAddr
-    # Call the user's handler.
-    if server.handler != nil:
-      await server.handler(
-        HttpRequest(
-          headers: hdrs,
-          stream: stream,
-          uri: requestData.uri().parseUri()))
+    debug "Received valid HTTP request", address = $remoteAddr
+    return HttpRequest(
+        headers: hdrs,
+        stream: stream,
+        uri: requestData.uri().parseUri())
   except TransportLimitError:
     # size of headers exceeds `MaxHttpHeadersSize`
     trace "maximum size of headers limit reached", address = $remoteAddr
@@ -100,27 +97,32 @@ proc handleRequest(
   except TransportOsError as exc:
     trace "Problems with networking", address = $remoteAddr, error = exc.msg
   except CatchableError as exc:
-    trace "Unknown exception", address = $remoteAddr, error = exc.msg
-  finally:
-    await stream.closeWait()
+    debug "Unknown exception", address = $remoteAddr, error = exc.msg
 
 proc handleConnCb(
   server: StreamServer,
   transp: StreamTransport) {.async.} =
+  var stream: AsyncStream
+  try:
+    stream = AsyncStream(
+      reader: newAsyncStreamReader(transp),
+      writer: newAsyncStreamWriter(transp))
 
-  let stream = AsyncStream(
-    reader: newAsyncStreamReader(transp),
-    writer: newAsyncStreamWriter(transp))
+    let httpServer = HttpServer(server)
+    let request = await httpServer.parseRequest(stream)
 
-  let httpServer = HttpServer(server)
-  await httpServer.handleRequest(stream)
+    await httpServer.handler(request)
+  except CatchableError as exc:
+    debug "Exception in HttpHandler", exc = exc.msg
+  finally:
+    await stream.closeWait()
 
 proc handleTlsConnCb(
   server: StreamServer,
   transp: StreamTransport) {.async.} =
 
   let tlsHttpServer = TlsHttpServer(server)
-  let stream = newTLSServerAsyncStream(
+  let tlsStream = newTLSServerAsyncStream(
     newAsyncStreamReader(transp),
     newAsyncStreamWriter(transp),
     tlsHttpServer.tlsPrivateKey,
@@ -129,10 +131,49 @@ proc handleTlsConnCb(
     maxVersion = tlsHttpServer.maxVersion,
     flags = tlsHttpServer.tlsFlags)
 
-  await HttpServer(tlsHttpServer)
-    .handleRequest(AsyncStream(
-      reader: stream.reader,
-      writer: stream.writer))
+  var stream: ASyncStream
+  try:
+    stream = AsyncStream(
+      reader: tlsStream.reader,
+      writer: tlsStream.writer)
+
+    let httpServer = HttpServer(server)
+    let request = await httpServer.parseRequest(stream)
+
+    await httpServer.handler(request)
+  except CatchableError as exc:
+    debug "Exception in HttpHandler", exc = exc.msg
+  finally:
+    await stream.closeWait()
+
+proc accept*(server: HttpServer | TlsHttpServer): Future[HttpRequest]
+  {.async, raises: [Defect, HttpError].} =
+
+  if not isNil(server.handler):
+    raise newException(HttpError,
+      "Callback already registered - cannot mix callback and accepts stypes!")
+
+  let transp = await StreamServer(server).accept()
+  var stream: AsyncStream
+  when server is TlsHttpServer:
+    let tlsStream = newTLSServerAsyncStream(
+      newAsyncStreamReader(transp),
+      newAsyncStreamWriter(transp),
+      server.tlsPrivateKey,
+      server.tlsCertificate,
+      minVersion = server.minVersion,
+      maxVersion = server.maxVersion,
+      flags = server.tlsFlags)
+
+    stream = AsyncStream(
+      reader: tlsStream.reader,
+      writer: tlsStream.writer)
+  else:
+    stream = AsyncStream(
+      reader: newAsyncStreamReader(transp),
+      writer: newAsyncStreamWriter(transp))
+
+  return await server.parseRequest(stream)
 
 proc create*(
   _: typedesc[HttpServer],

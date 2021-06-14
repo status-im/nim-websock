@@ -1,3 +1,5 @@
+{.push raises: [Defect].}
+
 import std/[strutils, random]
 import pkg/[
   chronos,
@@ -38,22 +40,39 @@ proc createServer*(
   flags: set[ServerFlags] = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr},
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12): HttpServer =
-  when defined secure:
-    TlsHttpServer.create(
-      address = address,
-      tlsPrivateKey = tlsPrivateKey,
-      tlsCertificate = tlsCertificate,
-      handler = handler,
-      flags = flags,
-      tlsFlags = tlsFlags,
-      tlsMinVersion = tlsMinVersion,
-      tlsMaxVersion = tlsMaxVersion)
-  else:
-    HttpServer.create(
-      address = address,
-      handler = handler,
-      flags = flags)
+  tlsMaxVersion = TLSVersion.TLS12): HttpServer
+  {.raises: [Defect, HttpError].} =
+  try:
+    let server = when defined secure:
+      TlsHttpServer.create(
+        address = address,
+        tlsPrivateKey = tlsPrivateKey,
+        tlsCertificate = tlsCertificate,
+        flags = flags,
+        tlsFlags = tlsFlags,
+        tlsMinVersion = tlsMinVersion,
+        tlsMaxVersion = tlsMaxVersion)
+    else:
+      HttpServer.create(
+        address = address,
+        flags = flags)
+
+    when defined accepts:
+      proc accepts() {.async, raises: [Defect].} =
+        try:
+          let req = await server.accept()
+          await req.handler()
+        except TransportOsError as exc:
+          error "Transport error", exc = exc.msg
+
+      asyncCheck accepts()
+    else:
+      server.handler = handler
+      server.start()
+
+    return server
+  except CatchableError as exc:
+    raise newException(Defect, exc.msg)
 
 proc connectClient*(
   address = initTAddress("127.0.0.1:8888"),
