@@ -9,13 +9,10 @@
 
 import
   std/strutils,
-  pkg/httputils
+  pkg/httputils,
+  ../types
 
 type
-  ExtParam* = object
-    name* : string
-    value*: string
-
   AppExt* = object
     name*  : string
     params*: seq[ExtParam]
@@ -140,11 +137,11 @@ proc parseExt*[T: BChar](data: openarray[T], output: var seq[AppExt]): bool =
       ext.params[^1].name  = system.move(param.name)
       ext.params[^1].value = system.move(param.value)
 
-      if lex.tok notin {tkSemCol, tkComma, tkEof}:        
+      if lex.tok notin {tkSemCol, tkComma, tkEof}:
         return false
-      
+
     output.setLen(output.len + 1)
-    output[^1].name   = system.move(ext.name)
+    output[^1].name   = toLowerAscii(ext.name)
     output[^1].params = system.move(ext.params)
 
     if lex.tok == tkEof:

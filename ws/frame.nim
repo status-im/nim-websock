@@ -99,7 +99,13 @@ proc encode*(
   var ret: seq[byte]
   var b0 = (f.opcode.uint8 and 0x0f) # 0th byte: opcodes and flags.
   if f.fin:
-    b0 = b0 or 128'u8
+    b0 = b0 or 0x80'u8
+  if f.rsv1:
+    b0 = b0 or 0x40'u8
+  if f.rsv2:
+    b0 = b0 or 0x20'u8
+  if f.rsv3:
+    b0 = b0 or 0x10'u8
 
   ret.add(b0)
 
@@ -218,6 +224,9 @@ proc decode*(
     for i in countdown(extensions.high, extensions.low):
       frame = await extensions[i].decode(frame)
 
+  # we check rsv bits after extensions,
+  # because they have special meaning for extensions.
+  # rsv bits will be cleared by extensions if they are set by peer.
   # If any of the rsv are set close the socket.
   if frame.rsv1 or frame.rsv2 or frame.rsv3:
     raise newException(WSRsvMismatchError, "WebSocket rsv mismatch")

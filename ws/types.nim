@@ -9,8 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/tables
-import pkg/[chronos, chronos/streams/tlsstream]
+import pkg/[chronos, chronos/streams/tlsstream, stew/results]
 import ./utils
 
 const
@@ -96,13 +95,21 @@ type
 
   Ext* = ref object of RootObj
     name*: string
-    options*: Table[string, string]
     session*: WSSession
 
-  ExtFactory* = proc(
-    name: string,
-    session: WSSession,
-    options: Table[string, string]): Ext {.raises: [Defect].}
+  ExtParam* = object
+    name* : string
+    value*: string
+
+  ExtFactoryProc* = proc(
+    isServer: bool,
+    args: seq[ExtParam]): Result[Ext, string] {.
+      gcsafe, raises: [Defect].}
+
+  ExtFactory* = object
+    name*: string
+    factory*: ExtFactoryProc
+    clientOffer*: string
 
   WebSocketError* = object of CatchableError
   WSMalformedHeaderError* = object of WebSocketError
@@ -124,6 +131,7 @@ type
   WSPayloadLengthError* = object of WebSocketError
   WSInvalidOpcodeError* = object of WebSocketError
   WSInvalidUTF8* = object of WebSocketError
+  WSExtError* = object of WebSocketError
 
 const
   StatusNotUsed* = (StatusCodes(0)..StatusCodes(999))

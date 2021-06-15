@@ -27,7 +27,7 @@ import pkg/[chronos,
             stew/base10,
             nimcrypto/sha]
 
-import ./utils, ./frame, ./session, /types, ./http
+import ./utils, ./frame, ./session, /types, ./http, ./extensions/extutils
 
 export utils, session, frame, types, http
 
@@ -45,11 +45,69 @@ func toException(e: string): ref WebSocketError =
 func toException(e: cstring): ref WebSocketError =
   (ref WebSocketError)(msg: $e)
 
+func contains(extensions: openArray[Ext], extName: string): bool =
+  for ext in extensions:
+    if ext.name == extName:
+      return true
+
+proc getFactory(factories: openArray[ExtFactory], extName: string): ExtFactoryProc =
+  for n in factories:
+    if n.name == extName:
+      return n.factory
+
+proc selectExt(isServer: bool,
+  extensions: var seq[Ext],
+  factories: openArray[ExtFactory],
+  exts: openArray[string]): string {.raises: [Defect, WSExtError].} =
+
+  var extList: seq[AppExt]
+  var response = ""
+  for ext in exts:
+    # each of "Sec-WebSocket-Extensions" can have multiple
+    # extensions or fallback extension
+    if not parseExt(ext, extList):
+      raise newException(WSExtError, "extension syntax error: " & ext)
+
+  for i, ext in extList:
+    if extensions.contains(ext.name):
+      # don't accept this fallback if prev ext
+      # configuration already accepted
+      trace "extension fallback not accepted", ext=ext.name
+      continue
+
+    # now look for right factory
+    let factory = factories.getFactory(ext.name)
+    if factory.isNil:
+      # no factory? it's ok, just skip it
+      trace "no extension factory", ext=ext.name
+      continue
+
+    let extRes = factory(isServer, ext.params)
+    if extRes.isErr:
+      # cannot create extension because of
+      # wrong/incompatible params? skip or fallback
+      trace "skip extension", ext=ext.name, msg=extRes.error
+      continue
+
+    let ext = extRes.get()
+    doAssert(not ext.isNil)
+    if i > 0:
+      # add separator if more than one exts
+      response.add ", "
+    response.add ext.toHttpOptions
+
+    # finally, accept the extension
+    trace "extension accepted", ext=ext.name
+    extensions.add ext
+
+  # HTTP response for "Sec-WebSocket-Extensions"
+  response
+
 proc connect*(
   _: type WebSocket,
   uri: Uri,
   protocols: seq[string] = @[],
-  extensions: seq[Ext] = @[],
+  factories: seq[ExtFactory] = @[],
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
@@ -86,6 +144,15 @@ proc connect*(
   if protocols.len > 0:
     headers.add("Sec-WebSocket-Protocol", protocols.join(", "))
 
+  var extOffer = ""
+  for i, f in factories:
+    if i > 0:
+      extOffer.add ", "
+    extOffer.add f.clientOffer
+
+  if extOffer.len > 0:
+    headers.add("Sec-WebSocket-Extensions", extOffer)
+
   let response = try:
      await client.request(uri, headers = headers)
   except CatchableError as exc:
@@ -105,24 +172,33 @@ proc connect*(
       raise newException(WSFailedUpgradeError,
         &"Invalid protocol returned {proto}!")
 
+  var extensions: seq[Ext]
+  let exts = response.headers.getList("Sec-WebSocket-Extensions")
+  discard selectExt(false, extensions, factories, exts)
+
   # Client data should be masked.
-  return WSSession(
+  let session = WSSession(
     stream: client.stream,
     readyState: ReadyState.Open,
     masked: true,
-    extensions: @extensions,
+    extensions: system.move(extensions),
     rng: rng,
     frameSize: frameSize,
     onPing: onPing,
     onPong: onPong,
     onClose: onClose)
 
+  for ext in session.extensions:
+    ext.session = session
+
+  return session
+
 proc connect*(
   _: type WebSocket,
   address: TransportAddress,
   path: string,
   protocols: seq[string] = @[],
-  extensions: seq[Ext] = @[],
+  factories: seq[ExtFactory] = @[],
   secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
@@ -149,7 +225,7 @@ proc connect*(
   return await WebSocket.connect(
     uri = parseUri(uri),
     protocols = protocols,
-    extensions = extensions,
+    factories = factories,
     flags = flags,
     version = version,
     frameSize = frameSize,
@@ -163,7 +239,7 @@ proc connect*(
   port: Port,
   path: string,
   protocols: seq[string] = @[],
-  extensions: seq[Ext] = @[],
+  factories: seq[ExtFactory] = @[],
   secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
@@ -177,7 +253,7 @@ proc connect*(
     address = initTAddress(host, port),
     path = path,
     protocols = protocols,
-    extensions = extensions,
+    factories = factories,
     secure = secure,
     flags = flags,
     version = version,
@@ -242,6 +318,13 @@ proc handleRequest*(
   else:
     trace "Didn't match any protocol", supported = ws.protocols, requested = wantProtos
 
+  # it is possible to have multiple "Sec-WebSocket-Extensions"
+  let exts = request.headers.getList("Sec-WebSocket-Extensions")
+  let extResp = selectExt(true, ws.extensions, ws.factories, exts)
+  if extResp.len > 0:
+    # send back any accepted extensions
+    headers.add("Sec-WebSocket-Extensions", extResp)
+
   try:
     await request.sendResponse(Http101, headers = headers)
   except CancelledError as exc:
@@ -250,16 +333,22 @@ proc handleRequest*(
     raise newException(WSHandshakeError,
         "Failed to sent handshake response. Error: " & exc.msg)
 
-  return WSSession(
+  let session = WSSession(
     readyState: ReadyState.Open,
     stream: request.stream,
     proto: protocol,
+    extensions: system.move(ws.extensions),
     masked: false,
     rng: ws.rng,
     frameSize: ws.frameSize,
     onPing: ws.onPing,
     onPong: ws.onPong,
     onClose: ws.onClose)
+
+  for ext in session.extensions:
+    ext.session = session
+
+  return session
 
 proc new*(
   _: typedesc[WSServer],
