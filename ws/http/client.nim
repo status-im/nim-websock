@@ -1,3 +1,12 @@
+## nim-ws
+## Copyright (c) 2021 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
 {.push raises: [Defect].}
 
 import std/[uri, strutils]
@@ -59,11 +68,11 @@ proc generateHeaders(
   var headersData = toUpperAscii($httpMethod)
   headersData.add " "
 
-  if not requestUrl.path.startsWith("/"): headersData.add "/"    
-  headersData.add(requestUrl.path)  
+  if not requestUrl.path.startsWith("/"): headersData.add "/"
+  headersData.add(requestUrl.path)
   if requestUrl.query.len > 0:
-    headersData.add("?" & requestUrl.query)  
-  headersData.add(" ")  
+    headersData.add("?" & requestUrl.query)
+  headersData.add(" ")
   headersData.add($version & CRLF)
 
   for (key, val) in headers.stringItems(true):

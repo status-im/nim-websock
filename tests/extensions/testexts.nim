@@ -12,7 +12,7 @@ import ../asyncunit
 import ./base64ext, ./hexext
 import ../../ws/ws, ../helpers
 
-suite "UTF-8 validator in action":
+suite "multiple extensions flow":
   var server: HttpServer
   let address = initTAddress("127.0.0.1:8888")
   let hexFactory = hexFactory()
