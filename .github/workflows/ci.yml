@@ -224,7 +224,7 @@ jobs:
           sed -i "s/COMMIT_SHA/$GITHUB_SHA/g" autobahn/index.md
           markdown2 autobahn/index.md > autobahn/reports/index.html
 
-          nim c examples/server.nim
+          nim c -d:release examples/server.nim
           examples/server &
           pid=$!
           cd autobahn
@@ -232,7 +232,7 @@ jobs:
           kill $pid
           cd ..
 
-          nim -d:tls c examples/server.nim
+          nim c -d:tls -d:release examples/server.nim
           examples/server &
           pid=$!
           cd autobahn
@@ -242,14 +242,14 @@ jobs:
           wstest --mode fuzzingserver --spec fuzzingserver.json &
           pid=$!
           cd ..
-          nim c -r examples/autobahn_client
+          nim c -r -d:release examples/autobahn_client
           kill $pid
 
           cd autobahn
           wstest --mode fuzzingserver --spec fuzzingserver_tls.json &
           pid=$!
           cd ..
-          nim c -r -d:tls examples/autobahn_client
+          nim c -r -d:tls -d:release examples/autobahn_client
           kill $pid
 
       - name: Deploy autobahn report.
