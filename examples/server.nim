@@ -12,7 +12,7 @@ import pkg/[chronos,
              chronicles,
              httputils]
 
-import ../ws/ws
+import ../ws/[ws, extensions/compression/deflate]
 import ../tests/keys
 
 proc handle(request: HttpRequest) {.async.} =
@@ -23,7 +23,8 @@ proc handle(request: HttpRequest) {.async.} =
 
   trace "Initiating web socket connection."
   try:
-    let server = WSServer.new()
+    let deflateFactory = deflateFactory()
+    let server = WSServer.new(factories = [deflateFactory])
     let ws = await server.handleRequest(request)
     if ws.readyState != Open:
       error "Failed to open websocket connection"
@@ -32,8 +33,13 @@ proc handle(request: HttpRequest) {.async.} =
     trace "Websocket handshake completed"
     while ws.readyState != ReadyState.Closed:
       let recvData = await ws.recv()
-
       trace "Client Response: ", size = recvData.len, binary = ws.binary
+
+      if ws.readyState == ReadyState.Closed:
+        # if session already terminated by peer,
+        # no need to send response
+        break
+
       await ws.send(recvData,
         if ws.binary: Opcode.Binary else: Opcode.Text)
 

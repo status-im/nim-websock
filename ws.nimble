@@ -22,6 +22,7 @@ requires "stew >= 0.1.0"
 requires "asynctest >= 0.2.0 & < 0.3.0"
 requires "nimcrypto"
 requires "bearssl"
+requires "https://github.com/status-im/nim-zlib"
 
 task test, "run tests":
   exec "nim --hints:off c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info ./tests/testcommon.nim"

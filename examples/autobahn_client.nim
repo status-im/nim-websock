@@ -10,7 +10,7 @@
 import
   std/[strutils],
   pkg/[chronos, chronicles, stew/byteutils],
-  ../ws/[ws, types, frame]
+  ../ws/[ws, types, frame, extensions/compression/deflate]
 
 const
   clientFlags = {NoVerifyHost, NoVerifyServerName}
@@ -28,13 +28,14 @@ else:
     secure     = false
     serverPort = 9001
 
-proc connectServer(path: string): Future[WSSession] {.async.} =
+proc connectServer(path: string, factories: seq[ExtFactory] = @[]): Future[WSSession] {.async.} =
   let ws = await WebSocket.connect(
     host = "127.0.0.1",
     port = Port(serverPort),
     path = path,
     secure=secure,
-    flags=clientFlags
+    flags=clientFlags,
+    factories = factories
   )
   return ws
 
@@ -71,11 +72,12 @@ proc main() {.async.} =
   let caseCount = await getCaseCount()
   trace "case count", count=caseCount
 
+  var deflateFactory = @[deflateFactory()]
   for i in 1..caseCount:
     trace "runcase", no=i
     let path = "/runCase?case=$1&agent=$2" % [$i, agent]
     try:
-      let ws = await connectServer(path)
+      let ws = await connectServer(path, deflateFactory)
 
       while ws.readystate != ReadyState.Closed:
         # echo back
