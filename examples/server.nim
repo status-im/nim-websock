@@ -41,9 +41,16 @@ proc handle(request: HttpRequest) {.async.} =
     error "WebSocket error:", exception = exc.msg
 
 when isMainModule:
+  # we want to run parallel tests in CI
+  # so we are using different port
+  const serverAddr = when defined tls:
+                       "127.0.0.1:8889"
+                     else:
+                       "127.0.0.1:8888"
+
   proc main() {.async.} =
     let
-      address = initTAddress("127.0.0.1:8888")
+      address = initTAddress(serverAddr)
       socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
       server = when defined tls:
         TlsHttpServer.create(

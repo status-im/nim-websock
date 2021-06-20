@@ -15,16 +15,23 @@ import
 const
   clientFlags = {NoVerifyHost, NoVerifyServerName}
 
-const agent = when defined tls:
-                "nim-ws-tls-client"
-              else:
-                "nim-ws-client"
-const secure = defined tls
+# we want to run parallel tests in CI,
+# so we are using different port
+when defined tls:
+  const
+    agent      = "nim-wss-client"
+    secure     = true
+    serverPort = 9002
+else:
+  const
+    agent      = "nim-ws-client"
+    secure     = false
+    serverPort = 9001
 
 proc connectServer(path: string): Future[WSSession] {.async.} =
   let ws = await WebSocket.connect(
     host = "127.0.0.1",
-    port = Port(9001),
+    port = Port(serverPort),
     path = path,
     secure=secure,
     flags=clientFlags

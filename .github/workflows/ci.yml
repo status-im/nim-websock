@@ -226,31 +226,39 @@ jobs:
 
           nim c -d:release examples/server.nim
           examples/server &
-          pid=$!
-          cd autobahn
-          wstest --mode fuzzingclient --spec fuzzingclient.json
-          kill $pid
-          cd ..
+          server1=$!
 
-          nim c -d:tls -d:release examples/server.nim
-          examples/server &
-          pid=$!
-          cd autobahn
-          wstest --mode fuzzingclient --spec fuzzingclient_tls.json
-          kill $pid
-
-          wstest --mode fuzzingserver --spec fuzzingserver.json &
-          pid=$!
-          cd ..
-          nim c -r -d:release examples/autobahn_client
-          kill $pid
+          nim c -d:tls -d:release -o:examples/tls_server examples/server.nim
+          examples/tls_server &
+          server2=$!
 
           cd autobahn
-          wstest --mode fuzzingserver --spec fuzzingserver_tls.json &
-          pid=$!
+          wstest --webport=0 --mode fuzzingserver --spec fuzzingserver.json &
+          server3=$!
+
+          wstest --webport=0 --mode fuzzingserver --spec fuzzingserver_tls.json &
+          server4=$!
+
+          wstest --mode fuzzingclient --spec fuzzingclient.json &
+          client1=$!
+
+          wstest --mode fuzzingclient --spec fuzzingclient_tls.json &
+          client2=$!
+
           cd ..
-          nim c -r -d:tls -d:release examples/autobahn_client
-          kill $pid
+          nim c -d:release examples/autobahn_client
+          examples/autobahn_client &
+          client3=$!
+
+          nim c -d:tls -d:release -o:examples/autobahn_tlsclient examples/autobahn_client
+          examples/autobahn_tlsclient &
+          client4=$!
+
+          wait $client1 $client2 $client3 $client4
+          kill $server1
+          kill $server2
+          kill $server3
+          kill $server4
 
       - name: Deploy autobahn report.
         if: runner.os == 'linux' && matrix.target.cpu == 'amd64' && github.event_name == 'push'
