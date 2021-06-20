@@ -2,13 +2,10 @@
 
 ![Github action](https://github.com/status-im/nim-ws/workflows/nim-ws%20CI/badge.svg)
 
-We're working towards an implementation of the
-[Websocket](https://tools.ietf.org/html/rfc6455) protocol for
-[Nim](https://nim-lang.org/). This is very much a work in progress, and not yet
-in a usable state.
+This is an implementation of [Websocket](https://tools.ietf.org/html/rfc6455) protocol for
+[Nim](https://nim-lang.org/). nim-ws have both client and server in regular ws and wss(secure) mode.
 
-See what is available and what is missing in [Autobahn summary report](https://status-im.github.io/nim-ws/)
-
+It also pass all autobahn tests [Autobahn summary report](https://status-im.github.io/nim-ws/).
 
  Building and testing
 --------------------
@@ -55,14 +52,14 @@ curl --include \
   - [x] Non-control Opcodes
   - [x] Control Opcodes
 - [x] Fragmentation
-- [ ] UTF-8 Handling
+- [x] UTF-8 Handling
 - [x] Close Handling
   - [x] Basic close behavior
   - [x] Close frame structure
    - [x] Payload length
    - [x] Valid close codes
    - [x] Invalid close codes
-- [ ] Integrate Autobahn Test suite. (In progress)
-- [ ] WebSocket Compression
-- [ ] WebSocket Extensions
+- [x] Integrate Autobahn Test suite.
+- [x] WebSocket Compression
+- [x] WebSocket Extensions
 - [ ] Performance
