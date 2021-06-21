@@ -24,7 +24,7 @@ type
                                   # should not be compressed.
     level: ZLevel                 # compression level
     strategy: ZStrategy           # compression strategy
-    memLevel: ZMemLevel           # hint for miniz memory consumption
+    memLevel: ZMemLevel           # hint for zlib memory consumption
     serverNoContextTakeOver: bool
     clientNoContextTakeOver: bool
     serverMaxWindowBits: int
@@ -87,14 +87,14 @@ proc createParams(args: seq[ExtParam],
         return err("'server_no_context_takeover' should have no param")
       opts.serverNoContextTakeOver = true
       if opts.isServer:
-        concatParam(resp, arg.name)      
+        concatParam(resp, arg.name)
     of "client_no_context_takeover":
       if arg.value.len > 0:
         return err("'client_no_context_takeover' should have no param")
       opts.clientNoContextTakeOver = true
       if opts.isServer:
-        concatParam(resp, arg.name)      
-    of "server_max_window_bits":      
+        concatParam(resp, arg.name)
+    of "server_max_window_bits":
       let res = validateWindowBits(arg, opts.serverMaxWindowBits)
       if res.isErr:
         return res
@@ -105,7 +105,7 @@ proc createParams(args: seq[ExtParam],
           resp.add "=9"
         else:
           resp.add res.get()
-    of "client_max_window_bits":      
+    of "client_max_window_bits":
       let res = validateWindowBits(arg, opts.clientMaxWindowBits)
       if res.isErr:
         return res
@@ -140,13 +140,15 @@ proc getContextTakeover(opts: DeflateOpts, isServer: bool): bool =
     opts.clientNoContextTakeOver
 
 proc decompressInit(ext: DeflateExt) =
-  # decompression using `client_` prefixed config
+  # server decompression using `client_` prefixed config
+  # client decompression using `server_` prefixed config
   let windowBits = getWindowBits(ext.opts, not ext.opts.isServer)
   doAssert(ext.decompCtx.inflateInit2(windowBits) == Z_OK)
   ext.decompCtxState = ContextState.Initialized
 
 proc compressInit(ext: DeflateExt) =
-  # compression using `server_` prefixed config
+  # server compression using `server_` prefixed config
+  # client compression using `client_` prefixed config
   let windowBits = getWindowBits(ext.opts, ext.opts.isServer)
   doAssert(ext.compCtx.deflateInit2(
     level = ext.opts.level,
@@ -261,7 +263,8 @@ method decode(ext: DeflateExt, frame: Frame): Future[Frame] {.async.} =
   frame.mask = false # clear mask flag, decompressed content is not masked
 
   if frame.fin:
-    # decompression using `client_` prefixed config
+    # server decompression using `client_` prefixed config
+    # client decompression using `server_` prefixed config
     let noContextTakeover = getContextTakeover(ext.opts, not ext.opts.isServer)
     if noContextTakeover:
       doAssert(ext.decompCtx.inflateReset() == Z_OK)
@@ -308,7 +311,8 @@ method encode(ext: DeflateExt, frame: Frame): Future[Frame] {.async.} =
   frame.consumed = 0
 
   if frame.fin:
-    # compression using `server_` prefixed config
+    # server compression using `server_` prefixed config
+    # client compression using `client_` prefixed config
     let noContextTakeover = getContextTakeover(ext.opts, ext.opts.isServer)
     if noContextTakeover:
       doAssert(ext.compCtx.deflateReset() == Z_OK)
