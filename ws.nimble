@@ -8,13 +8,13 @@
 ## those terms.
 
 packageName = "ws"
-version = "0.1.0"
-author = "Status Research & Development GmbH"
+version     = "0.1.0"
+author      = "Status Research & Development GmbH"
 description = "WS protocol implementation"
-license = "MIT"
-skipDirs = @["examples", "test"]
+license     = "MIT"
+skipDirs    = @["examples", "tests"]
 
-requires "nim >= 1.2.6"
+requires "nim >= 1.2.0" # nimble will fail to install nim-ws if we are using 1.2.6 here
 requires "chronos >= 3.0.0"
 requires "httputils >= 0.2.0"
 requires "chronicles >= 0.10.0"
