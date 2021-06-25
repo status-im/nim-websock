@@ -184,7 +184,7 @@ proc handleClose*(
       raise newException(WSInvalidUTF8,
         "Invalid UTF8 sequence detected in close reason")
 
-  trace "Handling close message", code = $code, reason
+  trace "Handling close message", code = ord(code), reason
   if not isNil(ws.onClose):
     try:
       (code, reason) = ws.onClose(code, reason)
@@ -197,7 +197,7 @@ proc handleClose*(
   # don't respond to a terminated connection
   if ws.readyState != ReadyState.Closing:
     ws.readyState = ReadyState.Closing
-    trace "Sending close", code = $code, reason
+    trace "Sending close", code = ord(code), reason
     await ws.send(prepareCloseBody(code, reason), Opcode.Close)
 
     ws.readyState = ReadyState.Closed

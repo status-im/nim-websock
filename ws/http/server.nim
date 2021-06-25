@@ -15,6 +15,10 @@ import pkg/[
   chronicles,
   httputils]
 
+#required to log addresses in chronicle's json mode
+import json_serialization/std/net
+
+
 import ./common
 
 type
@@ -38,13 +42,13 @@ proc validateRequest(
   ##
 
   if header.meth notin {MethodGet}:
-    trace "GET method is only allowed", address = $stream.tsource.remoteAddress()
+    trace "GET method is only allowed", address = stream.tsource.remoteAddress()
     await stream.sendError(Http405, version = header.version)
     return ReqStatus.Error
 
   var hlen = header.contentLength()
   if hlen < 0 or hlen > MaxHttpRequestSize:
-    trace "Invalid header length", address = $stream.tsource.remoteAddress()
+    trace "Invalid header length", address = stream.tsource.remoteAddress()
     await stream.sendError(Http413, version = header.version)
     return ReqStatus.Error
 
