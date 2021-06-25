@@ -15,8 +15,8 @@ import pkg/[
   chronicles,
   httputils]
 
-#required to log addresses in chronicle's json mode
-import json_serialization/std/net
+when config.isLogFormatUsed(json):
+  import json_serialization/std/net
 
 
 import ./common
