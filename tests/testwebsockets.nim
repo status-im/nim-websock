@@ -456,6 +456,23 @@ suite "Test Closing":
     await session.close()
     check session.readyState == ReadyState.Closed
 
+  test "Mutual closing":
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+      await ws.close()
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let session = await connectClient()
+    await session.close()
+    await waitForClose(session)
+    check session.readyState == ReadyState.Closed
+
   test "Server closing with valid close code 3999":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
