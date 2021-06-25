@@ -25,6 +25,9 @@ requires "bearssl"
 requires "https://github.com/status-im/nim-zlib"
 
 task test, "run tests":
+  # dont't need to run it, only want to test if it is compileable
+  exec "nim c -c --verbosity:0 --hints:off -d:chronicles_log_level=TRACE -d:chronicles_sinks:json ./tests/testcommon"
+
   exec "nim --hints:off c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info ./tests/testcommon.nim"
   rmFile "./tests/testcommon"
 
