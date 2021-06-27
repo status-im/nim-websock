@@ -1,11 +1,13 @@
+<img alt="Websock Logo" align="left" src="websock.svg" width="15%"/>
+
 # Websocket for Nim
 
-![Github action](https://github.com/status-im/nim-ws/workflows/nim-ws%20CI/badge.svg)
+![Github action](https://github.com/status-im/nim-websock/workflows/CI/badge.svg)
 
 This is an implementation of [Websocket](https://tools.ietf.org/html/rfc6455) protocol for
-[Nim](https://nim-lang.org/). nim-ws have both client and server in regular ws and wss(secure) mode.
+[Nim](https://nim-lang.org/). nim-websock have both client and server in regular ws and wss(secure) mode.
 
-It also pass all autobahn tests [Autobahn summary report](https://status-im.github.io/nim-ws/).
+It also pass all autobahn tests [Autobahn summary report](https://status-im.github.io/nim-websock/).
 
  Building and testing
 --------------------
@@ -19,7 +21,7 @@ nimble install -d
 Starting HTTP server:
 
 ```bash
-nim c -r test/server.nim
+nim c -r examples/server.nim
 ```
 
 Testing Server Response:
