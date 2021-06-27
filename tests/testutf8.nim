@@ -1,4 +1,4 @@
-## nim-ws
+## nim-websock
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -15,7 +15,7 @@ import
     chronos,
     chronicles
   ],
-  ../ws/[ws, utf8dfa]
+  ../websock/[websock, utf8dfa]
 
 suite "UTF-8 DFA validator":
   test "single octet":

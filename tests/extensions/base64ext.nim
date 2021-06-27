@@ -1,4 +1,4 @@
-## nim-ws
+## nim-websock
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -13,8 +13,8 @@ import
     stew/base64,
     chronos,
     chronicles],
-  ../../ws/types,
-  ../../ws/frame
+  ../../websock/types,
+  ../../websock/frame
 
 type
   Base64Ext = ref object of Ext

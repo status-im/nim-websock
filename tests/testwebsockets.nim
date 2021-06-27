@@ -1,4 +1,4 @@
-## nim-ws
+## nim-websock
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -14,7 +14,7 @@ import pkg/[
   chronicles,
   stew/byteutils]
 
-import ../ws/ws
+import ../websock/websock
 
 import ./asynctest
 import ./helpers

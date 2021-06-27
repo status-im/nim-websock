@@ -1,4 +1,4 @@
-## nim-ws
+## nim-websock
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -9,7 +9,7 @@
 
 import
   pkg/[asynctest, chronos],
-  ../ws/extensions
+  ../websock/extensions
 
 suite "extension parser":
   test "single extension":

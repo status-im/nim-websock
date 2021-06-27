@@ -1,4 +1,4 @@
-## nim-ws
+## nim-websock
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -7,14 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-packageName = "ws"
+packageName = "websock"
 version     = "0.1.0"
 author      = "Status Research & Development GmbH"
 description = "WS protocol implementation"
 license     = "MIT"
 skipDirs    = @["examples", "tests"]
 
-requires "nim >= 1.2.0" # nimble will fail to install nim-ws if we are using 1.2.6 here
+requires "nim >= 1.2.0" # nimble will fail to install nim-websock if we are using 1.2.6 here
 requires "chronos >= 3.0.0"
 requires "httputils >= 0.2.0"
 requires "chronicles#ba2817f1"

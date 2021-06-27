@@ -1,4 +1,4 @@
-## nim-ws
+## nim-websock
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -10,8 +10,8 @@
 import std/os
 import pkg/[chronos, stew/byteutils, stew/io2]
 import ../asyncunit
-import ../../ws/ws, ../helpers
-import ../../ws/extensions/compression/deflate
+import ../../websock/websock, ../helpers
+import ../../websock/extensions/compression/deflate
 
 const
   dataFolder = "tests" / "extensions" / "data"

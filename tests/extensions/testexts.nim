@@ -1,4 +1,4 @@
-## nim-ws
+## nim-websock
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -10,7 +10,7 @@
 import pkg/[chronos, stew/byteutils]
 import ../asyncunit
 import ./base64ext, ./hexext
-import ../../ws/ws, ../helpers
+import ../../websock/websock, ../helpers
 
 suite "multiple extensions flow":
   var server: HttpServer

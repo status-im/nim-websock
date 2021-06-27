@@ -1,4 +1,4 @@
-## nim-ws
+## nim-websock
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -10,7 +10,7 @@
 import
   std/[strutils],
   pkg/[chronos, chronicles, stew/byteutils],
-  ../ws/[ws, types, frame, extensions/compression/deflate]
+  ../websock/[websock, types, frame, extensions/compression/deflate]
 
 const
   clientFlags = {NoVerifyHost, NoVerifyServerName}
@@ -19,12 +19,12 @@ const
 # so we are using different port
 when defined tls:
   const
-    agent      = "nim-wss-client"
+    agent      = "websock secure client"
     secure     = true
     serverPort = 9002
 else:
   const
-    agent      = "nim-ws-client"
+    agent      = "websock client"
     secure     = false
     serverPort = 9001
 

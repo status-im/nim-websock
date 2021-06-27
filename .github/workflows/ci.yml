@@ -1,4 +1,4 @@
-name: nim-ws CI
+name: CI
 on: [push, pull_request]
 
 jobs:
@@ -38,10 +38,10 @@ jobs:
     name: "${{ matrix.target.os }}-${{ matrix.target.cpu }} (${{ matrix.branch }})"
     runs-on: ${{ matrix.builder }}
     steps:
-      - name: Checkout nim-ws
+      - name: Checkout nim-websock
         uses: actions/checkout@v2
         with:
-          path: nim-ws
+          path: nim-websock
           submodules: true
 
       - name: Derive environment variables
@@ -193,11 +193,11 @@ jobs:
           rm -rf dist
           rm -rf .git
 
-      - name: Run nim-ws tests
+      - name: Run nim-websock tests
         shell: bash
         run: |
           export UCPU="$cpu"
-          cd nim-ws
+          cd nim-websock
           nimble install -y --depsOnly
           nimble test
 
@@ -218,7 +218,7 @@ jobs:
           virtualenv --python=/usr/bin/python2 autobahn
           source autobahn/bin/activate
           pip install autobahntestsuite
-          cd nim-ws
+          cd nim-websock
           mkdir autobahn/reports
           sed -i "s/COMMIT_SHA_SHORT/${GITHUB_SHA::7}/g" autobahn/index.md
           sed -i "s/COMMIT_SHA/$GITHUB_SHA/g" autobahn/index.md
@@ -265,4 +265,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./nim-ws/autobahn/reports
+          publish_dir: ./nim-websock/autobahn/reports
