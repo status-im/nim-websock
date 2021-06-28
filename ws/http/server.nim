@@ -15,7 +15,7 @@ import pkg/[
   chronicles,
   httputils]
 
-when config.isLogFormatUsed(json):
+when isLogFormatUsed(json):
   import json_serialization/std/net
 
 

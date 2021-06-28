@@ -17,7 +17,7 @@ skipDirs    = @["examples", "tests"]
 requires "nim >= 1.2.0" # nimble will fail to install nim-ws if we are using 1.2.6 here
 requires "chronos >= 3.0.0"
 requires "httputils >= 0.2.0"
-requires "chronicles >= 0.10.0"
+requires "chronicles#ba2817f1"
 requires "stew >= 0.1.0"
 requires "asynctest >= 0.2.0 & < 0.3.0"
 requires "nimcrypto"
