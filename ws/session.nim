@@ -145,7 +145,7 @@ proc handleClose*(
 
   trace "Handling close"
 
-  if ws.readyState != ReadyState.Open:
+  if ws.readyState != ReadyState.Open and ws.readyState != ReadyState.Closing:
     trace "Connection isn't open, aborting close sequence!"
     return
 
