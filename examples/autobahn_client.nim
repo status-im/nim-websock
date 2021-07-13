@@ -19,12 +19,12 @@ const
 # so we are using different port
 when defined tls:
   const
-    agent      = "websock secure client"
+    agent      = "websock-secure-client"
     secure     = true
     serverPort = 9002
 else:
   const
-    agent      = "websock client"
+    agent      = "websock-client"
     secure     = false
     serverPort = 9001
 
