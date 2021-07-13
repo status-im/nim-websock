@@ -105,9 +105,11 @@ proc selectExt(isServer: bool,
 
 proc connect*(
   _: type WebSocket,
-  uri: Uri,
+  host: string | TransportAddress,
+  path: string,
   protocols: seq[string] = @[],
   factories: seq[ExtFactory] = @[],
+  secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
@@ -115,22 +117,15 @@ proc connect*(
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
   rng: Rng = nil): Future[WSSession] {.async.} =
-  ## create a new websockets client
-  ##
 
-  var rng = if isNil(rng): newRng() else: rng
-  var key = Base64Pad.encode(genWebSecKey(rng))
-  var uri = uri
-  let client = case uri.scheme:
-    of "wss":
-      uri.scheme = "https"
-      await TlsHttpClient.connect(uri.hostname, uri.port.parseInt(), tlsFlags = flags)
-    of "ws":
-      uri.scheme = "http"
-      await HttpClient.connect(uri.hostname, uri.port.parseInt())
+  let
+    rng = if isNil(rng): newRng() else: rng
+    key = Base64Pad.encode(genWebSecKey(rng))
+
+  let client = if secure:
+      await TlsHttpClient.connect(host, tlsFlags = flags)
     else:
-      raise newException(WSWrongUriSchemeError,
-        "uri scheme has to be 'ws' or 'wss'")
+      await HttpClient.connect(host)
 
   let headerData = [
     ("Connection", "Upgrade"),
@@ -138,7 +133,7 @@ proc connect*(
     ("Cache-Control", "no-cache"),
     ("Sec-WebSocket-Version", $version),
     ("Sec-WebSocket-Key", key),
-    ("Host", uri.hostname & ":" & uri.port)]
+    ("Host", $host)]
 
   var headers = HttpTable.init(headerData)
   if protocols.len > 0:
@@ -154,7 +149,7 @@ proc connect*(
     headers.add("Sec-WebSocket-Extensions", extOffer)
 
   let response = try:
-     await client.request(uri, headers = headers)
+     await client.request(path, headers = headers)
   except CatchableError as exc:
     trace "Websocket failed during handshake", exc = exc.msg
     await client.close()
@@ -195,63 +190,35 @@ proc connect*(
 
 proc connect*(
   _: type WebSocket,
-  address: TransportAddress,
-  path: string,
+  uri: Uri,
   protocols: seq[string] = @[],
   factories: seq[ExtFactory] = @[],
-  secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
+  rng: Rng = nil): Future[WSSession]
+  {.raises: [Defect, WSWrongUriSchemeError].} =
   ## Create a new websockets client
-  ## using a string path
+  ## using a Uri
   ##
 
-  var uri = if secure:
-      &"wss://"
+  let secure = case uri.scheme:
+    of "wss": true
+    of "ws": false
     else:
-      &"ws://"
+      raise newException(WSWrongUriSchemeError,
+        "uri scheme has to be 'ws' or 'wss'")
 
-  uri &= address.host & ":" & $address.port
-  if path.startsWith("/"):
-    uri.add path
-  else:
-    uri.add &"/{path}"
+  var uri = uri
+  if uri.port.len <= 0:
+    uri.port = if secure: "443" else: "80"
 
-  return await WebSocket.connect(
-    uri = parseUri(uri),
-    protocols = protocols,
-    factories = factories,
-    flags = flags,
-    version = version,
-    frameSize = frameSize,
-    onPing = onPing,
-    onPong = onPong,
-    onClose = onClose)
-
-proc connect*(
-  _: type WebSocket,
-  host: string,
-  port: Port,
-  path: string,
-  protocols: seq[string] = @[],
-  factories: seq[ExtFactory] = @[],
-  secure = false,
-  flags: set[TLSFlags] = {},
-  version = WSDefaultVersion,
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
-
-  return await WebSocket.connect(
-    address = initTAddress(host, port),
-    path = path,
+  return WebSocket.connect(
+    host = uri.hostname & ":" & uri.port,
+    path = uri.path,
     protocols = protocols,
     factories = factories,
     secure = secure,

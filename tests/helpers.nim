@@ -96,7 +96,7 @@ proc connectClient*(
   rng: Rng = nil): Future[WSSession] {.async.} =
   let secure = when defined secure: true else: false
   return await WebSocket.connect(
-    address = address,
+    host = address,
     flags = flags,
     path = path,
     secure = secure,

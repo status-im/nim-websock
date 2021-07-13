@@ -103,9 +103,6 @@ proc request*(
     else:
       url
 
-  if requestUrl.scheme == "":
-    raise newException(HttpError, "No uri scheme supplied.")
-
   let headerString = generateHeaders(requestUrl, httpMethod, client.version, headers)
 
   await client.stream.writer.write(headerString)
@@ -129,7 +126,8 @@ proc connect*(
   version = HttpVersion11,
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS11,
-  tlsMaxVersion = TLSVersion.TLS12): Future[T] {.async.} =
+  tlsMaxVersion = TLSVersion.TLS12,
+  hostName = ""): Future[T] {.async.} =
 
   let transp = await connect(address)
   let client = T(
@@ -150,7 +148,7 @@ proc connect*(
     let tlsStream = newTLSClientAsyncStream(
       stream.reader,
       stream.writer,
-      address.host,
+      serverName = hostName,
       minVersion = tlsMinVersion,
       maxVersion = tlsMaxVersion,
       flags = tlsFlags)
@@ -167,16 +165,27 @@ proc connect*(
 proc connect*(
   T: typedesc[HttpClient | TlsHttpClient],
   host: string,
-  port: int = 80,
   version = HttpVersion11,
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS11,
   tlsMaxVersion = TLSVersion.TLS12): Future[T]
-  {.raises: [Defect, HttpError].} =
+  {.async, raises: [Defect, HttpError].} =
 
-  let address = try:
-    initTAddress(host, port)
-  except TransportAddressError as exc:
-    raise newException(HttpError, exc.msg)
+  let hostPort = host.split(":")
+  let addrs = resolveTAddress(host)
+  for a in addrs:
+    try:
+      let conn = await T.connect(
+        a,
+        version,
+        tlsFlags,
+        tlsMinVersion,
+        tlsMaxVersion,
+        hostName = hostPort[0])
 
-  return T.connect(address, version, tlsFlags, tlsMinVersion, tlsMaxVersion)
+      return conn
+    except TransportError as exc:
+      trace "Error connecting to address", address = $a
+
+  raise newException(HttpError,
+    "Unable to connect to host on any address!")
