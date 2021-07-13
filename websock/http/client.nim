@@ -185,7 +185,7 @@ proc connect*(
 
       return conn
     except TransportError as exc:
-      trace "Error connecting to address", address = $a
+      trace "Error connecting to address", address = $a, exc = exc.msg
 
   raise newException(HttpError,
     "Unable to connect to host on any address!")
