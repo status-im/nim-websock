@@ -18,8 +18,10 @@ import pkg/[
 when isLogFormatUsed(json):
   import json_serialization/std/net
 
-
 import ./common
+
+logScope:
+  topics = "websock http-server"
 
 type
   HttpAsyncCallback* = proc (request: HttpRequest):
