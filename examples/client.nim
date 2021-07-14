@@ -15,20 +15,15 @@ import pkg/[
 import ../websock/websock
 
 proc main() {.async.} =
-  const serverAddr = when defined tls:
-                       "127.0.0.1:8889"
-                     else:
-                       "127.0.0.1:8888"
-
   let ws = when defined tls:
     await WebSocket.connect(
-        serverAddr,
+        "127.0.0.1:8889",
         path = "/wss",
         secure = true,
         flags = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName})
     else:
       await WebSocket.connect(
-        serverAddr,
+        "127.0.0.1:8888",
         path = "/ws")
 
   trace "Websocket client: ", State = ws.readyState

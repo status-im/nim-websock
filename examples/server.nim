@@ -45,23 +45,17 @@ proc handle(request: HttpRequest) {.async.} =
 when isMainModule:
   # we want to run parallel tests in CI
   # so we are using different port
-  const serverAddr = when defined tls:
-                       "127.0.0.1:8889"
-                     else:
-                       "127.0.0.1:8888"
-
   proc main() {.async.} =
     let
-      address = initTAddress(serverAddr)
       socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
       server = when defined tls:
         TlsHttpServer.create(
-          address = address,
+          address = initTAddress("127.0.0.1:8889"),
           tlsPrivateKey = TLSPrivateKey.init(SecureKey),
           tlsCertificate = TLSCertificate.init(SecureCert),
           flags = socketFlags)
       else:
-        HttpServer.create(address, handle, flags = socketFlags)
+        HttpServer.create(initTAddress("127.0.0.1:8888"), flags = socketFlags)
 
     when defined accepts:
       proc accepts() {.async, raises: [Defect].} =
@@ -69,7 +63,7 @@ when isMainModule:
           try:
             let req = await server.accept()
             await req.handle()
-          except TransportOsError as exc:
+          except CatchableError as exc:
             error "Transport error", exc = exc.msg
 
       asyncCheck accepts()
