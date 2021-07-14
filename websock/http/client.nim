@@ -19,7 +19,7 @@ import pkg/[
 import ./common
 
 logScope:
-  topics = "http-client"
+  topics = "websock http-client"
 
 type
   HttpClient* = ref object of RootObj

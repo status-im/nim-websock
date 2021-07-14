@@ -32,7 +32,7 @@ import ./utils, ./frame, ./session, /types, ./http, ./extensions/extutils
 export utils, session, frame, types, http
 
 logScope:
-  topics = "ws-server"
+  topics = "websock ws-server"
 
 type
   WSServer* = ref object of WebSocket

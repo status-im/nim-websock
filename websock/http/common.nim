@@ -22,6 +22,9 @@ import pkg/[
 
 export httputils, httptable, tlsstream, uri
 
+logScope:
+  topics = "websock http-common"
+
 const
   MaxHttpHeadersSize* = 8192       # maximum size of HTTP headers in octets
   MaxHttpRequestSize* = 128 * 1024 # maximum size of HTTP body in octets

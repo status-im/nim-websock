@@ -16,6 +16,9 @@ import
   ../../types,
   ../../frame
 
+logScope:
+  topics = "websock deflate"
+
 type
   DeflateOpts = object
     isServer: bool
