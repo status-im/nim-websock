@@ -17,11 +17,7 @@ import ../tests/keys
 
 proc handle(request: HttpRequest) {.async.} =
   trace "Handling request:", uri = request.uri.path
-  let path = when defined tls: "/wss" else: "/ws"
-  if request.uri.path != path:
-    return
 
-  trace "Initiating web socket connection."
   try:
     let deflateFactory = deflateFactory()
     let server = WSServer.new(factories = [deflateFactory])
@@ -61,14 +57,26 @@ when isMainModule:
       server = when defined tls:
         TlsHttpServer.create(
           address = address,
-          handler = handle,
           tlsPrivateKey = TLSPrivateKey.init(SecureKey),
           tlsCertificate = TLSCertificate.init(SecureCert),
           flags = socketFlags)
       else:
         HttpServer.create(address, handle, flags = socketFlags)
 
-    server.start()
+    when defined accepts:
+      proc accepts() {.async, raises: [Defect].} =
+        while true:
+          try:
+            let req = await server.accept()
+            await req.handle()
+          except TransportOsError as exc:
+            error "Transport error", exc = exc.msg
+
+      asyncCheck accepts()
+    else:
+      server.handler = handle
+      server.start()
+
     trace "Server listening on ", data = $server.localAddress()
     await server.join()
 
