@@ -16,7 +16,7 @@ import ./types, ./frame, ./utils, ./utf8dfa, ./http
 import pkg/chronos/streams/asyncstream
 
 logScope:
-  topics = "ws-session"
+  topics = "websock ws-session"
 
 proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
   result = reason.toBytes

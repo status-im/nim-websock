@@ -19,7 +19,7 @@ import pkg/[
 import ./types
 
 logScope:
-  topics = "ws-frame"
+  topics = "websock ws-frame"
 
 #[
   +---------------------------------------------------------------+
