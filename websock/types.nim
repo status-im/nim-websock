@@ -103,8 +103,8 @@ type
 
   ExtFactoryProc* = proc(
     isServer: bool,
-    args: seq[ExtParam]): Result[Ext, string] {.
-      gcsafe, raises: [Defect].}
+    args: seq[ExtParam]): Result[Ext, string]
+    {.gcsafe, raises: [Defect].}
 
   ExtFactory* = object
     name*: string
