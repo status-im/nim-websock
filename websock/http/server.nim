@@ -216,14 +216,13 @@ proc create*(
 proc create*(
   _: typedesc[HttpServer],
   host: string,
-  port: Port,
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {}): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 
-  return HttpServer.create(initTAddress(host, port), handler, flags)
+  return HttpServer.create(initTAddress(host), handler, flags)
 
 proc create*(
   _: typedesc[TlsHttpServer],
@@ -259,7 +258,6 @@ proc create*(
 proc create*(
   _: typedesc[TlsHttpServer],
   host: string,
-  port: Port,
   tlsPrivateKey: TLSPrivateKey,
   tlsCertificate: TLSCertificate,
   handler: HttpAsyncCallback = nil,
@@ -269,7 +267,7 @@ proc create*(
   tlsMaxVersion = TLSVersion.TLS12): TlsHttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   TlsHttpServer.create(
-    address = initTAddress(host, port),
+    address = initTAddress(host),
     handler = handler,
     tlsPrivateKey = tlsPrivateKey,
     tlsCertificate = tlsCertificate,
