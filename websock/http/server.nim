@@ -39,7 +39,7 @@ type
     else:
       discard
 
-  TlsHttpServer* = ref object of HttpServer
+  TlsHttpServer* = HttpServer
 
 proc validateRequest(
   stream: AsyncStreamWriter,
@@ -162,7 +162,7 @@ proc handleTlsConnCb(
   finally:
     await stream.closeWait()
 
-proc accept*(server: HttpServer | TlsHttpServer): Future[HttpRequest]
+proc accept*(server: HttpServer): Future[HttpRequest]
   {.async, raises: [Defect, HttpError].} =
 
   if not isNil(server.handler):
