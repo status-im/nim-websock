@@ -77,7 +77,7 @@ proc parseRequest(
       # Timeout
       trace "Timeout expired while receiving headers", address = $remoteAddr
       await stream.writer.sendError(Http408, version = HttpVersion11)
-      return
+      raise newException(HttpError, "Didn't read headers in time!")
 
     let hlen = hlenfut.read()
     buffer.setLen(hlen)
@@ -86,7 +86,7 @@ proc parseRequest(
       # Header could not be parsed
       trace "Malformed header received", address = $remoteAddr
       await stream.writer.sendError(Http400, version = HttpVersion11)
-      return
+      raise newException(HttpError, "Malformed header received")
 
     var vres = await stream.writer.validateRequest(requestData)
     let hdrs =
@@ -98,9 +98,9 @@ proc parseRequest(
 
     if vres == ReqStatus.ErrorFailure:
       trace "Remote peer disconnected", address = $remoteAddr
-      return
+      raise newException(HttpError, "Remote peer disconnected")
 
-    debug "Received valid HTTP request", address = $remoteAddr
+    trace "Received valid HTTP request", address = $remoteAddr
     return HttpRequest(
         headers: hdrs,
         stream: stream,
@@ -114,8 +114,6 @@ proc parseRequest(
     trace "Remote peer disconnected", address = $remoteAddr
   except TransportOsError as exc:
     trace "Problems with networking", address = $remoteAddr, error = exc.msg
-  except CatchableError as exc:
-    debug "Unknown exception", address = $remoteAddr, error = exc.msg
 
 proc handleConnCb(
   server: StreamServer,
