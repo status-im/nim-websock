@@ -32,8 +32,8 @@ proc connectServer(path: string, factories: seq[ExtFactory] = @[]): Future[WSSes
   let ws = await WebSocket.connect(
     host = "127.0.0.1:$1" % [$serverPort],
     path = path,
-    secure=secure,
-    flags=clientFlags,
+    secure = secure,
+    flags = clientFlags,
     factories = factories
   )
   return ws

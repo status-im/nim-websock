@@ -17,8 +17,9 @@ import ../websock/websock
 proc main() {.async.} =
   let ws = when defined tls:
     await WebSocket.connect(
-        "127.0.0.1:8888",
+        "127.0.0.1:8889",
         path = "/wss",
+        secure = true,
         flags = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName})
     else:
       await WebSocket.connect(
@@ -38,7 +39,7 @@ proc main() {.async.} =
       let dataStr = string.fromBytes(buff)
       trace "Server Response: ", data = dataStr
 
-      assert dataStr == reqData
+      doAssert dataStr == reqData
       break
     except WebSocketError as exc:
       error "WebSocket error:", exception = exc.msg

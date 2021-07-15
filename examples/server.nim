@@ -17,11 +17,7 @@ import ../tests/keys
 
 proc handle(request: HttpRequest) {.async.} =
   trace "Handling request:", uri = request.uri.path
-  let path = when defined tls: "/wss" else: "/ws"
-  if request.uri.path != path:
-    return
 
-  trace "Initiating web socket connection."
   try:
     let deflateFactory = deflateFactory()
     let server = WSServer.new(factories = [deflateFactory])
@@ -49,26 +45,32 @@ proc handle(request: HttpRequest) {.async.} =
 when isMainModule:
   # we want to run parallel tests in CI
   # so we are using different port
-  const serverAddr = when defined tls:
-                       "127.0.0.1:8889"
-                     else:
-                       "127.0.0.1:8888"
-
   proc main() {.async.} =
     let
-      address = initTAddress(serverAddr)
       socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
       server = when defined tls:
         TlsHttpServer.create(
-          address = address,
-          handler = handle,
+          address = initTAddress("127.0.0.1:8889"),
           tlsPrivateKey = TLSPrivateKey.init(SecureKey),
           tlsCertificate = TLSCertificate.init(SecureCert),
           flags = socketFlags)
       else:
-        HttpServer.create(address, handle, flags = socketFlags)
+        HttpServer.create(initTAddress("127.0.0.1:8888"), flags = socketFlags)
 
-    server.start()
+    when defined accepts:
+      proc accepts() {.async, raises: [Defect].} =
+        while true:
+          try:
+            let req = await server.accept()
+            await req.handle()
+          except CatchableError as exc:
+            error "Transport error", exc = exc.msg
+
+      asyncCheck accepts()
+    else:
+      server.handler = handle
+      server.start()
+
     trace "Server listening on ", data = $server.localAddress()
     await server.join()
 

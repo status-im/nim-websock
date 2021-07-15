@@ -29,13 +29,17 @@ type
 
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
+    case secure*: bool:
+    of true:
+      tlsFlags*: set[TLSFlags]
+      tlsPrivateKey*: TLSPrivateKey
+      tlsCertificate*: TLSCertificate
+      minVersion*: TLSVersion
+      maxVersion*: TLSVersion
+    else:
+      discard
 
-  TlsHttpServer* = ref object of HttpServer
-    tlsFlags*: set[TLSFlags]
-    tlsPrivateKey*: TLSPrivateKey
-    tlsCertificate*: TLSCertificate
-    minVersion*: TLSVersion
-    maxVersion*: TLSVersion
+  TlsHttpServer* = HttpServer
 
 proc validateRequest(
   stream: AsyncStreamWriter,
@@ -73,7 +77,7 @@ proc parseRequest(
       # Timeout
       trace "Timeout expired while receiving headers", address = $remoteAddr
       await stream.writer.sendError(Http408, version = HttpVersion11)
-      return
+      raise newException(HttpError, "Didn't read headers in time!")
 
     let hlen = hlenfut.read()
     buffer.setLen(hlen)
@@ -82,7 +86,7 @@ proc parseRequest(
       # Header could not be parsed
       trace "Malformed header received", address = $remoteAddr
       await stream.writer.sendError(Http400, version = HttpVersion11)
-      return
+      raise newException(HttpError, "Malformed header received")
 
     var vres = await stream.writer.validateRequest(requestData)
     let hdrs =
@@ -94,9 +98,9 @@ proc parseRequest(
 
     if vres == ReqStatus.ErrorFailure:
       trace "Remote peer disconnected", address = $remoteAddr
-      return
+      raise newException(HttpError, "Remote peer disconnected")
 
-    debug "Received valid HTTP request", address = $remoteAddr
+    trace "Received valid HTTP request", address = $remoteAddr
     return HttpRequest(
         headers: hdrs,
         stream: stream,
@@ -110,8 +114,6 @@ proc parseRequest(
     trace "Remote peer disconnected", address = $remoteAddr
   except TransportOsError as exc:
     trace "Problems with networking", address = $remoteAddr, error = exc.msg
-  except CatchableError as exc:
-    debug "Unknown exception", address = $remoteAddr, error = exc.msg
 
 proc handleConnCb(
   server: StreamServer,
@@ -160,16 +162,16 @@ proc handleTlsConnCb(
   finally:
     await stream.closeWait()
 
-proc accept*(server: HttpServer | TlsHttpServer): Future[HttpRequest]
+proc accept*(server: HttpServer): Future[HttpRequest]
   {.async, raises: [Defect, HttpError].} =
 
   if not isNil(server.handler):
     raise newException(HttpError,
-      "Callback already registered - cannot mix callback and accepts stypes!")
+      "Callback already registered - cannot mix callback and accepts styles!")
 
+  trace "Awaiting new request"
   let transp = await StreamServer(server).accept()
-  var stream: AsyncStream
-  when server is TlsHttpServer:
+  let stream = if server.secure:
     let tlsStream = newTLSServerAsyncStream(
       newAsyncStreamReader(transp),
       newAsyncStreamWriter(transp),
@@ -179,14 +181,15 @@ proc accept*(server: HttpServer | TlsHttpServer): Future[HttpRequest]
       maxVersion = server.maxVersion,
       flags = server.tlsFlags)
 
-    stream = AsyncStream(
+    AsyncStream(
       reader: tlsStream.reader,
       writer: tlsStream.writer)
   else:
-    stream = AsyncStream(
+    AsyncStream(
       reader: newAsyncStreamReader(transp),
       writer: newAsyncStreamWriter(transp))
 
+  trace "Got new request", isTls = server.secure
   return await server.parseRequest(stream)
 
 proc create*(
@@ -206,21 +209,20 @@ proc create*(
       flags,
       child = StreamServer(server)))
 
-  trace "Created HTTP Server", host = $address
+  trace "Created HTTP Server", host = $server.localAddress()
 
   return server
 
 proc create*(
   _: typedesc[HttpServer],
   host: string,
-  port: Port,
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {}): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 
-  return HttpServer.create(initTAddress(host, port), handler, flags)
+  return HttpServer.create(initTAddress(host), handler, flags)
 
 proc create*(
   _: typedesc[TlsHttpServer],
@@ -235,6 +237,7 @@ proc create*(
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
 
   var server = TlsHttpServer(
+    secure: true,
     handler: handler,
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate,
@@ -248,14 +251,13 @@ proc create*(
       flags,
       child = StreamServer(server)))
 
-  trace "Created TLS HTTP Server", host = $address
+  trace "Created TLS HTTP Server", host = $server.localAddress()
 
   return server
 
 proc create*(
   _: typedesc[TlsHttpServer],
   host: string,
-  port: Port,
   tlsPrivateKey: TLSPrivateKey,
   tlsCertificate: TLSCertificate,
   handler: HttpAsyncCallback = nil,
@@ -265,7 +267,7 @@ proc create*(
   tlsMaxVersion = TLSVersion.TLS12): TlsHttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   TlsHttpServer.create(
-    address = initTAddress(host, port),
+    address = initTAddress(host),
     handler = handler,
     tlsPrivateKey = tlsPrivateKey,
     tlsCertificate = tlsCertificate,
