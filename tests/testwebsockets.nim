@@ -33,7 +33,6 @@ suite "Test handshake":
   test "Should not select incorrect protocol":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
-
       let
         server = WSServer.new(protos = ["proto"])
         ws = await server.handleRequest(request)

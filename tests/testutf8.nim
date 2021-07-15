@@ -110,8 +110,7 @@ suite "UTF-8 validator in action":
     server.start()
 
     let session = await WebSocket.connect(
-      "127.0.0.1",
-      Port(8888),
+      "127.0.0.1:8888",
       path = "/ws",
       protocols = @["proto"],
     )
@@ -152,8 +151,7 @@ suite "UTF-8 validator in action":
     server.start()
 
     let session = await WebSocket.connect(
-      "127.0.0.1",
-      Port(8888),
+      "127.0.0.1:8888",
       path = "/ws",
       protocols = @["proto"],
     )
@@ -178,8 +176,7 @@ suite "UTF-8 validator in action":
     server.start()
 
     let session = await WebSocket.connect(
-      "127.0.0.1",
-      Port(8888),
+      "127.0.0.1:8888",
       path = "/ws",
       protocols = @["proto"]
     )
@@ -204,8 +201,7 @@ suite "UTF-8 validator in action":
     server.start()
 
     let session = await WebSocket.connect(
-      "127.0.0.1",
-      Port(8888),
+      "127.0.0.1:8888",
       path = "/ws",
       protocols = @["proto"]
     )

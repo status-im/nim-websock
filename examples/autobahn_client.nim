@@ -19,19 +19,18 @@ const
 # so we are using different port
 when defined tls:
   const
-    agent      = "websock secure client"
+    agent      = "websock-secure-client"
     secure     = true
     serverPort = 9002
 else:
   const
-    agent      = "websock client"
+    agent      = "websock-client"
     secure     = false
     serverPort = 9001
 
 proc connectServer(path: string, factories: seq[ExtFactory] = @[]): Future[WSSession] {.async.} =
   let ws = await WebSocket.connect(
-    host = "127.0.0.1",
-    port = Port(serverPort),
+    host = "127.0.0.1:$1" % [$serverPort],
     path = path,
     secure=secure,
     flags=clientFlags,

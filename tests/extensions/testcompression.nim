@@ -48,8 +48,7 @@ suite "permessage deflate compression":
     server.start()
 
     let client = await WebSocket.connect(
-      host = "127.0.0.1",
-      port = Port(8888),
+      host = "127.0.0.1:8888",
       path = "/ws",
       protocols = @["proto"],
       factories = @[deflateFactory]
@@ -89,8 +88,7 @@ suite "permessage deflate compression":
     server.start()
 
     let client = await WebSocket.connect(
-      host = "127.0.0.1",
-      port = Port(8888),
+      host = "127.0.0.1:8888",
       path = "/ws",
       protocols = @["proto"],
       factories = @[deflateFactory]
