@@ -29,13 +29,17 @@ type
 
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
+    case secure*: bool:
+    of true:
+      tlsFlags*: set[TLSFlags]
+      tlsPrivateKey*: TLSPrivateKey
+      tlsCertificate*: TLSCertificate
+      minVersion*: TLSVersion
+      maxVersion*: TLSVersion
+    else:
+      discard
 
   TlsHttpServer* = ref object of HttpServer
-    tlsFlags*: set[TLSFlags]
-    tlsPrivateKey*: TLSPrivateKey
-    tlsCertificate*: TLSCertificate
-    minVersion*: TLSVersion
-    maxVersion*: TLSVersion
 
 proc validateRequest(
   stream: AsyncStreamWriter,
@@ -165,11 +169,11 @@ proc accept*(server: HttpServer | TlsHttpServer): Future[HttpRequest]
 
   if not isNil(server.handler):
     raise newException(HttpError,
-      "Callback already registered - cannot mix callback and accepts stypes!")
+      "Callback already registered - cannot mix callback and accepts styles!")
 
+  trace "Awaiting new request"
   let transp = await StreamServer(server).accept()
-  var stream: AsyncStream
-  when server is TlsHttpServer:
+  let stream = if server.secure:
     let tlsStream = newTLSServerAsyncStream(
       newAsyncStreamReader(transp),
       newAsyncStreamWriter(transp),
@@ -179,14 +183,15 @@ proc accept*(server: HttpServer | TlsHttpServer): Future[HttpRequest]
       maxVersion = server.maxVersion,
       flags = server.tlsFlags)
 
-    stream = AsyncStream(
+    AsyncStream(
       reader: tlsStream.reader,
       writer: tlsStream.writer)
   else:
-    stream = AsyncStream(
+    AsyncStream(
       reader: newAsyncStreamReader(transp),
       writer: newAsyncStreamWriter(transp))
 
+  trace "Got new request", isTls = server.secure
   return await server.parseRequest(stream)
 
 proc create*(
@@ -206,7 +211,7 @@ proc create*(
       flags,
       child = StreamServer(server)))
 
-  trace "Created HTTP Server", host = $address
+  trace "Created HTTP Server", host = $server.localAddress()
 
   return server
 
@@ -235,6 +240,7 @@ proc create*(
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
 
   var server = TlsHttpServer(
+    secure: true,
     handler: handler,
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate,
@@ -248,7 +254,7 @@ proc create*(
       flags,
       child = StreamServer(server)))
 
-  trace "Created TLS HTTP Server", host = $address
+  trace "Created TLS HTTP Server", host = $server.localAddress()
 
   return server
 
