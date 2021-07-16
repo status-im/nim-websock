@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="http://autobahn.ws/testsuite" title="Autobahn WebSocket Testsuite"><img src="http://autobahn.ws/static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="http://autobahn.ws"           title="Autobahn WebSocket">          <img src="http://autobahn.ws/static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock secure server - <span style="font-size: 1.3em;"><b>Case 5.6</b></span> : Pass - <span style="font-size: 0.9em;"><b>12</b> ms @ 2021-07-15T20:26:18.909Z</a></p>
+      <p class="case case_ok">websock secure server - <span style="font-size: 1.3em;"><b>Case 5.6</b></span> : Pass - <span style="font-size: 0.9em;"><b>11</b> ms @ 2022-10-24T11:51:07.141Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send text Message fragmented into 2 fragments, one ping with payload in-between.</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>A pong is received, then the message is echo'ed back to us.</p>
 
@@ -221,13 +221,13 @@ Upgrade: WebSocket
 Connection: Upgrade
 Pragma: no-cache
 Cache-Control: no-cache
-Sec-WebSocket-Key: f+GlL/fPTpfI5VCwM8+HJA==
+Sec-WebSocket-Key: V/frQgDvsT7kp0YogO0/rA==
 Sec-WebSocket-Version: 13</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
-Date: Thu, 15 Jul 2021 20:26:18 GMT
+Date: Mon, 24 Oct 2022 11:51:07 GMT
 Upgrade: websocket
 Connection: Upgrade
-Sec-Websocket-Accept: 1SVFN4n4lj2r6inp3iXuDscXU3Q=</pre>
+Sec-Websocket-Accept: I4eLhVkS/nVJ7TmnPhqjPO8jLWY=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -287,17 +287,17 @@ Sec-Websocket-Accept: 1SVFN4n4lj2r6inp3iXuDscXU3Q=</pre>
       <div id="wirelog">
          <pre class="wirelog_tx_octets">000 TX OCTETS: 474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f30</pre>
          <pre class="wirelog_tx_octets">               2e382e322d302e31302e390d0a48 ...</pre>
-         <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205468752c203135204a75</pre>
-         <pre class="wirelog_rx_octets">               6c20323032312032303a32363a31 ...</pre>
-         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=1, FIN=False, RSV=0, PAYLOAD-LEN=9, MASK=cbd8ffa3, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204d6f6e2c203234204f63</pre>
+         <pre class="wirelog_rx_octets">               7420323032322031313a35313a30 ...</pre>
+         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=1, FIN=False, RSV=0, PAYLOAD-LEN=9, MASK=fee3bee1, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               fragment1</pre>
-         <pre class="wirelog_tx_octets">003 TX OCTETS: 0189cbd8ffa3adaa9ec4a6bd91d7fa</pre>
-         <pre class="wirelog_tx_frame">004 TX FRAME : OPCODE=9, FIN=True, RSV=0, PAYLOAD-LEN=12, MASK=90626daa, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_tx_octets">003 TX OCTETS: 0189fee3bee19891df869386d095cf</pre>
+         <pre class="wirelog_tx_frame">004 TX FRAME : OPCODE=9, FIN=True, RSV=0, PAYLOAD-LEN=12, MASK=8b2d557a, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               ping payload</pre>
-         <pre class="wirelog_tx_octets">005 TX OCTETS: 898c90626daae00b03cdb0120cd3fc0d0cce</pre>
-         <pre class="wirelog_tx_frame">006 TX FRAME : OPCODE=0, FIN=True, RSV=0, PAYLOAD-LEN=9, MASK=9208b69b, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_tx_octets">005 TX OCTETS: 898c8b2d557afb443b1dab5d3403e742341e</pre>
+         <pre class="wirelog_tx_frame">006 TX FRAME : OPCODE=0, FIN=True, RSV=0, PAYLOAD-LEN=9, MASK=054bc722, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               fragment2</pre>
-         <pre class="wirelog_tx_octets">007 TX OCTETS: 80899208b69bf47ad7fcff6dd8efa0</pre>
+         <pre class="wirelog_tx_octets">007 TX OCTETS: 8089054bc7226339a645682ea95637</pre>
          <pre class="wirelog_kill_after">008 CLOSE CONNECTION AFTER 1.000000 sec</pre>
          <pre class="wirelog_rx_octets">009 RX OCTETS: 8a0c70696e67207061796c6f6164</pre>
          <pre class="wirelog_rx_frame">010 RX FRAME : OPCODE=10, FIN=True, RSV=0, PAYLOAD-LEN=12, MASKED=False, MASK=None</pre>
@@ -305,9 +305,9 @@ Sec-Websocket-Accept: 1SVFN4n4lj2r6inp3iXuDscXU3Q=</pre>
          <pre class="wirelog_rx_octets">011 RX OCTETS: 8112667261676d656e7431667261676d656e7432</pre>
          <pre class="wirelog_rx_frame">012 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=18, MASKED=False, MASK=None</pre>
          <pre class="wirelog_rx_frame">               fragment1fragment2</pre>
-         <pre class="wirelog_tx_frame">013 TX FRAME : OPCODE=8, FIN=True, RSV=0, PAYLOAD-LEN=2, MASK=66ab413a, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_tx_frame">013 TX FRAME : OPCODE=8, FIN=True, RSV=0, PAYLOAD-LEN=2, MASK=bdc314eb, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               0x03e8</pre>
-         <pre class="wirelog_tx_octets">014 TX OCTETS: 888266ab413a6543</pre>
+         <pre class="wirelog_tx_octets">014 TX OCTETS: 8882bdc314ebbe2b</pre>
          <pre class="wirelog_rx_octets">015 RX OCTETS: 880203e8</pre>
          <pre class="wirelog_rx_frame">016 RX FRAME : OPCODE=8, FIN=True, RSV=0, PAYLOAD-LEN=2, MASKED=False, MASK=None</pre>
          <pre class="wirelog_rx_frame">               0x03e8</pre>

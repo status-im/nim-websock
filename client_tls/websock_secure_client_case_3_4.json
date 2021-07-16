@@ -8,7 +8,7 @@
    "createWirelog": true,
    "description": "Send small text message, then send again with <b>RSV = 4</b>, then send Ping. Octets are sent in octet-wise chops.",
    "droppedByMe": false,
-   "duration": 8,
+   "duration": 3,
    "expectation": "Echo for first message is received, but then connection is failed immediately, since RSV must be 0, when no extension defining RSV meaning has been negotiated. The Pong is not received.",
    "expected": {
       "NON-STRICT": [],
@@ -28,8 +28,8 @@
       "requireClean": false
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=31&agent=websock-secure-client HTTP/1.1\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nConnection: Upgrade\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: TPekDevNQPJGfgRnen2boQ==\r\nCache-Control: no-cache\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: vOwCGTiddrrziVQ9fBqcCKR82WM=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=31&agent=websock-secure-client HTTP/1.1\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nConnection: Upgrade\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: vXDK6iXWn5UNLMfc1/wSWg==\r\nCache-Control: no-cache\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: Rt5AQ/eofr5LAsXhhmy4D08IJis=\r\n\r\n",
    "id": "3.4",
    "isServer": true,
    "localCloseCode": null,
@@ -54,14 +54,14 @@
       "19": 1,
       "294": 1
    },
-   "started": "2021-07-15T20:28:08.905Z",
+   "started": "2022-10-24T12:37:09.939Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 2,
       "9": 1
    },
    "txOctetStats": {
-      "1": 18,
+      "1": 19,
       "206": 1
    },
    "wasClean": false,
@@ -260,10 +260,18 @@
          true
       ],
       [
+         "TO",
+         [
+            1,
+            "0d"
+         ],
+         true
+      ],
+      [
          "RO",
          [
             19,
-            "818d35c2bbde7da7d7b25aee9ba95ab0d7ba14"
+            "818dd1692b3b990c4757be450b4cbe1b475ff0"
          ]
       ],
       [
@@ -276,13 +284,13 @@
          true,
          0,
          true,
-         "35c2bbde"
+         "d1692b3b"
       ],
       [
          "TO",
          [
             1,
-            "0d"
+            "48"
          ],
          true
       ],
@@ -290,7 +298,7 @@
          "TO",
          [
             1,
-            "48"
+            "65"
          ],
          true
       ]
