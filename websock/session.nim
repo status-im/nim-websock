@@ -379,9 +379,6 @@ proc recv*(
 
         ws.frame = await ws.readFrame(ws.extensions)
 
-    if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
-      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
-
   except CatchableError as exc:
     trace "Exception reading frames", exc = exc.msg
     ws.readyState = ReadyState.Closed
@@ -396,7 +393,7 @@ proc recv*(
 
   return consumed
 
-proc recv*(
+proc recvMsg*(
   ws: WSSession,
   size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
   ## Attempt to read a full message up to max `size`
@@ -433,6 +430,39 @@ proc recv*(
 
   return res
 
+proc recvTextMsg*(
+  ws: WSSession,
+  size = WSMaxMessageSize): Future[string] {.async.} =
+  let msg = await ws.recvMsg(size)
+
+  if ws.binary:
+    raise newException(WSInvalidOpcodeError, "Got binary when text expected!")
+
+  if validateUTF8(msg.toOpenArray(0, msg.high)) == false:
+    raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
+
+  return string.fromBytes(msg)
+
+proc sendTextMsg*(
+  ws: WSSession,
+  data: seq[byte]): Future[void] {.raises: [Defect, WSClosedError].} =
+  ws.send(data, Opcode.Text)
+
+proc recvBinaryMsg*(
+  ws: WSSession,
+  size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  let msg = await ws.recvMsg(size)
+
+  if not ws.binary:
+    raise newException(WSInvalidOpcodeError, "Got text when binary expected!")
+
+  return msg
+
+proc sendBinaryMsg*(
+  ws: WSSession,
+  data: seq[byte]): Future[void] {.raises: [Defect, WSClosedError].} =
+  ws.send(data, Opcode.Binary)
+
 proc close*(
   ws: WSSession,
   code = StatusFulfilled,
@@ -451,6 +481,6 @@ proc close*(
 
     # read frames until closed
     while ws.readyState != ReadyState.Closed:
-      discard await ws.recv()
+      discard await ws.recvMsg()
   except CatchableError as exc:
     trace "Exception closing", exc = exc.msg

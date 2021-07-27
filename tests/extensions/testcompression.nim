@@ -35,7 +35,7 @@ suite "permessage deflate compression":
       let ws = await server.handleRequest(request)
 
       while ws.readyState != ReadyState.Closed:
-        let recvData = await ws.recv()
+        let recvData = await ws.recvMsg()
         if ws.readyState == ReadyState.Closed:
           break
         await ws.send(recvData,
@@ -58,7 +58,7 @@ suite "permessage deflate compression":
 
     var recvData: seq[byte]
     while recvData.len < textData.len:
-      let res = await client.recv()
+      let res = await client.recvMsg()
       recvData.add res
       if client.readyState == ReadyState.Closed:
         break
@@ -75,7 +75,7 @@ suite "permessage deflate compression":
       )
       let ws = await server.handleRequest(request)
       while ws.readyState != ReadyState.Closed:
-        let recvData = await ws.recv()
+        let recvData = await ws.recvMsg()
         if ws.readyState == ReadyState.Closed:
           break
         await ws.send(recvData,
@@ -98,7 +98,7 @@ suite "permessage deflate compression":
 
     var recvData: seq[byte]
     while recvData.len < binaryData.len:
-      let res = await client.recv()
+      let res = await client.recvMsg()
       recvData.add res
       if client.readyState == ReadyState.Closed:
         break

@@ -109,9 +109,9 @@ suite "Test transmission":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
+      let servRes = await ws.recvTextMsg()
 
-      check string.fromBytes(servRes) == testString
+      check servRes == testString
       await ws.waitForClose()
 
     server = createServer(
@@ -129,8 +129,8 @@ suite "Test transmission":
       check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
-      check string.fromBytes(servRes) == testString
+      let servRes = await ws.recvTextMsg()
+      check servRes == testString
       await ws.waitForClose()
 
     server = createServer(
@@ -158,8 +158,8 @@ suite "Test transmission":
       flags = {ReuseAddr})
 
     let session = await connectClient()
-    var clientRes = await session.recv()
-    check string.fromBytes(clientRes) == testString
+    var clientRes = await session.recvTextMsg()
+    check clientRes == testString
     await waitForClose(session)
 
 suite "Test ping-pong":
@@ -265,7 +265,7 @@ suite "Test ping-pong":
       let ws = await server.handleRequest(request)
 
       expect WSPayloadTooLarge:
-        discard await ws.recv()
+        discard await ws.recvMsg()
 
       await waitForClose(ws)
 
@@ -334,7 +334,7 @@ suite "Test framing":
     let session = await connectClient()
 
     expect WSMaxMessageSizeError:
-      discard await session.recv(5)
+      discard await session.recvMsg(5)
     await waitForClose(session)
 
 suite "Test Closing":
@@ -575,11 +575,11 @@ suite "Test Payload":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
+      let servRes = await ws.recvTextMsg()
 
       check:
         servRes.len == 0
-        string.fromBytes(servRes) == emptyStr
+        servRes == emptyStr
 
       await ws.send(emptyStr)
       await ws.waitForClose()
@@ -591,11 +591,11 @@ suite "Test Payload":
 
     let session = await connectClient()
     await session.send(emptyStr)
-    let clientRes = await session.recv()
+    let clientRes = await session.recvTextMsg()
 
     check:
       clientRes.len == 0
-      string.fromBytes(clientRes) == emptyStr
+      clientRes == emptyStr
 
     await session.close()
 
@@ -607,11 +607,11 @@ suite "Test Payload":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       for _ in 0..<3:
-        let servRes = await ws.recv()
+        let servRes = await ws.recvTextMsg()
 
         check:
           servRes.len == 0
-          string.fromBytes(servRes) == emptyStr
+          servRes == emptyStr
 
       for i in 0..3:
         await ws.send(emptyStr)
@@ -629,11 +629,11 @@ suite "Test Payload":
       await session.send(emptyStr)
 
     for _ in 0..<3:
-      let clientRes = await session.recv()
+      let clientRes = await session.recvTextMsg()
 
       check:
         clientRes.len == 0
-        string.fromBytes(clientRes) == emptyStr
+        clientRes == emptyStr
 
     await session.close()
 
@@ -648,10 +648,10 @@ suite "Test Payload":
       let server = WSServer.new(protos = ["proto"])
 
       let ws = await server.handleRequest(request)
-      let respData = await ws.recv()
+      let respData = await ws.recvTextMsg()
 
       check:
-        string.fromBytes(respData) == testString
+        respData == testString
 
       await waitForClose(ws)
 
@@ -706,9 +706,9 @@ suite "Test Payload":
         )
 
       let ws = await server.handleRequest(request)
-      let respData = await ws.recv()
+      let respData = await ws.recvTextMsg()
       check:
-        string.fromBytes(respData)   == testString
+        respData  == testString
 
       await waitForClose(ws)
 
@@ -764,7 +764,7 @@ suite "Test Payload":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let res = await ws.recv()
+      let res = await ws.recvMsg()
 
       check ws.binary == false
       await ws.send(res, Opcode.Text)
@@ -781,11 +781,11 @@ suite "Test Payload":
     )
 
     await ws.send(testData)
-    let echoed = await ws.recv()
+    let echoed = await ws.recvTextMsg()
     await ws.close()
 
     check:
-      string.fromBytes(echoed) == testData
+      echoed == testData
       ws.binary == false
 
 suite "Test Binary message with Payload":
@@ -800,7 +800,7 @@ suite "Test Binary message with Payload":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
+      let servRes = await ws.recvMsg()
 
       check:
         servRes == emptyData
@@ -825,7 +825,7 @@ suite "Test Binary message with Payload":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
-      let servRes = await ws.recv()
+      let servRes = await ws.recvMsg()
 
       check:
         servRes == emptyData
@@ -858,7 +858,7 @@ suite "Test Binary message with Payload":
       )
       let ws = await server.handleRequest(request)
 
-      let res = await ws.recv()
+      let res = await ws.recvMsg()
       check:
         res == testData
         ws.binary == true
@@ -892,7 +892,7 @@ suite "Test Binary message with Payload":
       )
       let ws = await server.handleRequest(request)
 
-      let res = await ws.recv()
+      let res = await ws.recvMsg()
       check:
         res == testData
         ws.binary == true
@@ -921,7 +921,7 @@ suite "Test Binary message with Payload":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let res = await ws.recv()
+      let res = await ws.recvMsg()
 
       check:
         ws.binary == true
@@ -941,7 +941,7 @@ suite "Test Binary message with Payload":
     )
 
     await ws.send(testData, Opcode.Binary)
-    let echoed = await ws.recv()
+    let echoed = await ws.recvMsg()
 
     check:
       echoed == testData

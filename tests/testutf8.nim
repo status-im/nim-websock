@@ -74,7 +74,7 @@ suite "UTF-8 DFA validator":
 proc waitForClose(ws: WSSession) {.async.} =
   try:
     while ws.readystate != ReadyState.Closed:
-      discard await ws.recv()
+      discard await ws.recvTextMsg()
   except CatchableError:
     trace "Closing websocket"
 
@@ -96,9 +96,9 @@ suite "UTF-8 validator in action":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
-      let res = await ws.recv()
+      let res = await ws.recvTextMsg()
       check:
-        string.fromBytes(res) == testData
+        res == testData
         ws.binary == false
 
       await waitForClose(ws)
@@ -135,11 +135,11 @@ suite "UTF-8 validator in action":
 
       let server = WSServer.new(protos = ["proto"], onClose = onClose)
       let ws = await server.handleRequest(request)
-      let res = await ws.recv()
+      let res = await ws.recvTextMsg()
       await waitForClose(ws)
 
       check:
-        string.fromBytes(res) == testData
+        res == testData
         ws.binary == false
 
       await waitForClose(ws)
@@ -182,7 +182,7 @@ suite "UTF-8 validator in action":
     )
 
     expect WSInvalidUTF8:
-      let data = await session.recv()
+      let data = await session.recvTextMsg()
 
   test "invalid UTF-8 sequence close code":
     let closeReason = "i want to close\xc0\xaf"
@@ -207,4 +207,4 @@ suite "UTF-8 validator in action":
     )
 
     expect WSInvalidUTF8:
-      let data = await session.recv()
+      let data = await session.recvTextMsg()

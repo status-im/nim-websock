@@ -37,7 +37,7 @@ proc rndBin*(size: int): seq[byte] =
 proc waitForClose*(ws: WSSession) {.async.} =
   try:
     while ws.readystate != ReadyState.Closed:
-      discard await ws.recv()
+      discard await ws.recvMsg()
   except CatchableError:
     trace "Closing websocket"
 
