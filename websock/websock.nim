@@ -107,6 +107,7 @@ proc connect*(
   _: type WebSocket,
   host: string | TransportAddress,
   path: string,
+  hostName: string = "", # override used when the hostname has been externally resolved
   protocols: seq[string] = @[],
   factories: seq[ExtFactory] = @[],
   secure = false,
@@ -133,7 +134,7 @@ proc connect*(
     ("Cache-Control", "no-cache"),
     ("Sec-WebSocket-Version", $version),
     ("Sec-WebSocket-Key", key),
-    ("Host", $host)]
+    ("Host", if hostName.len > 0: hostName else: $host)]
 
   var headers = HttpTable.init(headerData)
   if protocols.len > 0:
