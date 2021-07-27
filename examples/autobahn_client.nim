@@ -43,7 +43,7 @@ proc getCaseCount(): Future[int] {.async.} =
   block:
     try:
       let ws = await connectServer("/getCaseCount")
-      let buff = await ws.recv()
+      let buff = await ws.recvMsg()
       let dataStr = string.fromBytes(buff)
       caseCount = parseInt(dataStr)
       await ws.close()
@@ -60,7 +60,7 @@ proc generateReport() {.async.} =
     trace "request autobahn server to generate report"
     let ws = await connectServer("/updateReports?agent=" & agent)
     while true:
-      let buff = await ws.recv()
+      let buff = await ws.recvMsg()
       if buff.len <= 0:
         break
     await ws.close()
@@ -80,7 +80,7 @@ proc main() {.async.} =
 
       while ws.readystate != ReadyState.Closed:
         # echo back
-        let data = await ws.recv()
+        let data = await ws.recvMsg()
         let opCode = if ws.binary:
                        Opcode.Binary
                      else:
