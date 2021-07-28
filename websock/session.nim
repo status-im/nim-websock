@@ -130,7 +130,7 @@ proc send*(
   {.raises: [Defect, WSClosedError].} =
   send(ws, data.toBytes(), Opcode.Text)
 
-proc handleClose*(
+proc handleClose(
   ws: WSSession,
   frame: Frame,
   payLoad: seq[byte] = @[]) {.async.} =
@@ -210,7 +210,7 @@ proc handleClose*(
   await sleepAsync(10.millis)
   await ws.stream.closeWait()
 
-proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
+proc handleControl(ws: WSSession, frame: Frame) {.async.} =
   ## Handle control frames
   ##
 
@@ -395,7 +395,7 @@ proc recv*(
 
 proc recvMsg*(
   ws: WSSession,
-  size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  maxMsgSize = WSMaxMessageSize): Future[seq[byte]] {.async.} =
   ## Attempt to read a full message up to max `size`
   ## bytes in `frameSize` chunks.
   ##
@@ -409,11 +409,11 @@ proc recvMsg*(
   ##
   var res: seq[byte]
   while ws.readyState != ReadyState.Closed:
-    var buf = newSeq[byte](min(size, ws.frameSize))
+    var buf = newSeq[byte](min(maxMsgsize, ws.frameSize))
     let read = await ws.recv(addr buf[0], buf.len)
 
     buf.setLen(read)
-    if res.len + buf.len > size:
+    if res.len + buf.len > maxMsgsize:
       raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
     trace "Read message", size = read
@@ -432,8 +432,8 @@ proc recvMsg*(
 
 proc recvTextMsg*(
   ws: WSSession,
-  size = WSMaxMessageSize): Future[string] {.async.} =
-  let msg = await ws.recvMsg(size)
+  maxMsgSize = WSMaxMessageSize): Future[string] {.async.} =
+  let msg = await ws.recvMsg(maxMsgSize)
 
   if ws.binary:
     raise newException(WSInvalidOpcodeError, "Got binary when text expected!")
@@ -450,8 +450,8 @@ proc sendTextMsg*(
 
 proc recvBinaryMsg*(
   ws: WSSession,
-  size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
-  let msg = await ws.recvMsg(size)
+  maxMsgSize = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  let msg = await ws.recvMsg(maxMsgSize)
 
   if not ws.binary:
     raise newException(WSInvalidOpcodeError, "Got text when binary expected!")
