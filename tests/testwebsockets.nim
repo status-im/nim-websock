@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[strutils, random]
+import std/[strutils]
 import pkg/[
   httputils,
   chronos,
@@ -951,3 +951,58 @@ suite "Test Binary message with Payload":
     check:
       echoed == testData
       ws.binary == true
+
+  test "read partial frames from low-level recv()":
+    const
+      howMuchWood = "How much wood could a wood chuck chuck ..."
+
+      # Frame size to be used for this test
+      frameSize = 7
+
+      # Fetching data using buffers of this size
+      chunkLen = frameSize - 2
+
+      # FIXME: for some reason, the data must be a multiple of the `frameSize`
+      #        otherwise the system crashes, most probably in the server
+      #        === needs further investigation?
+      dataLen = frameSize * (howMuchWood.len div frameSize)
+      testData = howMuchWood[0 ..< datalen]
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let
+        server = WSServer.new(protos = ["proto"])
+        ws = await server.handleRequest(request)
+      #check ws.binary == false
+
+      var
+        res = newSeq[byte](testData.len + 10)
+        pos = 0
+      try:
+        while ws.readyState != ReadyState.Closed and pos < res.len:
+          let read = await ws.recv(addr res[pos], min(res.len - pos, chunkLen))
+          pos += read
+      except:
+        discard
+
+      # If there was a problem reading partial frames, the `recv()` should have
+      # thrown an exception. This would result in an incomplete result detected
+      # here.
+      res.setlen(pos)
+      check string.fromBytes(res) == testData
+      await ws.waitForClose
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let session = await connectClient(
+      address = address,
+      frameSize = frameSize)
+
+    await session.send(testData)
+    await session.close
+
+# End

@@ -18,6 +18,38 @@ import pkg/chronos/streams/asyncstream
 logScope:
   topics = "websock ws-session"
 
+proc updateReadMode(ws: WSSession): bool =
+  ## This helper function sets text/binary mode for the current frame.
+  ##
+  ## Processing frames might imply a read mode switch. This is typically so
+  ## for the very first frame in binary mode when `ws.binary` has initial
+  ## value.
+  ##
+  ## This function allows to switch from `binary` to `text` mode (aka utf8)
+  ## but not the other way round unless explicitely enabled by setting
+  ## `ws.textSwitchOk` to `true`. Here `text` mode is seen as the more
+  ## restrictive one. Locking `text` mode allows to process the final read
+  ## mode when all of the frame sequence was read after the last frame.
+  ##
+  ## Return value `false` indicates unconfirmed mode switch `text` => `binary`
+
+  if not ws.frame.isNil:
+    # Very first frame, take encoding at face value.
+    if not ws.seen:
+      ws.binary = ws.frame.opcode != Opcode.Text
+      ws.seen = true
+
+    # Accept mode switch from binary => text
+    elif ws.binary and ws.frame.opcode == Opcode.Text:
+      ws.binary = false
+
+    # Beware of a mode switch from text => binary
+    elif not ws.binary and ws.frame.opcode == Opcode.Binary:
+      trace "Read mode changed from text to binary"
+      if not ws.textSwitchOk:
+        return false
+  true
+
 proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
   result = reason.toBytes
   if ord(code) > 999:
@@ -309,20 +341,31 @@ proc recv*(
   ## up to ``size`` bytes, note that we do break
   ## at message boundaries (``fin`` flag set).
   ##
+  ## Processing frames, this function allows to switch from `binary` to `text`
+  ## mode (aka utf8) but not the other way round. It allows to process the
+  ## final read mode only when all of the frame sequence was read after the
+  ## very last frame. The `text` mode is seen to be more restrictive than
+  ## `binary` mode.
+  ##
+  ## If the frame data types change from `text` to `binary`, a
+  ## `WSOpcodeMismatchError` exception is thrown unless the `ws` descriptor
+  ## flag `ws.textSwitchOk` was set `true` in which case this data type change
+  ## is accepted.
+  ##
   ## Use this to stream data from frames
   ##
 
   var consumed = 0
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
-    var first = true
+    #var first = true
     if not isNil(ws.frame):
       if ws.frame.fin and ws.frame.remainder > 0:
         trace "Continue reading from the same frame"
-        first = true
       elif not ws.frame.fin and ws.frame.remainder > 0:
-        trace "Restarting reads in the middle of a frame in a multiframe message"
-        first = false
+        trace "Restarting reads in the middle of a frame" &
+          " in a multiframe message"
+        #first = false
       elif ws.frame.fin and ws.frame.remainder <= 0:
         trace "Resetting an already consumed frame"
         ws.frame = nil
@@ -332,6 +375,11 @@ proc recv*(
 
     if isNil(ws.frame):
       ws.frame = await ws.readFrame(ws.extensions)
+      # Note: The `ws.updateReadMode` directive replaces the functionality
+      #       of the `first` variable handling.
+      if not ws.updateReadMode:
+        raise newException(
+          WSOpcodeMismatchError, "Opcode switch text to binary")
 
     while consumed < size:
       if isNil(ws.frame):
@@ -339,7 +387,6 @@ proc recv*(
         break
 
       logScope:
-        first = first
         fin = ws.frame.fin
         len = ws.frame.length
         consumed = ws.frame.consumed
@@ -347,6 +394,17 @@ proc recv*(
         opcode = ws.frame.opcode
         masked = ws.frame.mask
 
+      # The code below is left commented out for informational purposes, only.
+      #
+      # As it seems, the condition of the first `if` clause below is
+      # frequently violated when re-entering the `recv()` function when the
+      # read buffer data `size` is smaller than the frame size. And this
+      # leads to an unwanted exception.
+      #
+      # The functionality of the second `if` clause is re-implemented with
+      # the `readFrame()` directives rifht before the `while` loop and at
+      # the bottom of the while loop.
+      #[
       if first == (ws.frame.opcode == Opcode.Cont):
         error "Opcode mismatch!"
         raise newException(WSOpcodeMismatchError,
@@ -355,11 +413,13 @@ proc recv*(
       if first:
         ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
         trace "Setting binary flag"
+      ]#
 
       let len = min(ws.frame.remainder.int, size - consumed)
       if len > 0:
         trace "Reading bytes from frame stream", len
-        let read = await ws.frame.read(ws.stream.reader, addr pbuffer[consumed], len)
+        let read = await:
+          ws.frame.read(ws.stream.reader, addr pbuffer[consumed], len)
         if read <= 0:
           trace "Didn't read any bytes, breaking"
           break
@@ -370,7 +430,7 @@ proc recv*(
       # all has been consumed from the frame
       # read the next frame
       if ws.frame.remainder <= 0:
-        first = false
+        #first = false
 
         if ws.frame.fin: # we're at the end of the message, break
           trace "Read all frames, breaking"
@@ -378,7 +438,14 @@ proc recv*(
           break
 
         ws.frame = await ws.readFrame(ws.extensions)
+        # Note: The `ws.updateReadMode` directive replaces the functionality
+        #       of the `first` variable handling.
+        if not ws.updateReadMode:
+          raise newException(
+            WSOpcodeMismatchError, "Opcode switch text to binary")
 
+    # The next `if` clause is earmarked to go away. It is currently needed to
+    # make some unit tests work.
     if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
       raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
 
@@ -386,12 +453,13 @@ proc recv*(
     trace "Exception reading frames", exc = exc.msg
     ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
-
     raise exc
+
   finally:
     if not isNil(ws.frame) and
       (ws.frame.fin and ws.frame.remainder <= 0):
-      trace "Last frame in message and no more bytes left to read, reseting current frame"
+      trace "Last frame in message and no more bytes left to read," &
+        " reseting current frame"
       ws.frame = nil
 
   return consumed
