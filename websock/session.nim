@@ -378,10 +378,6 @@ proc recv*(
           break
 
         ws.frame = await ws.readFrame(ws.extensions)
-
-    if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
-      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
-
   except CatchableError as exc:
     trace "Exception reading frames", exc = exc.msg
     ws.readyState = ReadyState.Closed
@@ -430,6 +426,9 @@ proc recv*(
     if ws.frame.fin and ws.frame.remainder <= 0:
       trace "Read full message, breaking!"
       break
+
+  if not ws.binary and validateUTF8(res.toOpenArray(0, res.high)) == false:
+    raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
 
   return res
 
