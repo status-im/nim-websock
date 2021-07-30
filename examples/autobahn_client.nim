@@ -80,16 +80,15 @@ proc main() {.async.} =
 
       while ws.readystate != ReadyState.Closed:
         # echo back
-        let data = await ws.recvMsg()
-        let opCode = if ws.binary:
-                       Opcode.Binary
-                     else:
-                       Opcode.Text
+        if ws.binary:
+          let data = await ws.recvBinaryMsg()
+          await ws.sendBinaryMsg(data)
+        else:
+          let data = await ws.recvTextMsg()
+          await ws.sendTextMsg(data)
 
         if ws.readyState == ReadyState.Closed:
           break
-
-        await ws.send(data, opCode)
 
     except WebSocketError as exc:
       error "WebSocket error", exception = exc.msg

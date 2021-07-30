@@ -28,16 +28,15 @@ proc handle(request: HttpRequest) {.async.} =
 
     trace "Websocket handshake completed"
     while ws.readyState != ReadyState.Closed:
-      let recvData = await ws.recvMsg()
-      trace "Client Response: ", size = recvData.len, binary = ws.binary
-
-      if ws.readyState == ReadyState.Closed:
-        # if session already terminated by peer,
-        # no need to send response
-        break
-
-      await ws.send(recvData,
-        if ws.binary: Opcode.Binary else: Opcode.Text)
+      # echo back
+      if ws.binary:
+        let data = await ws.recvBinaryMsg()
+        trace "Client Response: ", size = data.len, binary = ws.binary
+        await ws.sendBinaryMsg(data)
+      else:
+        let data = await ws.recvTextMsg()
+        trace "Client Response: ", size = data.len, binary = ws.binary
+        await ws.sendTextMsg(data)
 
   except WebSocketError as exc:
     error "WebSocket error:", exception = exc.msg

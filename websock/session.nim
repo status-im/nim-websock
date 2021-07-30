@@ -445,8 +445,8 @@ proc recvTextMsg*(
 
 proc sendTextMsg*(
   ws: WSSession,
-  data: seq[byte]): Future[void] {.raises: [Defect, WSClosedError].} =
-  ws.send(data, Opcode.Text)
+  data: string): Future[void] {.raises: [Defect, WSClosedError].} =
+  ws.send(data)
 
 proc recvBinaryMsg*(
   ws: WSSession,
