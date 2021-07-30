@@ -7,14 +7,23 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/[chronos, stew/byteutils]
-import ../asyncunit
-import ./base64ext, ./hexext
-import ../../websock/websock, ../helpers
+import
+  pkg/[
+    asynctest,
+    chronos,
+    httputils,
+    stew/byteutils],
+  ../../websock/websock,
+  ../helpers,
+  ./base64ext,
+  ./hexext
+
+let
+  address = initTAddress("127.0.0.1:8888")
+var
+  server: HttpServer
 
 suite "multiple extensions flow":
-  var server: HttpServer
-  let address = initTAddress("127.0.0.1:8888")
   let hexFactory = hexFactory()
   let base64Factory = base64Factory(padding = true)
 
@@ -36,18 +45,14 @@ suite "multiple extensions flow":
 
       await waitForClose(ws)
 
-    server = HttpServer.create(
-      address,
-      handle,
+    server = createServer(
+      address = address,
+      handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
-    let client = await WebSocket.connect(
-      host = "127.0.0.1:8888",
-      path = "/ws",
-      protocols = @["proto"],
-      factories = @[hexFactory, base64Factory]
-    )
+    let client = await connectClient(
+      address = address,
+      factories = @[hexFactory, base64Factory])
 
     await client.send(testData)
     let res = await client.recv()
@@ -68,18 +73,14 @@ suite "multiple extensions flow":
 
       await waitForClose(ws)
 
-    server = HttpServer.create(
-      address,
-      handle,
+    server = createServer(
+      address = address,
+      handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
-    let client = await WebSocket.connect(
-      host = "127.0.0.1:8888",
-      path = "/ws",
-      protocols = @["proto"],
-      factories = @[base64Factory, hexFactory]
-    )
+    let client = await connectClient(
+      address = address,
+      factories = @[hexFactory, base64Factory])
 
     await client.send(testData)
     let res = await client.recv()

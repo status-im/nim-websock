@@ -93,7 +93,8 @@ proc connectClient*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
+  rng: Rng = nil,
+  factories: seq[ExtFactory] = @[]): Future[WSSession] {.async.} =
   let secure = when defined secure: true else: false
   return await WebSocket.connect(
     host = address,
@@ -106,4 +107,5 @@ proc connectClient*(
     onPing = onPing,
     onPong = onPong,
     onClose = onClose,
-    rng = rng)
+    rng = rng,
+    factories = factories)

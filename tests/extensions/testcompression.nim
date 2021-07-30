@@ -12,6 +12,7 @@ import pkg/[chronos, stew/byteutils, stew/io2]
 import ../asyncunit
 import ../../websock/websock, ../helpers
 import ../../websock/extensions/compression/deflate
+import chronicles
 
 const
   dataFolder = "tests" / "extensions" / "data"

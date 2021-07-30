@@ -345,7 +345,8 @@ proc recv*(
   ## mode (aka utf8) but not the other way round. It allows to process the
   ## final read mode only when all of the frame sequence was read after the
   ## very last frame. The `text` mode is seen to be more restrictive than
-  ## `binary` mode.
+  ## `binary` mode. Note that RFC 6455 requires that all frames in a message
+  ## are of the same type.
   ##
   ## If the frame data types change from `text` to `binary`, a
   ## `WSOpcodeMismatchError` exception is thrown unless the `ws` descriptor

@@ -10,12 +10,17 @@
 import
   std/[strutils],
   pkg/[
-    stew/byteutils,
     asynctest,
     chronos,
-    chronicles
-  ],
+    httputils,
+    stew/byteutils],
+  ./helpers,
   ../websock/[websock, utf8dfa]
+
+let
+  address = initTAddress("127.0.0.1:8888")
+var
+  server: HttpServer
 
 suite "UTF-8 DFA validator":
   test "single octet":
@@ -71,18 +76,6 @@ suite "UTF-8 DFA validator":
       validateUTF8("foob\xc3\xa6r")
       validateUTF8("foob\xf0\x9f\x99\x88r")
 
-proc waitForClose(ws: WSSession) {.async.} =
-  try:
-    while ws.readystate != ReadyState.Closed:
-      discard await ws.recv()
-  except CatchableError:
-    trace "Closing websocket"
-
-# TODO: use new test framework from dryajov
-# if it is ready.
-var server: HttpServer
-let address = initTAddress("127.0.0.1:8888")
-
 suite "UTF-8 validator in action":
   teardown:
     server.stop()
@@ -91,7 +84,7 @@ suite "UTF-8 validator in action":
   test "valid UTF-8 sequence":
     let testData = "hello world"
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path == "/ws"
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
@@ -103,17 +96,13 @@ suite "UTF-8 validator in action":
 
       await waitForClose(ws)
 
-    server = HttpServer.create(
-      address,
-      handle,
+    server = createServer(
+      address = address,
+      handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
-    let session = await WebSocket.connect(
-      "127.0.0.1:8888",
-      path = "/ws",
-      protocols = @["proto"],
-    )
+    let session = await connectClient(
+      address = address)
 
     await session.send(testData)
     await session.close()
@@ -122,7 +111,7 @@ suite "UTF-8 validator in action":
     let testData = "hello world"
     let closeReason = "i want to close"
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path == "/ws"
+      check request.uri.path == WSPath
 
       proc onClose(status: StatusCodes, reason: string):
         CloseResult {.gcsafe, raises: [Defect].} =
@@ -144,17 +133,13 @@ suite "UTF-8 validator in action":
 
       await waitForClose(ws)
 
-    server = HttpServer.create(
-      address,
-      handle,
+    server = createServer(
+      address = address,
+      handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
-    let session = await WebSocket.connect(
-      "127.0.0.1:8888",
-      path = "/ws",
-      protocols = @["proto"],
-    )
+    let session = await connectClient(
+      address = address)
 
     await session.send(testData)
     await session.close(reason = closeReason)
@@ -162,24 +147,20 @@ suite "UTF-8 validator in action":
   test "invalid UTF-8 sequence":
     let testData = "hello world\xc0\xaf"
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path == "/ws"
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       await ws.send(testData)
       await waitForClose(ws)
 
-    server = HttpServer.create(
-      address,
-      handle,
+    server = createServer(
+      address = address,
+      handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
-    let session = await WebSocket.connect(
-      "127.0.0.1:8888",
-      path = "/ws",
-      protocols = @["proto"]
-    )
+    let session = await connectClient(
+      address = address)
 
     expect WSInvalidUTF8:
       let data = await session.recv()
@@ -187,24 +168,22 @@ suite "UTF-8 validator in action":
   test "invalid UTF-8 sequence close code":
     let closeReason = "i want to close\xc0\xaf"
     proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path == "/ws"
+      check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       await ws.close(reason = closeReason)
       await waitForClose(ws)
 
-    server = HttpServer.create(
-      address,
-      handle,
+    server = createServer(
+      address = address,
+      handler = handle,
       flags = {ReuseAddr})
-    server.start()
 
-    let session = await WebSocket.connect(
-      "127.0.0.1:8888",
-      path = "/ws",
-      protocols = @["proto"]
-    )
+    let session = await connectClient(
+      address = address)
 
     expect WSInvalidUTF8:
       let data = await session.recv()
+
+# End
