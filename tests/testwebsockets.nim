@@ -951,3 +951,61 @@ suite "Test Binary message with Payload":
     check:
       echoed == testData
       ws.binary == true
+
+suite "Partial frames":
+  teardown:
+    server.stop()
+    await server.closeWait()
+
+  proc lowLevelRecv(
+    senderFrameSize, receiverFrameSize, readChunkSize: int) {.async.} =
+
+    const
+      howMuchWood = "How much wood could a wood chuck chuck ..."
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let
+        server = WSServer.new(frameSize = receiverFrameSize)
+        ws = await server.handleRequest(request)
+
+      var
+        res = newSeq[byte](howMuchWood.len)
+        pos = 0
+
+      while ws.readyState != ReadyState.Closed:
+        let read = await ws.recv(addr res[pos], min(res.len - pos, readChunkSize))
+        pos += read
+
+        if pos >= res.len:
+          break
+
+      res.setlen(pos)
+      check res.len == howMuchWood.toBytes().len
+      check res == howMuchWood.toBytes()
+      await ws.waitForClose()
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let session = await connectClient(
+      address = address,
+      frameSize = senderFrameSize)
+
+    await session.send(howMuchWood)
+    await session.close()
+
+  test "read in chunks less than sender frameSize":
+    await lowLevelRecv(7, 7, 5)
+
+  test "read in chunks greater than sender frameSize":
+    await lowLevelRecv(3, 7, 5)
+
+  test "sender frameSize greater than receiver":
+    await lowLevelRecv(7, 5, 5)
+
+  test "receiver frameSize greater than sender":
+    await lowLevelRecv(7, 10, 5)
