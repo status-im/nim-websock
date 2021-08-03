@@ -28,7 +28,7 @@ proc handle(request: HttpRequest) {.async.} =
 
     trace "Websocket handshake completed"
     while ws.readyState != ReadyState.Closed:
-      let recvData = await ws.recv()
+      let recvData = await ws.recvMsg()
       trace "Client Response: ", size = recvData.len, binary = ws.binary
 
       if ws.readyState == ReadyState.Closed:
