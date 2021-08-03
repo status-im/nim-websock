@@ -19,19 +19,10 @@ logScope:
   topics = "websock ws-session"
 
 proc updateReadMode(ws: WSSession): bool =
-  ## This helper function sets text/binary mode for the current frame.
+  ## This helper function sets text/binary mode for the first frame and
+  ## verifies consistency for others.
   ##
-  ## Processing frames might imply a read mode switch. This is typically so
-  ## for the very first frame in binary mode when `ws.binary` has initial
-  ## value.
-  ##
-  ## This function allows to switch from `binary` to `text` mode (aka utf8)
-  ## but not the other way round unless explicitely enabled by setting
-  ## `ws.textSwitchOk` to `true`. Here `text` mode is seen as the more
-  ## restrictive one. Locking `text` mode allows to process the final read
-  ## mode when all of the frame sequence was read after the last frame.
-  ##
-  ## Return value `false` indicates unconfirmed mode switch `text` => `binary`
+  ## Return value `false` indicates unconfirmed mode switch `text` <=> `binary`
 
   if not ws.frame.isNil:
     # Very first frame, take encoding at face value.
@@ -39,15 +30,12 @@ proc updateReadMode(ws: WSSession): bool =
       ws.binary = ws.frame.opcode != Opcode.Text
       ws.seen = true
 
-    # Accept mode switch from binary => text
+    # Illegal mode switch
     elif ws.binary and ws.frame.opcode == Opcode.Text:
-      ws.binary = false
-
-    # Beware of a mode switch from text => binary
+      return false
     elif not ws.binary and ws.frame.opcode == Opcode.Binary:
-      trace "Read mode changed from text to binary"
-      if not ws.textSwitchOk:
-        return false
+      return false
+
   true
 
 proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
@@ -212,10 +200,6 @@ proc handleClose*(
     # remaining payload bytes are reason for closing
     reason = string.fromBytes(payLoad[2..payLoad.high])
 
-    if not ws.binary and validateUTF8(reason) == false:
-      raise newException(WSInvalidUTF8,
-        "Invalid UTF8 sequence detected in close reason")
-
   trace "Handling close message", code = ord(code), reason
   if not isNil(ws.onClose):
     try:
@@ -341,17 +325,9 @@ proc recv*(
   ## up to ``size`` bytes, note that we do break
   ## at message boundaries (``fin`` flag set).
   ##
-  ## Processing frames, this function allows to switch from `binary` to `text`
-  ## mode (aka utf8) but not the other way round. It allows to process the
-  ## final read mode only when all of the frame sequence was read after the
-  ## very last frame. The `text` mode is seen to be more restrictive than
-  ## `binary` mode. Note that RFC 6455 requires that all frames in a message
-  ## are of the same type.
-  ##
-  ## If the frame data types change from `text` to `binary`, a
-  ## `WSOpcodeMismatchError` exception is thrown unless the `ws` descriptor
-  ## flag `ws.textSwitchOk` was set `true` in which case this data type change
-  ## is accepted.
+  ## Processing frames, this function verifies that all message
+  ## frames have the same type binary, or utf8. Otherwise an
+  ## exception `WSOpcodeMismatchError` is thrown.
   ##
   ## Use this to stream data from frames
   ##
@@ -359,7 +335,6 @@ proc recv*(
   var consumed = 0
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
-    #var first = true
     if not isNil(ws.frame):
       if ws.frame.fin and ws.frame.remainder > 0:
         trace "Continue reading from the same frame"
@@ -376,11 +351,8 @@ proc recv*(
 
     if isNil(ws.frame):
       ws.frame = await ws.readFrame(ws.extensions)
-      # Note: The `ws.updateReadMode` directive replaces the functionality
-      #       of the `first` variable handling.
       if not ws.updateReadMode:
-        raise newException(
-          WSOpcodeMismatchError, "Opcode switch text to binary")
+        raise newException(WSOpcodeMismatchError, "Text/binary mode switch")
 
     while consumed < size:
       if isNil(ws.frame):
@@ -394,27 +366,6 @@ proc recv*(
         remainder = ws.frame.remainder
         opcode = ws.frame.opcode
         masked = ws.frame.mask
-
-      # The code below is left commented out for informational purposes, only.
-      #
-      # As it seems, the condition of the first `if` clause below is
-      # frequently violated when re-entering the `recv()` function when the
-      # read buffer data `size` is smaller than the frame size. And this
-      # leads to an unwanted exception.
-      #
-      # The functionality of the second `if` clause is re-implemented with
-      # the `readFrame()` directives rifht before the `while` loop and at
-      # the bottom of the while loop.
-      #[
-      if first == (ws.frame.opcode == Opcode.Cont):
-        error "Opcode mismatch!"
-        raise newException(WSOpcodeMismatchError,
-          &"Opcode mismatch: first: {first}, opcode: {ws.frame.opcode}")
-
-      if first:
-        ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
-        trace "Setting binary flag"
-      ]#
 
       let len = min(ws.frame.remainder.int, size - consumed)
       if len > 0:
@@ -431,24 +382,15 @@ proc recv*(
       # all has been consumed from the frame
       # read the next frame
       if ws.frame.remainder <= 0:
-        #first = false
-
         if ws.frame.fin: # we're at the end of the message, break
           trace "Read all frames, breaking"
           ws.frame = nil
           break
 
         ws.frame = await ws.readFrame(ws.extensions)
-        # Note: The `ws.updateReadMode` directive replaces the functionality
-        #       of the `first` variable handling.
-        if not ws.updateReadMode:
-          raise newException(
-            WSOpcodeMismatchError, "Opcode switch text to binary")
 
-    # The next `if` clause is earmarked to go away. It is currently needed to
-    # make some unit tests work.
-    if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
-      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
+        if not ws.updateReadMode:
+          raise newException(WSOpcodeMismatchError, "Text/binary mode switch")
 
   except CatchableError as exc:
     trace "Exception reading frames", exc = exc.msg
@@ -523,3 +465,109 @@ proc close*(
       discard await ws.recv()
   except CatchableError as exc:
     trace "Exception closing", exc = exc.msg
+
+
+proc recv2*(
+    ws: WSSession,
+    prequel: seq[byte],
+    size = WSMaxMessageSize): Future[(seq[byte],seq[byte])] {.async.} =
+  ## Low level utf8-aware read utility based and not unlike `recv()`. The
+  ## function will return a bait of byte sequences
+  ## ::
+  ##    (vetted,remainder)
+  ##
+  ## where the full result is `vetted & remainder` with `vetted` being the
+  ## validated prefix of the message and `remainder` some rest that could not
+  ## be validated.
+  ##
+  ## For a binary message, this sequence pair collapses into the trivial case
+  ## with the `remainder` always the empty sequence `@[]`.
+  ##
+  ## For utf8 messages, the `vetted` sequence contains complete utf8 encoded
+  ## code points and the `remainder` something that is no code point. Typically,
+  ## the `ramainder` would contain a partial code point broken up across the
+  ## input read size boundary.
+  ##
+  ## There are only binary or utf8 massages supported but the scheme could be
+  ## extended with an ameded RFC 6455 or a supersession.
+  ##
+  ## The argument `prequel` is is used to preload the input buffer. Subsequent
+  ## message data is appended. So the full result `vetted & remainder` will
+  ## have `prequel` as leading sub-sequence, i.e.
+  ## ::
+  ##    (vetted & remainder)[0 ..< prequel.len] == prequel
+  ##
+  ## The argument `size` limits the length of the returned sequence, i.e.
+  ## ::
+  ##    (vetted & remainder).len <= size
+  ##
+  ## The intended use of this low level function is to be able to code
+  ## something for utf8 messages, and binaries alike:
+  ## ::
+  ##    var message, vetted, remainder: seq[byte]
+  ##    while ws.readystate != ReadyState.Closed:
+  ##      (vetted, remainder) = await ws.recv(prequel = remainder, size = 7)
+  ##      message.add vetted
+  ##      ...
+  ##
+  var
+    res = prequel
+    rdPos = prequel.len     # append position for buffer `res`
+
+  # Preallocate buffer to be appended to after `prequel`
+  res.setLen(rdPos + min(size, ws.frameSize))
+
+  while ws.readyState != ReadyState.Closed:
+    let read = await ws.recv(addr res[rdPos], res.len - rdPos)
+
+    trace "Read message", size = read
+    rdPos += read
+
+    # Stop receiving if max size reached
+    if size <= read:
+      break
+
+    # Stop if there are no more frames
+    if ws.frame.isNil:
+      break
+
+    # Stop if entire message was received
+    if ws.frame.fin and ws.frame.remainder <= 0:
+      trace "Read full message, breaking!"
+      break
+
+  if ws.binary:
+    # Trim buffer to the size used
+    res.setLen(rdPos)
+    return (res, @[])
+
+  # Split buffer in utf8 validated part and some remainder
+  let
+    valid = res.toOpenArray(0, rdPos - 1).utf8Prequel
+    tail = res[valid ..< rdPos]
+  res.setLen(valid)
+
+  return (res, tail)
+
+
+proc recv2*(
+    ws: WSSession,
+    size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+  ## This function is the equivalent of `recv()` with utf8 verification if
+  ## applicable, It is fully equivalent to `recv()` for binaries.
+  ##
+  ##
+  ##
+  let (vetted, tail) = await ws.recv2(prequel = @[], size = size)
+
+  if tail.len != 0:
+    raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
+
+  if ws.readyState != ReadyState.Closed:
+    var c: byte
+    if 0 < await ws.recv(addr c, 1):
+      raise newException(WSMaxMessageSizeError, "Max message size exceeded")
+
+  return vetted
+
+# End

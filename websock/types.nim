@@ -81,7 +81,6 @@ type
     readyState*: ReadyState
     masked*: bool # send masked packets
     binary*: bool # is payload binary?
-    textSwitchOk*: bool # allow switch from text => bin between frames
     flags*: set[TLSFlags]
     rng*: Rng
     frameSize*: int

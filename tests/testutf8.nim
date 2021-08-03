@@ -76,12 +76,12 @@ suite "UTF-8 DFA validator":
       validateUTF8("foob\xc3\xa6r")
       validateUTF8("foob\xf0\x9f\x99\x88r")
 
-suite "UTF-8 validator in action":
+suite "UTF-8 validator in action recv() vs. recv2()":
   teardown:
     server.stop()
     await server.closeWait()
 
-  test "valid UTF-8 sequence":
+  test "recv2() accept valid UTF-8 sequence":
     let testData = "hello world"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -89,7 +89,7 @@ suite "UTF-8 validator in action":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
-      let res = await ws.recv()
+      let res = await ws.recv2()
       check:
         string.fromBytes(res) == testData
         ws.binary == false
@@ -107,7 +107,7 @@ suite "UTF-8 validator in action":
     await session.send(testData)
     await session.close()
 
-  test "valid UTF-8 sequence in close reason":
+  test "recv2() accept valid UTF-8 sequence in close reason":
     let testData = "hello world"
     let closeReason = "i want to close"
     proc handle(request: HttpRequest) {.async.} =
@@ -124,7 +124,7 @@ suite "UTF-8 validator in action":
 
       let server = WSServer.new(protos = ["proto"], onClose = onClose)
       let ws = await server.handleRequest(request)
-      let res = await ws.recv()
+      let res = await ws.recv2()
       await waitForClose(ws)
 
       check:
@@ -144,7 +144,7 @@ suite "UTF-8 validator in action":
     await session.send(testData)
     await session.close(reason = closeReason)
 
-  test "invalid UTF-8 sequence":
+  test "recv2() reject invalid UTF-8 sequence":
     let testData = "hello world\xc0\xaf"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -163,16 +163,16 @@ suite "UTF-8 validator in action":
       address = address)
 
     expect WSInvalidUTF8:
-      let data = await session.recv()
+      discard await session.recv2()
 
-  test "invalid UTF-8 sequence close code":
-    let closeReason = "i want to close\xc0\xaf"
+  test "recv() accept invalid UTF-8 sequence":
+    let testData = "hello world\xc0\xaf"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      await ws.close(reason = closeReason)
+      await ws.send(testData)
       await waitForClose(ws)
 
     server = createServer(
@@ -183,7 +183,152 @@ suite "UTF-8 validator in action":
     let session = await connectClient(
       address = address)
 
-    expect WSInvalidUTF8:
-      let data = await session.recv()
+    discard await session.recv()
+
+  test "recv2() oblivious of invalid UTF-8 sequence close code":
+    let closeReason = "i want to close\xc0\xaf"
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let ws = await WSServer.new.handleRequest(request)
+      await ws.close(
+        reason = closeReason)
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let session = await connectClient(
+      address = address)
+
+    let data = await session.recv2()
+    check data == newSeq[byte](0)
+
+  test "detect invalid UTF-8 sequence close code":
+    let closeReason = "i want to close\xc0\xaf"
+    const CloseStatus = StatusCodes(4444)
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      # Send invalid utf8 reason code
+      let ws = await WSServer.new.handleRequest(request)
+      await ws.close(
+        code = CloseStatus,
+        reason = closeReason)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    # Catch reason code throug closure variables
+    var
+      onCloseStatus: StatusCodes  # this one is for completeness, only
+      onCloseReason: string       # this is the one of interested
+
+    let client = await connectClient(
+      address = address,
+      onClose = proc(status: StatusCodes, reason: string): CloseResult =
+                    onCloseStatus = status
+                    onCloseReason = reason)
+
+    let data = await client.recv()
+    await client.waitForClose
+
+    check client.readyState == ReadyState.Closed
+    check client.binary == false
+    check onCloseStatus == CloseStatus
+    check onCloseReason == closeReason
+
+    # Reason code not accessible with recv()/recv2()
+    check data == newSeq[byte](0)
+
+    # This one verifies the reason code
+    check onCloseReason.validateUTF8 == false
+
+  test "recv2() sequence pairs, frame boundary inside UTF-8 code point":
+    const
+      validUtf8Text = "12345\xF4\x8F\xBF\xBF12345xxxxx"
+
+      # Frame size to be used for this test
+      frameSize = 7
+
+      # Fetching data using buffers of this size, making it smaller than
+      # `frameSize` gives an extra challenge
+      chunkLen = frameSize - 2
+
+      # FIXME: for some reason, the data must be a multiple of the `frameSize`
+      #        otherwise the system crashes, most probably in the server
+      #        === needs further investigation?
+      dataLen = frameSize * (validUtf8Text.len div frameSize)
+      testData = validUtf8Text[0 ..< datalen]
+
+    # Make sure that the `frameSize` is in the middle of a code point.
+    check frameSize < testData.len
+    check 127.char < testData[frameSize - 1] and 127.char < testData[frameSize]
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+      let
+        server = WSServer.new()
+        ws = await server.handleRequest(request)
+
+      var res, vetted, tail: seq[byte]
+      while ws.readystate != ReadyState.Closed:
+        (vetted, tail) = await ws.recv2(prequel = tail, size = frameSize)
+        res.add vetted
+
+      check string.fromBytes(res) == testData
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let client = await connectClient(
+      address = address,
+      frameSize = frameSize)
+
+    await client.send(testData)
+    await client.close
+
+  test "recv2() rejects utf8 text chunk w/boundary inside UTF-8 code point":
+    const
+      validUtf8Text = "12345\xF4\x8F\xBF\xBF12345xxxxx"
+      frameSize = 8
+      chunkLen = frameSize - 1
+      dataLen = frameSize * (validUtf8Text.len div frameSize)
+      testData = validUtf8Text[0 ..< datalen]
+
+    # Make sure that the `frameSize` is in the middle of a code point.
+    check frameSize < testData.len
+    check 127.char < testData[frameSize - 1] and 127.char < testData[frameSize]
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let ws = await WSServer.new.handleRequest(request)
+      var rejectedOk = false
+      try:
+        let res = await ws.recv2(size = chunkLen)
+      except WSInvalidUTF8:
+        rejectedOk = true
+
+      check rejectedOk == true
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let client = await connectClient(
+      address = address,
+      frameSize = frameSize)
+
+    await client.send(testData)
+    await client.close
 
 # End
