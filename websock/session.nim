@@ -315,23 +315,9 @@ proc recv*(
   var consumed = 0
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
-    var first = true
-    if not isNil(ws.frame):
-      if ws.frame.fin and ws.frame.remainder > 0:
-        trace "Continue reading from the same frame"
-        first = true
-      elif not ws.frame.fin and ws.frame.remainder > 0:
-        trace "Restarting reads in the middle of a frame in a multiframe message"
-        first = false
-      elif ws.frame.fin and ws.frame.remainder <= 0:
-        trace "Resetting an already consumed frame"
-        ws.frame = nil
-      elif not ws.frame.fin and ws.frame.remainder <= 0:
-        trace "No more bytes left and message EOF, resetting frame"
-        ws.frame = nil
-
     if isNil(ws.frame):
       ws.frame = await ws.readFrame(ws.extensions)
+      ws.first = true
 
     while consumed < size:
       if isNil(ws.frame):
@@ -339,7 +325,7 @@ proc recv*(
         break
 
       logScope:
-        first = first
+        first = ws.first
         fin = ws.frame.fin
         len = ws.frame.length
         consumed = ws.frame.consumed
@@ -347,12 +333,12 @@ proc recv*(
         opcode = ws.frame.opcode
         masked = ws.frame.mask
 
-      if first == (ws.frame.opcode == Opcode.Cont):
+      if ws.first == (ws.frame.opcode == Opcode.Cont):
         error "Opcode mismatch!"
         raise newException(WSOpcodeMismatchError,
-          &"Opcode mismatch: first: {first}, opcode: {ws.frame.opcode}")
+          &"Opcode mismatch: first: {ws.first}, opcode: {ws.frame.opcode}")
 
-      if first:
+      if ws.first:
         ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
         trace "Setting binary flag"
 
@@ -370,18 +356,15 @@ proc recv*(
       # all has been consumed from the frame
       # read the next frame
       if ws.frame.remainder <= 0:
-        first = false
+        ws.first = false
 
         if ws.frame.fin: # we're at the end of the message, break
           trace "Read all frames, breaking"
           ws.frame = nil
           break
 
+        # read next frame
         ws.frame = await ws.readFrame(ws.extensions)
-
-    if not ws.binary and validateUTF8(pbuffer.toOpenArray(0, consumed - 1)) == false:
-      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
-
   except CatchableError as exc:
     trace "Exception reading frames", exc = exc.msg
     ws.readyState = ReadyState.Closed
@@ -396,42 +379,58 @@ proc recv*(
 
   return consumed
 
-proc recv*(
+proc recvMsg*(
   ws: WSSession,
   size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
   ## Attempt to read a full message up to max `size`
   ## bytes in `frameSize` chunks.
   ##
-  ## If no `fin` flag arrives await until either
-  ## cancelled or the `fin` flag arrives.
+  ## If no `fin` flag arrives await until cancelled or
+  ## closed.
   ##
   ## If message is larger than `size` a `WSMaxMessageSizeError`
   ## exception is thrown.
   ##
   ## In all other cases it awaits a full message.
   ##
-  var res: seq[byte]
-  while ws.readyState != ReadyState.Closed:
-    var buf = newSeq[byte](min(size, ws.frameSize))
-    let read = await ws.recv(addr buf[0], buf.len)
+  try:
+    var res: seq[byte]
+    while ws.readyState != ReadyState.Closed:
+      var buf = newSeq[byte](min(size, ws.frameSize))
+      let read = await ws.recv(addr buf[0], buf.len)
 
-    buf.setLen(read)
-    if res.len + buf.len > size:
-      raise newException(WSMaxMessageSizeError, "Max message size exceeded")
+      buf.setLen(read)
+      if res.len + buf.len > size:
+        raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
-    trace "Read message", size = read
-    res.add(buf)
+      trace "Read message", size = read
+      res.add(buf)
 
-    # no more frames
-    if isNil(ws.frame):
-      break
+      # no more frames
+      if isNil(ws.frame):
+        break
 
-    # read the entire message, exit
-    if ws.frame.fin and ws.frame.remainder <= 0:
-      trace "Read full message, breaking!"
-      break
+      # read the entire message, exit
+      if ws.frame.fin and ws.frame.remainder <= 0:
+        trace "Read full message, breaking!"
+        break
 
-  return res
+    if not ws.binary and validateUTF8(res.toOpenArray(0, res.high)) == false:
+      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
+
+    return res
+  except CatchableError as exc:
+    trace "Exception reading message", exc = exc.msg
+    ws.readyState = ReadyState.Closed
+    await ws.stream.closeWait()
+
+    raise exc
+
+proc recv*(
+  ws: WSSession,
+  size = WSMaxMessageSize): Future[seq[byte]]
+  {.deprecated: "deprecated in favor of recvMsg()".} =
+  ws.recvMsg(size)
 
 proc close*(
   ws: WSSession,
@@ -451,6 +450,6 @@ proc close*(
 
     # read frames until closed
     while ws.readyState != ReadyState.Closed:
-      discard await ws.recv()
+      discard await ws.recvMsg()
   except CatchableError as exc:
     trace "Exception closing", exc = exc.msg

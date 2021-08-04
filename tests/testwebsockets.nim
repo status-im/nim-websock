@@ -109,7 +109,7 @@ suite "Test transmission":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
+      let servRes = await ws.recvMsg()
 
       check string.fromBytes(servRes) == testString
       await ws.waitForClose()
@@ -129,7 +129,7 @@ suite "Test transmission":
       check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
+      let servRes = await ws.recvMsg()
       check string.fromBytes(servRes) == testString
       await ws.waitForClose()
 
@@ -158,7 +158,7 @@ suite "Test transmission":
       flags = {ReuseAddr})
 
     let session = await connectClient()
-    var clientRes = await session.recv()
+    var clientRes = await session.recvMsg()
     check string.fromBytes(clientRes) == testString
     await waitForClose(session)
 
@@ -265,7 +265,7 @@ suite "Test ping-pong":
       let ws = await server.handleRequest(request)
 
       expect WSPayloadTooLarge:
-        discard await ws.recv()
+        discard await ws.recvMsg()
 
       await waitForClose(ws)
 
@@ -334,7 +334,7 @@ suite "Test framing":
     let session = await connectClient()
 
     expect WSMaxMessageSizeError:
-      discard await session.recv(5)
+      discard await session.recvMsg(5)
     await waitForClose(session)
 
 suite "Test Closing":
@@ -575,7 +575,7 @@ suite "Test Payload":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
+      let servRes = await ws.recvMsg()
 
       check:
         servRes.len == 0
@@ -591,7 +591,7 @@ suite "Test Payload":
 
     let session = await connectClient()
     await session.send(emptyStr)
-    let clientRes = await session.recv()
+    let clientRes = await session.recvMsg()
 
     check:
       clientRes.len == 0
@@ -607,7 +607,7 @@ suite "Test Payload":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
       for _ in 0..<3:
-        let servRes = await ws.recv()
+        let servRes = await ws.recvMsg()
 
         check:
           servRes.len == 0
@@ -629,7 +629,7 @@ suite "Test Payload":
       await session.send(emptyStr)
 
     for _ in 0..<3:
-      let clientRes = await session.recv()
+      let clientRes = await session.recvMsg()
 
       check:
         clientRes.len == 0
@@ -648,7 +648,7 @@ suite "Test Payload":
       let server = WSServer.new(protos = ["proto"])
 
       let ws = await server.handleRequest(request)
-      let respData = await ws.recv()
+      let respData = await ws.recvMsg()
 
       check:
         string.fromBytes(respData) == testString
@@ -706,7 +706,7 @@ suite "Test Payload":
         )
 
       let ws = await server.handleRequest(request)
-      let respData = await ws.recv()
+      let respData = await ws.recvMsg()
       check:
         string.fromBytes(respData)   == testString
 
@@ -764,7 +764,7 @@ suite "Test Payload":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let res = await ws.recv()
+      let res = await ws.recvMsg()
 
       check ws.binary == false
       await ws.send(res, Opcode.Text)
@@ -781,7 +781,7 @@ suite "Test Payload":
     )
 
     await ws.send(testData)
-    let echoed = await ws.recv()
+    let echoed = await ws.recvMsg()
     await ws.close()
 
     check:
@@ -800,7 +800,7 @@ suite "Test Binary message with Payload":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let servRes = await ws.recv()
+      let servRes = await ws.recvMsg()
 
       check:
         servRes == emptyData
@@ -825,7 +825,7 @@ suite "Test Binary message with Payload":
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
 
-      let servRes = await ws.recv()
+      let servRes = await ws.recvMsg()
 
       check:
         servRes == emptyData
@@ -858,7 +858,7 @@ suite "Test Binary message with Payload":
       )
       let ws = await server.handleRequest(request)
 
-      let res = await ws.recv()
+      let res = await ws.recvMsg()
       check:
         res == testData
         ws.binary == true
@@ -892,7 +892,7 @@ suite "Test Binary message with Payload":
       )
       let ws = await server.handleRequest(request)
 
-      let res = await ws.recv()
+      let res = await ws.recvMsg()
       check:
         res == testData
         ws.binary == true
@@ -921,7 +921,7 @@ suite "Test Binary message with Payload":
 
       let server = WSServer.new(protos = ["proto"])
       let ws = await server.handleRequest(request)
-      let res = await ws.recv()
+      let res = await ws.recvMsg()
 
       check:
         ws.binary == true
@@ -941,7 +941,7 @@ suite "Test Binary message with Payload":
     )
 
     await ws.send(testData, Opcode.Binary)
-    let echoed = await ws.recv()
+    let echoed = await ws.recvMsg()
 
     check:
       echoed == testData
@@ -951,3 +951,61 @@ suite "Test Binary message with Payload":
     check:
       echoed == testData
       ws.binary == true
+
+suite "Partial frames":
+  teardown:
+    server.stop()
+    await server.closeWait()
+
+  proc lowLevelRecv(
+    senderFrameSize, receiverFrameSize, readChunkSize: int) {.async.} =
+
+    const
+      howMuchWood = "How much wood could a wood chuck chuck ..."
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let
+        server = WSServer.new(frameSize = receiverFrameSize)
+        ws = await server.handleRequest(request)
+
+      var
+        res = newSeq[byte](howMuchWood.len)
+        pos = 0
+
+      while ws.readyState != ReadyState.Closed:
+        let read = await ws.recv(addr res[pos], min(res.len - pos, readChunkSize))
+        pos += read
+
+        if pos >= res.len:
+          break
+
+      res.setlen(pos)
+      check res.len == howMuchWood.toBytes().len
+      check res == howMuchWood.toBytes()
+      await ws.waitForClose()
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let session = await connectClient(
+      address = address,
+      frameSize = senderFrameSize)
+
+    await session.send(howMuchWood)
+    await session.close()
+
+  test "read in chunks less than sender frameSize":
+    await lowLevelRecv(7, 7, 5)
+
+  test "read in chunks greater than sender frameSize":
+    await lowLevelRecv(3, 7, 5)
+
+  test "sender frameSize greater than receiver":
+    await lowLevelRecv(7, 5, 5)
+
+  test "receiver frameSize greater than sender":
+    await lowLevelRecv(7, 10, 5)

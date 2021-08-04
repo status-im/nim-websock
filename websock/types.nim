@@ -79,11 +79,11 @@ type
     version*: uint
     key*: string
     readyState*: ReadyState
-    masked*: bool # send masked packets
-    binary*: bool # is payload binary?
+    masked*: bool             # send masked packets
+    binary*: bool             # is payload binary?
     flags*: set[TLSFlags]
     rng*: Rng
-    frameSize*: int
+    frameSize*: int           # max frame buffer size
     onPing*: ControlCb
     onPong*: ControlCb
     onClose*: CloseCb
@@ -91,6 +91,7 @@ type
   WSSession* = ref object of WebSocket
     stream*: AsyncStream
     frame*: Frame
+    first*: bool
     proto*: string
 
   Ext* = ref object of RootObj
