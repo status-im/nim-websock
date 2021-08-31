@@ -190,7 +190,12 @@ proc accept*(server: HttpServer): Future[HttpRequest]
       writer: newAsyncStreamWriter(transp))
 
   trace "Got new request", isTls = server.secure
-  return await server.parseRequest(stream)
+  try:
+    return await server.parseRequest(stream)
+  except CatchableError as exc:
+    await stream.closeWait()
+    raise exc
+
 
 proc create*(
   _: typedesc[HttpServer],
