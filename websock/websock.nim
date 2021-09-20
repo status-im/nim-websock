@@ -122,9 +122,10 @@ proc connect*(
   let
     rng = if isNil(rng): newRng() else: rng
     key = Base64Pad.encode(genWebSecKey(rng))
+    hostname = if hostName.len > 0: hostName else: $host
 
   let client = if secure:
-      await TlsHttpClient.connect(host, tlsFlags = flags)
+      await TlsHttpClient.connect(host, tlsFlags = flags, hostName = hostname)
     else:
       await HttpClient.connect(host)
 
@@ -134,7 +135,7 @@ proc connect*(
     ("Cache-Control", "no-cache"),
     ("Sec-WebSocket-Version", $version),
     ("Sec-WebSocket-Key", key),
-    ("Host", if hostName.len > 0: hostName else: $host)]
+    ("Host", hostname)]
 
   var headers = HttpTable.init(headerData)
   if protocols.len > 0:
