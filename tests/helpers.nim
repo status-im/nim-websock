@@ -14,8 +14,7 @@ import pkg/[
   chronos,
   chronos/streams/tlsstream,
   httputils,
-  chronicles,
-  stew/byteutils]
+  chronicles]
 
 import ../websock/websock
 import ./keys
