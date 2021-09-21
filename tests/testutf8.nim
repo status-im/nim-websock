@@ -11,7 +11,7 @@ import
   std/[strutils],
   pkg/[
     stew/byteutils,
-    asynctest,
+    asynctest/unittest2,
     chronos,
     chronicles
   ],
@@ -78,12 +78,11 @@ proc waitForClose(ws: WSSession) {.async.} =
   except CatchableError:
     trace "Closing websocket"
 
-# TODO: use new test framework from dryajov
-# if it is ready.
-var server: HttpServer
-let address = initTAddress("127.0.0.1:8888")
-
 suite "UTF-8 validator in action":
+
+  var server: HttpServer
+  let address = initTAddress("127.0.0.1:8888")
+
   teardown:
     server.stop()
     await server.closeWait()

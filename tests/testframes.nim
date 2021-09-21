@@ -7,16 +7,18 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/[asynctest, stew/byteutils]
+import pkg/stew/byteutils
+import pkg/asynctest/unittest2
 
 include ../websock/frame
 include ../websock/utils
 
 # TODO: Fix Test.
 
-var maskKey: array[4, char]
-
 suite "Test data frames":
+
+  var maskKey: array[4, char]
+
   test "# 7bit length text":
     check (await Frame(
       fin: false,
@@ -251,6 +253,8 @@ suite "Test data frames":
     check data == toBytes("\129\136\207\216\5e\167\177%\17\167\189w\0")
 
 suite "Test control frames":
+
+  var maskKey: array[4, char]
 
   test "Close":
     check (await Frame(

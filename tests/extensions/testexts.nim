@@ -8,7 +8,7 @@
 ## those terms.
 
 import pkg/[chronos, stew/byteutils]
-import ../asyncunit
+import pkg/asynctest/unittest2
 import ./base64ext, ./hexext
 import ../../websock/websock, ../helpers
 

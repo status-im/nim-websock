@@ -9,7 +9,7 @@
 
 import std/os
 import pkg/[chronos, stew/byteutils, stew/io2]
-import ../asyncunit
+import pkg/asynctest/unittest2
 import ../../websock/websock, ../helpers
 import ../../websock/extensions/compression/deflate
 

@@ -9,9 +9,9 @@
 
 import std/strutils
 import pkg/[chronos, stew/byteutils]
+import pkg/asynctest/unittest2
 
 import ../../ws/ws
-import ../asyncunit
 
 type
   ExtHandler = proc(ext: Ext, frame: Frame): Future[Frame] {.raises: [Defect].}
