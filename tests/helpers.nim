@@ -69,7 +69,7 @@ proc createServer*(
         except TransportOsError as exc:
           error "Transport error", exc = exc.msg
 
-      asyncCheck accepts()
+      asyncSpawn accepts()
     else:
       server.handler = handler
       server.start()
