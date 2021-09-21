@@ -19,10 +19,6 @@ import pkg/[
 import ../websock/websock
 import ./keys
 
-let
-  WSSecureKey* = TLSPrivateKey.init(SecureKey)
-  WSSecureCert* = TLSCertificate.init(SecureCert)
-
 const WSPath* = when defined secure: "/wss" else: "/ws"
 
 proc rndStr*(size: int): string =
@@ -42,8 +38,8 @@ proc waitForClose*(ws: WSSession) {.async.} =
 
 proc createServer*(
   address = initTAddress("127.0.0.1:8888"),
-  tlsPrivateKey = WSSecureKey,
-  tlsCertificate = WSSecureCert,
+  tlsPrivateKey = TLSPrivateKey.init(SecureKey),
+  tlsCertificate = TLSCertificate.init(SecureCert),
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr},
   tlsFlags: set[TLSFlags] = {},
