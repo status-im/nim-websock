@@ -8,9 +8,9 @@
 ## those terms.
 
 import std/os
-import pkg/[chronos, stew/byteutils, stew/io2]
-import ../asyncunit
-import ../../websock/websock, ../helpers
+import pkg/[chronos, stew/io2]
+import pkg/asynctest/unittest2
+import ../../websock/websock
 import ../../websock/extensions/compression/deflate
 
 const

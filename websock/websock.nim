@@ -13,8 +13,7 @@ import std/[tables,
             strutils,
             strformat,
             sequtils,
-            uri,
-            parseutils]
+            uri]
 
 import pkg/[chronos,
             chronos/apps/http/httptable,

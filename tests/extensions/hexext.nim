@@ -8,7 +8,6 @@
 ## those terms.
 
 import
-  std/[strutils],
   pkg/[stew/results,
     stew/byteutils,
     chronos,

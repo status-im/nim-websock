@@ -14,15 +14,10 @@ import pkg/[
   chronos,
   chronos/streams/tlsstream,
   httputils,
-  chronicles,
-  stew/byteutils]
+  chronicles]
 
 import ../websock/websock
 import ./keys
-
-let
-  WSSecureKey* = TLSPrivateKey.init(SecureKey)
-  WSSecureCert* = TLSCertificate.init(SecureCert)
 
 const WSPath* = when defined secure: "/wss" else: "/ws"
 
@@ -43,8 +38,8 @@ proc waitForClose*(ws: WSSession) {.async.} =
 
 proc createServer*(
   address = initTAddress("127.0.0.1:8888"),
-  tlsPrivateKey = WSSecureKey,
-  tlsCertificate = WSSecureCert,
+  tlsPrivateKey = TLSPrivateKey.init(SecureKey),
+  tlsCertificate = TLSCertificate.init(SecureCert),
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr},
   tlsFlags: set[TLSFlags] = {},
@@ -74,7 +69,7 @@ proc createServer*(
         except TransportOsError as exc:
           error "Transport error", exc = exc.msg
 
-      asyncCheck accepts()
+      asyncSpawn accepts()
     else:
       server.handler = handler
       server.start()

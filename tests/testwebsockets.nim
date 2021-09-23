@@ -7,25 +7,25 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[strutils, random]
+import std/strutils
 import pkg/[
   httputils,
   chronos,
   chronicles,
-  stew/byteutils]
+  stew/byteutils,
+  asynctest/unittest2]
 
 import ../websock/websock
 
-import ./asynctest
 import ./helpers
 
-let
-  address* = initTAddress("127.0.0.1:8888")
-
-var
-  server: HttpServer
+let address = initTAddress("127.0.0.1:8888")
 
 suite "Test handshake":
+
+  var
+    server: HttpServer
+
   teardown:
     server.stop()
     await server.closeWait()
@@ -98,6 +98,9 @@ suite "Test handshake":
         protocols = @["proto"])
 
 suite "Test transmission":
+  var
+    server: HttpServer
+
   teardown:
     server.stop()
     await server.closeWait()
@@ -163,6 +166,10 @@ suite "Test transmission":
     await waitForClose(session)
 
 suite "Test ping-pong":
+
+  var
+    server: HttpServer
+
   teardown:
     server.stop()
     await server.closeWait()
@@ -280,6 +287,10 @@ suite "Test ping-pong":
     await session.close()
 
 suite "Test framing":
+
+  var
+    server: HttpServer
+
   teardown:
     server.stop()
     await server.closeWait()
@@ -338,6 +349,10 @@ suite "Test framing":
     await waitForClose(session)
 
 suite "Test Closing":
+
+  var
+    server: HttpServer
+
   teardown:
     server.stop()
     await server.closeWait()
@@ -564,6 +579,9 @@ suite "Test Closing":
     await session.close(reason = "HH")
 
 suite "Test Payload":
+  var
+    server: HttpServer
+
   teardown:
     server.stop()
     await server.closeWait()
@@ -789,6 +807,9 @@ suite "Test Payload":
       ws.binary == false
 
 suite "Test Binary message with Payload":
+  var
+    server: HttpServer
+
   teardown:
     server.stop()
     await server.closeWait()
@@ -953,6 +974,9 @@ suite "Test Binary message with Payload":
       ws.binary == true
 
 suite "Partial frames":
+  var
+    server: HttpServer
+
   teardown:
     server.stop()
     await server.closeWait()
