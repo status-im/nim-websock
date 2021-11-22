@@ -22,7 +22,7 @@ requires "stew >= 0.1.0"
 requires "asynctest >= 0.3.0 & < 0.4.0"
 requires "nimcrypto"
 requires "bearssl"
-requires "https://github.com/status-im/nim-zlib"
+requires "zlib"
 
 task test, "run tests":
   # dont't need to run it, only want to test if it is compileable
