@@ -162,7 +162,7 @@ proc handleTlsConnCb(
   finally:
     await stream.closeWait()
 
-proc accept*(server: HttpServer): Future[HttpRequest]
+proc accept*(server: HttpServer, timeout: Duration = 5.seconds): Future[HttpRequest]
   {.async, raises: [Defect, HttpError].} =
 
   if not isNil(server.handler):
@@ -191,9 +191,20 @@ proc accept*(server: HttpServer): Future[HttpRequest]
 
   trace "Got new request", isTls = server.secure
   try:
-    return await server.parseRequest(stream)
+    let parsedRequestfut = server.parseRequest(stream)
+    let res = await withTimeout(parsedRequestfut, timeout)
+    if not res:
+      # Timeout
+      raise newException(HttpError, "Didn't Parse request in time!")
+    else:
+      return parsedRequestfut.read()
+      
   except CatchableError as exc:
-    await stream.closeWait()
+    let closedStreamFut = stream.closeWait()
+    let res = await withTimeout(closedStreamFut, timeout)
+    if not res:
+      # Timeout
+      raise newException(HttpError, "Didn't close stream in time!")
     raise exc
 
 
