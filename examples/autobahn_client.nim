@@ -78,7 +78,7 @@ proc main() {.async.} =
     try:
       let ws = await connectServer(path, deflateFactory)
 
-      while ws.readystate != ReadyState.Closed:
+      while ws.readyState != ReadyState.Closed:
         # echo back
         let data = await ws.recvMsg()
         let opCode = if ws.binary:

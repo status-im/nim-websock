@@ -133,7 +133,7 @@ proc send*(
 proc handleClose*(
   ws: WSSession,
   frame: Frame,
-  payLoad: seq[byte] = @[]) {.async.} =
+  payload: seq[byte] = @[]) {.async.} =
   ## Handle close sequence
   ##
 
@@ -161,7 +161,7 @@ proc handleClose*(
       "Invalid close frame with payload length 1!")
   else:
     try:
-      code = StatusCodes(uint16.fromBytesBE(payLoad[0..<2]))
+      code = StatusCodes(uint16.fromBytesBE(payload[0..<2]))
     except RangeError:
       raise newException(WSInvalidCloseCodeError,
         "Status code out of range!")
@@ -178,7 +178,7 @@ proc handleClose*(
         &"Can't use reserved status code: {code}")
 
     # remaining payload bytes are reason for closing
-    reason = string.fromBytes(payLoad[2..payLoad.high])
+    reason = string.fromBytes(payload[2..payload.high])
 
     if not ws.binary and validateUTF8(reason) == false:
       raise newException(WSInvalidUTF8,
@@ -231,14 +231,14 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
     raise newException(WSPayloadTooLarge,
       "Control message payload is greater than 125 bytes!")
 
-  var payLoad = newSeq[byte](frame.length.int)
+  var payload = newSeq[byte](frame.length.int)
   if frame.length > 0:
-    payLoad.setLen(frame.length.int)
+    payload.setLen(frame.length.int)
     # Read control frame payload.
-    await ws.stream.reader.readExactly(addr payLoad[0], frame.length.int)
+    await ws.stream.reader.readExactly(addr payload[0], frame.length.int)
     if frame.mask:
       mask(
-        payLoad.toOpenArray(0, payLoad.high),
+        payload.toOpenArray(0, payload.high),
         frame.maskKey)
 
   # Process control frame payload.
@@ -246,20 +246,20 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
   of Opcode.Ping:
     if not isNil(ws.onPing):
       try:
-        ws.onPing(payLoad)
+        ws.onPing(payload)
       except CatchableError as exc:
         trace "Exception in Ping callback, this is most likely a bug", exc = exc.msg
 
     # send pong to remote
-    await ws.send(payLoad, Opcode.Pong)
+    await ws.send(payload, Opcode.Pong)
   of Opcode.Pong:
     if not isNil(ws.onPong):
       try:
-        ws.onPong(payLoad)
+        ws.onPong(payload)
       except CatchableError as exc:
         trace "Exception in Pong callback, this is most likely a bug", exc = exc.msg
   of Opcode.Close:
-    await ws.handleClose(frame, payLoad)
+    await ws.handleClose(frame, payload)
   else:
     raise newException(WSInvalidOpcodeError, "Invalid control opcode!")
 
