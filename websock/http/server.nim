@@ -29,6 +29,7 @@ type
 
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
+    handshakeTimeout*: Duration
     case secure*: bool:
     of true:
       tlsFlags*: set[TLSFlags]
@@ -162,7 +163,7 @@ proc handleTlsConnCb(
   finally:
     await stream.closeWait()
 
-proc accept*(server: HttpServer, timeout: Duration = 5.seconds): Future[HttpRequest]
+proc accept*(server: HttpServer): Future[HttpRequest]
   {.async, raises: [Defect, HttpError].} =
 
   if not isNil(server.handler):
@@ -192,7 +193,7 @@ proc accept*(server: HttpServer, timeout: Duration = 5.seconds): Future[HttpRequ
   trace "Got new request", isTls = server.secure
   try:
     let parsedRequestfut = server.parseRequest(stream)
-    let res = await withTimeout(parsedRequestfut, timeout)
+    let res = await withTimeout(parsedRequestfut, server.handshakeTimeout)
     if not res:
       # Timeout
       raise newException(HttpError, "Didn't Parse request in time!")
@@ -201,7 +202,7 @@ proc accept*(server: HttpServer, timeout: Duration = 5.seconds): Future[HttpRequ
       
   except CatchableError as exc:
     let closedStreamFut = stream.closeWait()
-    let res = await withTimeout(closedStreamFut, timeout)
+    let res = await withTimeout(closedStreamFut, server.handshakeTimeout)
     if not res:
       # Timeout
       raise newException(HttpError, "Didn't close stream in time!")
@@ -212,12 +213,15 @@ proc create*(
   _: typedesc[HttpServer],
   address: TransportAddress,
   handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {}): HttpServer
+  flags: set[ServerFlags] = {},
+  handshakeTimeout: Duration = 5.seconds): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 
-  var server = HttpServer(handler: handler)
+  var server = HttpServer(
+    handler: handler,
+    handshakeTimeout: handshakeTimeout)
   server = HttpServer(
     createStreamServer(
       address,
@@ -233,12 +237,13 @@ proc create*(
   _: typedesc[HttpServer],
   host: string,
   handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {}): HttpServer
+  flags: set[ServerFlags] = {},
+  handshakeTimeout: Duration = 5.seconds): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 
-  return HttpServer.create(initTAddress(host), handler, flags)
+  return HttpServer.create(initTAddress(host), handler, flags, handshakeTimeout)
 
 proc create*(
   _: typedesc[TlsHttpServer],
@@ -249,7 +254,8 @@ proc create*(
   flags: set[ServerFlags] = {},
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12): TlsHttpServer
+  tlsMaxVersion = TLSVersion.TLS12,
+  handshakeTimeout: Duration = 5.seconds): TlsHttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
 
   var server = TlsHttpServer(
@@ -258,7 +264,8 @@ proc create*(
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate,
     minVersion: tlsMinVersion,
-    maxVersion: tlsMaxVersion)
+    maxVersion: tlsMaxVersion,
+    handshakeTimeout: handshakeTimeout)
 
   server = TlsHttpServer(
     createStreamServer(
@@ -280,7 +287,8 @@ proc create*(
   flags: set[ServerFlags] = {},
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12): TlsHttpServer
+  tlsMaxVersion = TLSVersion.TLS12,
+  handshakeTimeout: Duration = 5.seconds): TlsHttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   TlsHttpServer.create(
     address = initTAddress(host),
@@ -288,4 +296,5 @@ proc create*(
     tlsPrivateKey = tlsPrivateKey,
     tlsCertificate = tlsCertificate,
     flags = flags,
-    tlsFlags = tlsFlags)
+    tlsFlags = tlsFlags,
+    handshakeTimeout = handshakeTimeout)
