@@ -73,7 +73,7 @@ suite "UTF-8 DFA validator":
 
 proc waitForClose(ws: WSSession) {.async.} =
   try:
-    while ws.readystate != ReadyState.Closed:
+    while ws.readyState != ReadyState.Closed:
       discard await ws.recvMsg()
   except CatchableError:
     trace "Closing websocket"

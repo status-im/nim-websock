@@ -19,7 +19,7 @@ type
 
   TokenKind = enum
     tkError
-    tkSemcol
+    tkSemCol
     tkComma
     tkEqual
     tkName
@@ -38,7 +38,7 @@ const
                 '[','{',']','}', ';',':','\'',',','<','.','>','/','?','|'}
   QCHAR = WHITES + LCHAR + SEPARATORS
 
-proc parseName[T: BChar](lex: var Lexer, data: openarray[T]) =
+proc parseName[T: BChar](lex: var Lexer, data: openArray[T]) =
   while lex.pos < data.len:
     let cc = data[lex.pos]
     if cc notin LCHAR:
@@ -46,7 +46,7 @@ proc parseName[T: BChar](lex: var Lexer, data: openarray[T]) =
     lex.token.add cc
     inc lex.pos
 
-proc parseQuoted[T: BChar](lex: var Lexer, data: openarray[T]) =
+proc parseQuoted[T: BChar](lex: var Lexer, data: openArray[T]) =
   while lex.pos < data.len:
     let cc = data[lex.pos]
     case cc:
@@ -70,7 +70,7 @@ proc parseQuoted[T: BChar](lex: var Lexer, data: openarray[T]) =
 
   lex.tok = tkError
 
-proc next[T: BChar](lex: var Lexer, data: openarray[T]) =
+proc next[T: BChar](lex: var Lexer, data: openArray[T]) =
   while lex.pos < data.len:
     if data[lex.pos] notin WHITES:
       break
@@ -85,7 +85,7 @@ proc next[T: BChar](lex: var Lexer, data: openarray[T]) =
   case c
   of ';':
     inc lex.pos
-    lex.tok = tkSemcol
+    lex.tok = tkSemCol
     return
   of ',':
     inc lex.pos
@@ -107,7 +107,7 @@ proc next[T: BChar](lex: var Lexer, data: openarray[T]) =
     lex.tok = tkError
     return
 
-proc parseExt*[T: BChar](data: openarray[T], output: var seq[AppExt]): bool =
+proc parseExt*[T: BChar](data: openArray[T], output: var seq[AppExt]): bool =
   var lex: Lexer
   var ext: AppExt
   lex.next(data)

@@ -147,7 +147,7 @@ proc handleTlsConnCb(
     maxVersion = tlsHttpServer.maxVersion,
     flags = tlsHttpServer.tlsFlags)
 
-  var stream: ASyncStream
+  var stream: AsyncStream
   try:
     stream = AsyncStream(
       reader: tlsStream.reader,
