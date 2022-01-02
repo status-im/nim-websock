@@ -26,7 +26,7 @@ requires "zlib"
 
 task test, "run tests":
   # dont't need to run it, only want to test if it is compileable
-  exec "nim c -c --verbosity:0 --hints:off -d:chronicles_log_level=TRACE -d:chronicles_sinks:json --styleCheck:usages --styleCheck:error ./tests/testcommon"
+  exec "nim c -c --verbosity:0 --hints:off --hint:Name:on -d:chronicles_log_level=TRACE -d:chronicles_sinks:json --styleCheck:usages --styleCheck:hint ./tests/testcommon"
 
   exec "nim --hints:off c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testcommon.nim"
   rmFile "./tests/testcommon"
