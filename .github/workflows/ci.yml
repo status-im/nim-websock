@@ -1,5 +1,10 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
 
 # we dont run compression extension
 # in regular CI because it is a
@@ -13,70 +18,45 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
-        branch: [v1.2.6]
         target:
           # Unit tests
           - os: linux
             cpu: amd64
-            TEST_KIND: unit-tests
           - os: linux
             cpu: i386
-            TEST_KIND: unit-tests
           - os: macos
             cpu: amd64
-            TEST_KIND: unit-tests
-          - os: windows
-            cpu: i386
-            TEST_KIND: unit-tests
           - os: windows
             cpu: amd64
-            TEST_KIND: unit-tests
+          #- os: windows
+            #cpu: i386
+        branch: [version-1-2, version-1-4, version-1-6, devel]
         include:
           - target:
               os: linux
-            builder: ubuntu-20.04
+            builder: ubuntu-18.04
+            shell: bash
           - target:
               os: macos
             builder: macos-10.15
+            shell: bash
           - target:
               os: windows
             builder: windows-2019
-    name: "${{ matrix.target.os }}-${{ matrix.target.cpu }} (${{ matrix.branch }})"
+            shell: msys2 {0}
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
     runs-on: ${{ matrix.builder }}
+    continue-on-error: ${{ matrix.branch == 'version-1-6' || matrix.branch == 'devel' }}
     steps:
-      - name: Checkout nim-websock
+      - name: Checkout
         uses: actions/checkout@v2
         with:
-          path: nim-websock
           submodules: true
-
-      - name: Derive environment variables
-        shell: bash
-        run: |
-          if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
-            ARCH=64
-            PLATFORM=x64
-          else
-            ARCH=32
-            PLATFORM=x86
-          fi
-          echo "ARCH=$ARCH" >> $GITHUB_ENV
-          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
-
-          ncpu=
-          case '${{ runner.os }}' in
-          'Linux')
-            ncpu=$(nproc)
-            ;;
-          'macOS')
-            ncpu=$(sysctl -n hw.ncpu)
-            ;;
-          'Windows')
-            ncpu=$NUMBER_OF_PROCESSORS
-            ;;
-          esac
-          [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
-          echo "ncpu=$ncpu" >> $GITHUB_ENV
 
       - name: Install build dependencies (Linux i386)
         if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
@@ -98,78 +78,62 @@ jobs:
           chmod 755 external/bin/gcc external/bin/g++
           echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
 
-      - name: Install build dependencies (Windows)
+      - name: MSYS2 (Windows i386)
+        if: runner.os == 'Windows' && matrix.target.cpu == 'i386'
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          msystem: MINGW32
+          install: >-
+            base-devel
+            git
+            mingw-w64-i686-toolchain
+
+      - name: MSYS2 (Windows amd64)
+        if: runner.os == 'Windows' && matrix.target.cpu == 'amd64'
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          install: >-
+            base-devel
+            git
+            mingw-w64-x86_64-toolchain
+
+      - name: Restore Nim DLLs dependencies (Windows) from cache
         if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          mkdir external
-          if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
-            arch=64
-          else
-            arch=32
-          fi
-          curl -L "https://nim-lang.org/download/mingw$arch.7z" -o "external/mingw$arch.7z"
-          curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
-          7z x "external/mingw$arch.7z" -oexternal/
-          7z x external/windeps.zip -oexternal/dlls
-          echo '${{ github.workspace }}'"/external/mingw$arch/bin" >> $GITHUB_PATH
-          echo '${{ github.workspace }}'"/external/dlls" >> $GITHUB_PATH
-
-      - name: Setup environment
-        shell: bash
-        run: echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
-
-      - name: Get latest Nim commit hash
-        id: versions
-        shell: bash
-        run: |
-          getHash() {
-            git ls-remote "https://github.com/$1" "${2:-HEAD}" | cut -f 1
-          }
-          nimHash=$(getHash nim-lang/Nim '${{ matrix.branch }}')
-          csourcesHash=$(getHash nim-lang/csources)
-          echo "::set-output name=nim::$nimHash"
-          echo "::set-output name=csources::$csourcesHash"
-
-      - name: Restore prebuilt Nim from cache
-        id: nim-cache
-        uses: actions/cache@v1
+        id: windows-dlls-cache
+        uses: actions/cache@v2
         with:
-          path: nim
-          key: "nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nim }}"
+          path: external/dlls-${{ matrix.target.cpu }}
+          key: 'dlls-${{ matrix.target.cpu }}'
 
-      - name: Restore prebuilt csources from cache
-        if: steps.nim-cache.outputs.cache-hit != 'true'
-        id: csources-cache
-        uses: actions/cache@v1
-        with:
-          path: csources/bin
-          key: "csources-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.csources }}"
-
-      - name: Checkout Nim csources
+      - name: Install DLLs dependencies (Windows)
         if: >
-          steps.csources-cache.outputs.cache-hit != 'true' &&
-          steps.nim-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v2
-        with:
-          repository: nim-lang/csources
-          path: csources
-          ref: ${{ steps.versions.outputs.csources }}
-
-      - name: Checkout Nim
-        if: steps.nim-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v2
-        with:
-          repository: nim-lang/Nim
-          path: nim
-          ref: ${{ steps.versions.outputs.nim }}
-
-      - name: Build Nim and associated tools
-        if: steps.nim-cache.outputs.cache-hit != 'true'
-        shell: bash
+          steps.windows-dlls-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows'
         run: |
+          DLLPATH=external/dlls-${{ matrix.target.cpu }}
+          mkdir -p external
+          curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
+          7z x -y external/windeps.zip -o"$DLLPATH"
+
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows'
+        run: |
+          echo '${{ github.workspace }}'"/external/dlls-${{ matrix.target.cpu }}" >> $GITHUB_PATH
+
+      - name: Derive environment variables
+        run: |
+          if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
+            PLATFORM=x64
+          else
+            PLATFORM=x86
+          fi
+          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+
           ncpu=
-          ext=
+          MAKE_CMD="make"
           case '${{ runner.os }}' in
           'Linux')
             ncpu=$(nproc)
@@ -179,31 +143,29 @@ jobs:
             ;;
           'Windows')
             ncpu=$NUMBER_OF_PROCESSORS
-            ext=.exe
+            MAKE_CMD="mingw32-make"
             ;;
           esac
           [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
-          if [[ ! -e csources/bin/nim$ext ]]; then
-            make -C csources -j $ncpu CC=gcc ucpu='${{ matrix.target.cpu }}'
-          else
-            echo 'Using prebuilt csources'
-          fi
-          cp -v csources/bin/nim$ext nim/bin
-          cd nim
-          nim c koch
-          ./koch boot -d:release
-          ./koch tools -d:release
-          # clean up to save cache space
-          rm koch
-          rm -rf nimcache
-          rm -rf dist
-          rm -rf .git
+          echo "ncpu=$ncpu" >> $GITHUB_ENV
+          echo "MAKE_CMD=${MAKE_CMD}" >> $GITHUB_ENV
 
-      - name: Run nim-websock tests
-        shell: bash
+      - name: Build Nim and Nimble
         run: |
-          export UCPU="$cpu"
-          cd nim-websock
+          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+          env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ matrix.branch }} \
+            QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
+            bash build_nim.sh nim csources dist/nimble NimBinaries
+          echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
+
+      - name: Run tests
+        run: |
+          if [[ "${{ matrix.target.os }}" == "windows" ]]; then
+            # https://github.com/status-im/nimbus-eth2/issues/3121
+            export NIMFLAGS="-d:nimRawSetjmp"
+          fi
+          nim --version
+          nimble --version
           nimble install -y --depsOnly
           nimble test
 
@@ -217,36 +179,24 @@ jobs:
       max-parallel: 20
       matrix:
         websock: [ws, wsc, wss, wssc]
+        branch: [version-1-2, version-1-4, version-1-6, devel]
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
-      - name: Checkout nim-websock
+      - name: Checkout
         uses: actions/checkout@v2
         with:
-          path: nim-websock
           submodules: true
 
-      - name: Get latest nimbus-build-system commit hash
-        id: versions
-        shell: bash
-        run: |
-          getHash() {
-            git ls-remote "https://github.com/$1" "${2:-HEAD}" | cut -f 1
-          }
-          nbsHash=$(getHash status-im/nimbus-build-system)
-          echo "::set-output name=nimbus_build_system::$nbsHash"
-
-      - name: Restore prebuilt Nim from cache
-        id: nim-cache
-        uses: actions/cache@v2
-        with:
-          path: NimBinaries
-          key: 'NimBinaries-${{ steps.versions.outputs.nimbus_build_system }}'
-
-      - name: Build Nim and associated tools
-        shell: bash
+      - name: Build Nim and Nimble
         run: |
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-          env MAKE="make -j2" ARCH_OVERRIDE=x64 CC=gcc bash build_nim.sh nim csources dist/nimble NimBinaries
+          env MAKE="make -j$(nproc)" NIM_COMMIT=${{ matrix.branch }} \
+            QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
+            bash build_nim.sh nim csources dist/nimble NimBinaries
           echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
 
       - name: Setup Python version
@@ -262,13 +212,11 @@ jobs:
           virtualenv --python=/usr/bin/python2 autobahn
           source autobahn/bin/activate
           pip install autobahntestsuite
-          cd nim-websock
           nimble install -y --depsOnly
 
       - name: Generate index.html
         if: matrix.websock == 'ws'
         run: |
-          cd nim-websock
           mkdir autobahn/reports
           sed -i "s/COMMIT_SHA_SHORT/${GITHUB_SHA::7}/g" autobahn/index.md
           sed -i "s/COMMIT_SHA/$GITHUB_SHA/g" autobahn/index.md
@@ -279,7 +227,6 @@ jobs:
           source autobahn/bin/activate
           case '${{ matrix.websock }}' in
             ws)
-              cd nim-websock
               nim c -d:release examples/server.nim
               examples/server &
               server=$!
@@ -288,7 +235,6 @@ jobs:
               wstest --mode fuzzingclient --spec fuzzingclient.json
             ;;
             wsc)
-              cd nim-websock
               nim c -d:tls -d:release -o:examples/tls_server examples/server.nim
               examples/tls_server &
               server=$!
@@ -297,7 +243,7 @@ jobs:
               wstest --mode fuzzingclient --spec fuzzingclient_tls.json
             ;;
             wss)
-              cd nim-websock/autobahn
+              cd autobahn
               wstest --webport=0 --mode fuzzingserver --spec fuzzingserver.json &
               server=$!
 
@@ -306,7 +252,7 @@ jobs:
               examples/autobahn_client
             ;;
             wssc)
-              cd nim-websock/autobahn
+              cd autobahn
               wstest --webport=0 --mode fuzzingserver --spec fuzzingserver_tls.json &
               server=$!
 
@@ -322,15 +268,19 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: autobahn-report
-          path: ./nim-websock/autobahn/reports
+          path: ./autobahn/reports
 
   deploy-test:
     if: github.event_name == 'push'
     name: "Deplay Autobahn results"
     needs: autobahn-test
     runs-on: ubuntu-latest
-    steps:
 
+    defaults:
+      run:
+        shell: bash
+
+    steps:
       - name: Download Autobahn reports
         uses: actions/download-artifact@v2
         with:
