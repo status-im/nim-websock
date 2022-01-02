@@ -25,20 +25,22 @@ requires "bearssl"
 requires "zlib"
 
 task test, "run tests":
-  # dont't need to run it, only want to test if it is compileable
-  exec "nim c -c --verbosity:0 --hints:off --hint:Name:on -d:chronicles_log_level=TRACE -d:chronicles_sinks:json --styleCheck:usages --styleCheck:hint ./tests/testcommon"
+  let envNimflags = getEnv("NIMFLAGS")
 
-  exec "nim --hints:off c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testcommon.nim"
+  # dont't need to run it, only want to test if it is compileable
+  exec "nim c -c " & envNimflags & " --verbosity:0 --hints:off --hint:Name:on -d:chronicles_log_level=TRACE -d:chronicles_sinks:json --styleCheck:usages --styleCheck:hint ./tests/testcommon"
+
+  exec "nim --hints:off c -r " & envNimflags & " --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testcommon.nim"
   rmFile "./tests/testcommon"
 
-  exec "nim --hints:off c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  exec "nim --hints:off c -r " & envNimflags & " --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim --hints:off -d:secure c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  exec "nim --hints:off -d:secure c -r " & envNimflags & " --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim --hints:off -d:accepts c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  exec "nim --hints:off -d:accepts c -r " & envNimflags & " --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim --hints:off -d:secure -d:accepts c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  exec "nim --hints:off -d:secure -d:accepts c -r " & envNimflags & " --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
