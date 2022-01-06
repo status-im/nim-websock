@@ -93,7 +93,7 @@ proc send*(
   ws: WSSession,
   data: seq[byte] = @[],
   opcode: Opcode): Future[void]
-  {.async, raises: [Defect, WSClosedError].} =
+  {.async.} =
   ## Send a frame
   ##
 

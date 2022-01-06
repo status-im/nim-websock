@@ -62,7 +62,7 @@ proc createServer*(
         flags = flags)
 
     when defined accepts:
-      proc accepts() {.async, raises: [Defect].} =
+      proc accepts() {.async.} =
         try:
           let req = await server.accept()
           await req.handler()

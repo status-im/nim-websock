@@ -170,7 +170,7 @@ proc connect*(
   tlsMinVersion = TLSVersion.TLS11,
   tlsMaxVersion = TLSVersion.TLS12,
   hostName = ""): Future[T]
-  {.async, raises: [Defect, HttpError].} =
+  {.async.} =
 
   let wantedHostName = if hostName.len > 0:
       hostName

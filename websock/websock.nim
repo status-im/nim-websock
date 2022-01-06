@@ -236,11 +236,7 @@ proc handleRequest*(
   request: HttpRequest,
   version: uint = WSDefaultVersion): Future[WSSession]
   {.
-    async,
-    raises: [
-      Defect,
-      WSHandshakeError,
-      WSProtoMismatchError]
+    async
   .} =
   ## Creates a new socket from a request.
   ##

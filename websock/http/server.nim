@@ -163,7 +163,7 @@ proc handleTlsConnCb(
     await stream.closeWait()
 
 proc accept*(server: HttpServer): Future[HttpRequest]
-  {.async, raises: [Defect, HttpError].} =
+  {.async.} =
 
   if not isNil(server.handler):
     raise newException(HttpError,
