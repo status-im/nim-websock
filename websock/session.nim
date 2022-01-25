@@ -399,6 +399,9 @@ proc recvMsg*(
       var buf = newSeq[byte](min(size, ws.frameSize))
       let read = await ws.recv(addr buf[0], buf.len)
 
+      if read <= 0:
+        return res
+
       buf.setLen(read)
       if res.len + buf.len > size:
         raise newException(WSMaxMessageSizeError, "Max message size exceeded")
