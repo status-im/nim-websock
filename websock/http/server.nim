@@ -206,12 +206,13 @@ proc create*(
   _: typedesc[HttpServer],
   address: TransportAddress,
   handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {}): HttpServer
+  flags: set[ServerFlags] = {},
+  handshakeTimeout = HttpHeadersTimeout): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 
-  var server = HttpServer(handler: handler)
+  var server = HttpServer(handler: handler, handshakeTimeout: handshakeTimeout)
   server = HttpServer(
     createStreamServer(
       address,
@@ -233,7 +234,7 @@ proc create*(
   ## Make a new HTTP Server
   ##
 
-  return HttpServer.create(initTAddress(host), handler, flags)
+  return HttpServer.create(initTAddress(host), handler, flags, handshakeTimeout)
 
 proc create*(
   _: typedesc[TlsHttpServer],
