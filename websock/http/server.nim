@@ -29,6 +29,7 @@ type
 
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
+    handshakeTimeout*: Duration
     case secure*: bool:
     of true:
       tlsFlags*: set[TLSFlags]
@@ -72,7 +73,7 @@ proc parseRequest(
   try:
     let hlenfut = stream.reader.readUntil(
       addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
-    let ores = await withTimeout(hlenfut, HttpHeadersTimeout)
+    let ores = await withTimeout(hlenfut, server.handshakeTimeout)
     if not ores:
       # Timeout
       trace "Timeout expired while receiving headers", address = $remoteAddr
@@ -191,9 +192,13 @@ proc accept*(server: HttpServer): Future[HttpRequest]
 
   trace "Got new request", isTls = server.secure
   try:
-    return await server.parseRequest(stream)
+    return await wait(
+      server.parseRequest(stream),
+      server.handshakeTimeout + 2.seconds # failsafe
+    )
   except CatchableError as exc:
-    await stream.closeWait()
+    # Can't hold up the accept loop
+    asyncSpawn stream.closeWait()
     raise exc
 
 
@@ -222,7 +227,8 @@ proc create*(
   _: typedesc[HttpServer],
   host: string,
   handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {}): HttpServer
+  flags: set[ServerFlags] = {},
+  handshakeTimeout = HttpHeadersTimeout): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
@@ -238,10 +244,12 @@ proc create*(
   flags: set[ServerFlags] = {},
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12): TlsHttpServer
+  tlsMaxVersion = TLSVersion.TLS12,
+  handshakeTimeout = HttpHeadersTimeout): TlsHttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
 
   var server = TlsHttpServer(
+    handshakeTimeout: handshakeTimeout,
     secure: true,
     handler: handler,
     tlsPrivateKey: tlsPrivateKey,
@@ -269,7 +277,8 @@ proc create*(
   flags: set[ServerFlags] = {},
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12): TlsHttpServer
+  tlsMaxVersion = TLSVersion.TLS12,
+  handshakeTimeout = HttpHeadersTimeout): TlsHttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   TlsHttpServer.create(
     address = initTAddress(host),
@@ -277,4 +286,5 @@ proc create*(
     tlsPrivateKey = tlsPrivateKey,
     tlsCertificate = tlsCertificate,
     flags = flags,
-    tlsFlags = tlsFlags)
+    tlsFlags = tlsFlags,
+    handshakeTimeout = handshakeTimeout)
