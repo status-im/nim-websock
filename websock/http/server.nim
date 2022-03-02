@@ -192,8 +192,11 @@ proc accept*(server: HttpServer): Future[HttpRequest]
 
   trace "Got new request", isTls = server.secure
   try:
-    let parseFut = server.parseRequest(stream)
-    if await withTimeout(parseFut, server.handshakeTimeout + 2.seconds):
+    let
+      parseFut = server.parseRequest(stream)
+      # Failsafe at timeout * 1.05
+      timeout = server.handshakeTimeout + server.handshakeTimeout div 20
+    if await withTimeout(parseFut, timeout):
       return parseFut.read()
     raise newException(HttpError, "Timed out parsing request")
   except CatchableError as exc:
