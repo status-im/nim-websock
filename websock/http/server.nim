@@ -207,7 +207,7 @@ proc accept*(server: HttpServer): Future[HttpRequest]
 
 proc create*(
   _: typedesc[HttpServer],
-  address: TransportAddress,
+  address: TransportAddress | string,
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {},
   handshakeTimeout = HttpHeadersTimeout): HttpServer
@@ -216,9 +216,16 @@ proc create*(
   ##
 
   var server = HttpServer(handler: handler, handshakeTimeout: handshakeTimeout)
+
+  let localAddress =
+    when address is string:
+      initTAddress(address)
+    else:
+      address
+
   server = HttpServer(
     createStreamServer(
-      address,
+      localAddress,
       handleConnCb,
       flags,
       child = StreamServer(server)))
@@ -228,20 +235,8 @@ proc create*(
   return server
 
 proc create*(
-  _: typedesc[HttpServer],
-  host: string,
-  handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {},
-  handshakeTimeout = HttpHeadersTimeout): HttpServer
-  {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
-  ## Make a new HTTP Server
-  ##
-
-  return HttpServer.create(initTAddress(host), handler, flags, handshakeTimeout)
-
-proc create*(
   _: typedesc[TlsHttpServer],
-  address: TransportAddress,
+  address: TransportAddress | string,
   tlsPrivateKey: TLSPrivateKey,
   tlsCertificate: TLSCertificate,
   handler: HttpAsyncCallback = nil,
@@ -261,9 +256,15 @@ proc create*(
     minVersion: tlsMinVersion,
     maxVersion: tlsMaxVersion)
 
+  let localAddress =
+    when address is string:
+      initTAddress(address)
+    else:
+      address
+
   server = TlsHttpServer(
     createStreamServer(
-      address,
+      localAddress,
       handleTlsConnCb,
       flags,
       child = StreamServer(server)))
@@ -271,24 +272,3 @@ proc create*(
   trace "Created TLS HTTP Server", host = $server.localAddress()
 
   return server
-
-proc create*(
-  _: typedesc[TlsHttpServer],
-  host: string,
-  tlsPrivateKey: TLSPrivateKey,
-  tlsCertificate: TLSCertificate,
-  handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {},
-  tlsFlags: set[TLSFlags] = {},
-  tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12,
-  handshakeTimeout = HttpHeadersTimeout): TlsHttpServer
-  {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
-  TlsHttpServer.create(
-    address = initTAddress(host),
-    handler = handler,
-    tlsPrivateKey = tlsPrivateKey,
-    tlsCertificate = tlsCertificate,
-    flags = flags,
-    tlsFlags = tlsFlags,
-    handshakeTimeout = handshakeTimeout)
