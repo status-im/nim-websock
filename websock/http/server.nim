@@ -30,6 +30,7 @@ type
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
     handshakeTimeout*: Duration
+    headersTimeout*: Duration
     case secure*: bool:
     of true:
       tlsFlags*: set[TLSFlags]
@@ -73,7 +74,7 @@ proc parseRequest(
   try:
     let hlenfut = stream.reader.readUntil(
       addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
-    let ores = await withTimeout(hlenfut, server.handshakeTimeout)
+    let ores = await withTimeout(hlenfut, server.headersTimeout)
     if not ores:
       # Timeout
       trace "Timeout expired while receiving headers", address = $remoteAddr
@@ -194,9 +195,7 @@ proc accept*(server: HttpServer): Future[HttpRequest]
   try:
     let
       parseFut = server.parseRequest(stream)
-      # Failsafe at timeout * 1.05
-      timeout = server.handshakeTimeout + server.handshakeTimeout div 20
-    if await withTimeout(parseFut, timeout):
+    if await withTimeout(parseFut, server.handshakeTimeout):
       return parseFut.read()
     raise newException(HttpError, "Timed out parsing request")
   except CatchableError as exc:
@@ -210,12 +209,21 @@ proc create*(
   address: TransportAddress | string,
   handler: HttpAsyncCallback = nil,
   flags: set[ServerFlags] = {},
-  handshakeTimeout = HttpHeadersTimeout): HttpServer
+  headersTimeout = HttpHeadersTimeout,
+  handshakeTimeout = 0.seconds
+  ): HttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 
-  var server = HttpServer(handler: handler, handshakeTimeout: handshakeTimeout)
+  var server = HttpServer(
+    handler: handler,
+    headersTimeout: headersTimeout,
+    handshakeTimeout:
+      if handshakeTimeout == 0.seconds:
+        headersTimeout + headersTimeout div 20
+      else: handshakeTimeout,
+  )
 
   let localAddress =
     when address is string:
@@ -244,11 +252,17 @@ proc create*(
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS12,
   tlsMaxVersion = TLSVersion.TLS12,
-  handshakeTimeout = HttpHeadersTimeout): TlsHttpServer
+  headersTimeout = HttpHeadersTimeout,
+  handshakeTimeout = 0.seconds
+  ): TlsHttpServer
   {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
 
   var server = TlsHttpServer(
-    handshakeTimeout: handshakeTimeout,
+    headersTimeout: headersTimeout,
+    handshakeTimeout:
+      if handshakeTimeout == 0.seconds:
+        headersTimeout + headersTimeout div 20
+      else: handshakeTimeout,
     secure: true,
     handler: handler,
     tlsPrivateKey: tlsPrivateKey,
