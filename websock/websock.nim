@@ -28,7 +28,7 @@ import pkg/[chronos,
 
 import ./utils, ./frame, ./session, /types, ./http, ./extensions/extutils
 
-export utils, session, frame, types, http
+export utils, session, frame, types, http, httptable
 
 logScope:
   topics = "websock ws-server"
@@ -109,6 +109,7 @@ proc connect*(
   hostName: string = "", # override used when the hostname has been externally resolved
   protocols: seq[string] = @[],
   factories: seq[ExtFactory] = @[],
+  hooks: seq[Hook] = @[],
   secure = false,
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
@@ -149,6 +150,13 @@ proc connect*(
   if extOffer.len > 0:
     headers.add("Sec-WebSocket-Extensions", extOffer)
 
+  for hp in hooks:
+    if hp.append == nil: continue
+    let res = hp.append(hp, headers)
+    if res.isErr:
+      raise newException(WSHookError,
+        "Header plugin execution failed: " & res.error)
+
   let response = try:
      await client.request(path, headers = headers)
   except CatchableError as exc:
@@ -167,6 +175,13 @@ proc connect*(
     if proto notin protocols:
       raise newException(WSFailedUpgradeError,
         &"Invalid protocol returned {proto}!")
+
+  for hp in hooks:
+    if hp.verify == nil: continue
+    let res = await hp.verify(hp, response.headers)
+    if res.isErr:
+      raise newException(WSHookError,
+        "Header verification failed: " & res.error)
 
   var extensions: seq[Ext]
   let exts = response.headers.getList("Sec-WebSocket-Extensions")
@@ -194,6 +209,7 @@ proc connect*(
   uri: Uri,
   protocols: seq[string] = @[],
   factories: seq[ExtFactory] = @[],
+  hooks: seq[Hook] = @[],
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
   frameSize = WSDefaultFrameSize,
@@ -222,6 +238,7 @@ proc connect*(
     path = uri.path,
     protocols = protocols,
     factories = factories,
+    hooks = hooks,
     secure = secure,
     flags = flags,
     version = version,
@@ -234,7 +251,8 @@ proc connect*(
 proc handleRequest*(
   ws: WSServer,
   request: HttpRequest,
-  version: uint = WSDefaultVersion): Future[WSSession]
+  version: uint = WSDefaultVersion,
+  hooks: seq[Hook] = @[]): Future[WSSession]
   {.
     async,
     raises: [
@@ -270,6 +288,13 @@ proc handleRequest*(
     it in ws.protocols
   )
 
+  for hp in hooks:
+    if hp.verify == nil: continue
+    let res = await hp.verify(hp, request.headers)
+    if res.isErr:
+      raise newException(WSHookError,
+        "Header verification failed: " & res.error)
+
   let
     cKey = ws.key & WSGuid
     acceptKey = Base64Pad.encode(
@@ -292,6 +317,13 @@ proc handleRequest*(
   if extResp.len > 0:
     # send back any accepted extensions
     headers.add("Sec-WebSocket-Extensions", extResp)
+
+  for hp in hooks:
+    if hp.append == nil: continue
+    let res = hp.append(hp, headers)
+    if res.isErr:
+      raise newException(WSHookError,
+        "Header plugin execution failed: " & res.error)
 
   try:
     await request.sendResponse(Http101, headers = headers)

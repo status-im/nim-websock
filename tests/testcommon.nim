@@ -14,3 +14,4 @@ import ./testutf8
 import ./testextutils
 import ./extensions/testexts
 import ./extensions/testcompression
+import ./testhooks
