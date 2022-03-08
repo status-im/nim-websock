@@ -221,7 +221,8 @@ proc create*(
     headersTimeout: headersTimeout,
     handshakeTimeout:
       if handshakeTimeout == 0.seconds:
-        headersTimeout + headersTimeout div 20
+        # default to headersTimeout * 1.05
+        headersTimeout + (headersTimeout div 20)
       else: handshakeTimeout,
   )
 
