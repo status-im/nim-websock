@@ -200,7 +200,7 @@ proc accept*(server: HttpServer): Future[HttpRequest]
     raise newException(HttpError, "Timed out parsing request")
   except CatchableError as exc:
     # Can't hold up the accept loop
-    asyncSpawn stream.closeWait()
+    stream.close()
     raise exc
 
 

@@ -67,6 +67,11 @@ proc closeWait*(stream: AsyncStream) {.async.} =
     stream.writer.closeStream(),
     stream.reader.tsource.closeTransp())
 
+proc close*(stream: AsyncStream) =
+  stream.reader.close()
+  stream.writer.close()
+  stream.reader.tsource.close()
+
 proc sendResponse*(
   request: HttpRequest,
   code: HttpCode,
