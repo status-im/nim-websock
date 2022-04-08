@@ -153,7 +153,7 @@ proc handleClose*(
     code = StatusFulfilled
     reason = ""
 
-  case payload.len:
+  case payLoad.len:
   of 0:
     code = StatusNoStatus
   of 1:

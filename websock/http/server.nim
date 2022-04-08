@@ -149,12 +149,10 @@ proc handleTlsConnCb(
     maxVersion = tlsHttpServer.maxVersion,
     flags = tlsHttpServer.tlsFlags)
 
-  var stream: AsyncStream
-  try:
-    stream = AsyncStream(
+  let stream = AsyncStream(
       reader: tlsStream.reader,
       writer: tlsStream.writer)
-
+  try:
     let httpServer = HttpServer(server)
     let request = await httpServer.parseRequest(stream)
 
@@ -164,9 +162,7 @@ proc handleTlsConnCb(
   finally:
     await stream.closeWait()
 
-proc accept*(server: HttpServer): Future[HttpRequest]
-  {.async, raises: [Defect, HttpError].} =
-
+proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
   if not isNil(server.handler):
     raise newException(HttpError,
       "Callback already registered - cannot mix callback and accepts styles!")
