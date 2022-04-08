@@ -137,7 +137,7 @@ proc parseExt*[T: BChar](data: openArray[T], output: var seq[AppExt]): bool =
       ext.params[^1].name  = system.move(param.name)
       ext.params[^1].value = system.move(param.value)
 
-      if lex.tok notin {tkSemCol, tkComma, tkEof}:
+      if lex.tok notin {tkSemcol, tkComma, tkEof}:
         return false
 
     output.setLen(output.len + 1)
