@@ -96,6 +96,7 @@ type
     stream*: AsyncStream
     frame*: Frame
     first*: bool
+    reading*: bool
     proto*: string
 
   Ext* = ref object of RootObj

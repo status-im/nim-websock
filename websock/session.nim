@@ -312,6 +312,10 @@ proc recv*(
   ## Use this to stream data from frames
   ##
 
+  assert ws.reading == false, "Only one concurrent read allowed"
+  ws.reading = true
+  defer: ws.reading = false
+
   var consumed = 0
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
