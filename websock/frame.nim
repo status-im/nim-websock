@@ -205,6 +205,9 @@ proc decode*(
 
   frame.length = finalLen
 
+  if frame.length > WSMaxMessageSize:
+    raise newException(WSPayloadLengthError, "Frame too big: " & $frame.length)
+
   # Do we need to apply mask?
   frame.mask = (b1 and 0x80) == 0x80
   if masked == frame.mask:
