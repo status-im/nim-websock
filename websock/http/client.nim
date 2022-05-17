@@ -125,7 +125,7 @@ proc connect*(
   address: TransportAddress,
   version = HttpVersion11,
   tlsFlags: set[TLSFlags] = {},
-  tlsMinVersion = TLSVersion.TLS11,
+  tlsMinVersion = TLSVersion.TLS12,
   tlsMaxVersion = TLSVersion.TLS12,
   hostName = ""): Future[T] {.async.} =
 
@@ -167,7 +167,7 @@ proc connect*(
   host: string,
   version = HttpVersion11,
   tlsFlags: set[TLSFlags] = {},
-  tlsMinVersion = TLSVersion.TLS11,
+  tlsMinVersion = TLSVersion.TLS12,
   tlsMaxVersion = TLSVersion.TLS12,
   hostName = ""): Future[T]
   {.async, raises: [Defect, HttpError].} =
