@@ -312,6 +312,10 @@ proc recv*(
   ## Use this to stream data from frames
   ##
 
+  doAssert ws.reading == false, "Only one concurrent read allowed"
+  ws.reading = true
+  defer: ws.reading = false
+
   var consumed = 0
   var pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
@@ -321,7 +325,8 @@ proc recv*(
 
     while consumed < size:
       if isNil(ws.frame):
-        trace "Empty frame, breaking"
+        assert ws.readyState == ReadyState.Closed
+        trace "Closed connection, breaking"
         break
 
       logScope:
@@ -347,8 +352,8 @@ proc recv*(
         trace "Reading bytes from frame stream", len
         let read = await ws.frame.read(ws.stream.reader, addr pbuffer[consumed], len)
         if read <= 0:
-          trace "Didn't read any bytes, breaking"
-          break
+          trace "Didn't read any bytes, stopping"
+          raise newException(WSClosedError, "WebSocket is closed!")
 
         trace "Read data from frame", read
         consumed += read
