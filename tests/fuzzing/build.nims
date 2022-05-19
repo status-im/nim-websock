@@ -2,6 +2,9 @@
 
 import strutils, os
 
+withDir "../../":
+  exec "nimble install -dy"
+
 for file in listFiles("."):
   if file.endsWith(".nim"):
     let execName = file[0 ..< ^4]
