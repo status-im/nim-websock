@@ -455,6 +455,6 @@ proc close*(
 
     # read frames until closed
     while ws.readyState != ReadyState.Closed:
-      discard await ws.recvMsg()
+      discard await ws.readFrame()
   except CatchableError as exc:
     trace "Exception closing", exc = exc.msg
