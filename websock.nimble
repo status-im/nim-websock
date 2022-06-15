@@ -21,7 +21,7 @@ requires "chronicles >= 0.10.2"
 requires "stew >= 0.1.0"
 requires "asynctest >= 0.3.0 & < 0.4.0"
 requires "nimcrypto"
-requires "bearssl#rand-helpers"
+requires "bearssl"
 requires "zlib"
 
 task test, "run tests":
