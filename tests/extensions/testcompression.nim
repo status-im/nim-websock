@@ -8,8 +8,7 @@
 ## those terms.
 
 import std/os
-import pkg/[chronos, stew/io2]
-import pkg/asynctest/unittest2
+import pkg/[chronicles, chronos/unittest2/asynctests, stew/io2]
 import ../../websock/websock
 import ../../websock/extensions/compression/deflate
 
@@ -17,15 +16,17 @@ const
   dataFolder = "tests" / "extensions" / "data"
 
 suite "permessage deflate compression":
-  var server: HttpServer
-  let address = initTAddress("127.0.0.1:8888")
-  let deflateFactory = deflateFactory()
+  setup:
+    var server: HttpServer
+    let address = initTAddress("127.0.0.1:8888")
+    let deflateFactory = deflateFactory()
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "text compression":
+  asyncTest "text compression":
     let textData = io2.readAllBytes(dataFolder / "alice29.txt").get()
     proc handle(request: HttpRequest) {.async.} =
       let server = WSServer.new(
@@ -66,7 +67,7 @@ suite "permessage deflate compression":
     check textData == recvData
     await client.close()
 
-  test "binary data compression":
+  asyncTest "binary data compression":
     let binaryData = io2.readAllBytes(dataFolder / "fireworks.jpg").get()
     proc handle(request: HttpRequest) {.async.} =
       let server = WSServer.new(

@@ -7,13 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/strutils
 import pkg/[
   httputils,
-  chronos,
+  chronos/unittest2/asynctests,
   chronicles,
-  stew/byteutils,
-  asynctest/unittest2]
+  ]
 
 import ../websock/websock
 
@@ -96,16 +94,18 @@ proc serverHookWithCode(request: HttpRequest): Hook =
   )
 
 suite "Test Hooks":
-  var
-    server: HttpServer
-    goodCP = goodClientHook()
-    badCP  = badClientHook()
+  setup:
+    var
+      server: HttpServer
+      goodCP = goodClientHook()
+      badCP  = badClientHook()
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "client with valid token":
+  asyncTest "client with valid token":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let
@@ -129,7 +129,7 @@ suite "Test Hooks":
     check TokenHook(goodCP).token == "accept"
     await session.stream.closeWait()
 
-  test "client with bad token":
+  asyncTest "client with bad token":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let
@@ -153,7 +153,7 @@ suite "Test Hooks":
     check TokenHook(badCP).token == "reject"
     await session.stream.closeWait()
 
-  test "server hook with code get good client":
+  asyncTest "server hook with code get good client":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let
@@ -177,7 +177,7 @@ suite "Test Hooks":
     check TokenHook(goodCP).token == "accept"
     await session.stream.closeWait()
 
-  test "server hook with code get bad client":
+  asyncTest "server hook with code get bad client":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let

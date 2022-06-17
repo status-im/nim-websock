@@ -11,8 +11,7 @@ import
   std/[strutils],
   pkg/[
     stew/byteutils,
-    asynctest/unittest2,
-    chronos,
+    chronos/unittest2/asynctests,
     chronicles
   ],
   ../websock/[websock, utf8dfa]
@@ -79,15 +78,16 @@ proc waitForClose(ws: WSSession) {.async.} =
     trace "Closing websocket"
 
 suite "UTF-8 validator in action":
-
-  var server: HttpServer
-  let address = initTAddress("127.0.0.1:8888")
+  setup:
+    var server: HttpServer
+    let address = initTAddress("127.0.0.1:8888")
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "valid UTF-8 sequence":
+  asyncTest "valid UTF-8 sequence":
     let testData = "hello world"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
@@ -117,7 +117,7 @@ suite "UTF-8 validator in action":
     await session.send(testData)
     await session.close()
 
-  test "valid UTF-8 sequence in close reason":
+  asyncTest "valid UTF-8 sequence in close reason":
     let testData = "hello world"
     let closeReason = "i want to close"
     proc handle(request: HttpRequest) {.async.} =
@@ -158,7 +158,7 @@ suite "UTF-8 validator in action":
     await session.send(testData)
     await session.close(reason = closeReason)
 
-  test "invalid UTF-8 sequence":
+  asyncTest "invalid UTF-8 sequence":
     let testData = "hello world\xc0\xaf"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"
@@ -183,7 +183,7 @@ suite "UTF-8 validator in action":
     expect WSInvalidUTF8:
       let data = await session.recvMsg()
 
-  test "invalid UTF-8 sequence close code":
+  asyncTest "invalid UTF-8 sequence close code":
     let closeReason = "i want to close\xc0\xaf"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == "/ws"

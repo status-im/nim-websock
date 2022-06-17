@@ -7,22 +7,23 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/[chronos, stew/byteutils]
-import pkg/asynctest/unittest2
+import pkg/[chronicles, chronos/unittest2/asynctests, stew/byteutils]
 import ./base64ext, ./hexext
 import ../../websock/websock, ../helpers
 
 suite "multiple extensions flow":
-  var server: HttpServer
-  let address = initTAddress("127.0.0.1:8888")
-  let hexFactory = hexFactory()
-  let base64Factory = base64Factory(padding = true)
+  setup:
+    var server: HttpServer
+    let address = initTAddress("127.0.0.1:8888")
+    let hexFactory = hexFactory()
+    let base64Factory = base64Factory(padding = true)
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "hex to base64 ext flow":
+  asyncTest "hex to base64 ext flow":
     let testData = "hello world"
     proc handle(request: HttpRequest) {.async.} =
       let server = WSServer.new(
@@ -54,7 +55,7 @@ suite "multiple extensions flow":
     check testData.toBytes() == res
     await client.close()
 
-  test "base64 to hex ext flow":
+  asyncTest "base64 to hex ext flow":
     let testData = "hello world"
     proc handle(request: HttpRequest) {.async.} =
       let server = WSServer.new(
