@@ -8,8 +8,7 @@
 ## those terms.
 
 import
-  pkg/chronos,
-  pkg/asynctest/unittest2,
+  unittest2,
   ../websock/extensions
 
 suite "extension parser":

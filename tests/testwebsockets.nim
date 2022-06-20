@@ -10,10 +10,9 @@
 import std/strutils
 import pkg/[
   httputils,
-  chronos,
+  chronos/unittest2/asynctests,
   chronicles,
-  stew/byteutils,
-  asynctest/unittest2]
+  stew/byteutils]
 
 import ../websock/websock
 
@@ -22,15 +21,16 @@ import ./helpers
 let address = initTAddress("127.0.0.1:8888")
 
 suite "Test handshake":
-
-  var
-    server: HttpServer
+  setup:
+    var
+      server: HttpServer
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "Should not select incorrect protocol":
+  asyncTest "Should not select incorrect protocol":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let
@@ -50,7 +50,7 @@ suite "Test handshake":
     check session.proto == ""
     await session.stream.closeWait()
 
-  test "Test for incorrect version":
+  asyncTest "Test for incorrect version":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let server = WSServer.new(protos = ["ws"])
@@ -68,7 +68,7 @@ suite "Test handshake":
         address = initTAddress("127.0.0.1:8888"),
         version = 14)
 
-  test "Test for client headers":
+  asyncTest "Test for client headers":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       check request.headers.getString("Connection").toUpperAscii() ==
@@ -90,7 +90,7 @@ suite "Test handshake":
     expect WSFailedUpgradeError:
       discard await connectClient()
 
-  test "Test for incorrect scheme":
+  asyncTest "Test for incorrect scheme":
     let uri = "wx://127.0.0.1:8888/ws"
     expect WSWrongUriSchemeError:
       discard await WebSocket.connect(
@@ -98,14 +98,16 @@ suite "Test handshake":
         protocols = @["proto"])
 
 suite "Test transmission":
-  var
-    server: HttpServer
+  setup:
+    var
+      server: HttpServer
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "Server - test reading simple frame":
+  asyncTest "Server - asyncTest reading simple frame":
     let testString = "Hello!"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -126,7 +128,7 @@ suite "Test transmission":
     await session.send(testString)
     await session.close()
 
-  test "Send text message message with payload of length 65535":
+  asyncTest "Send text message message with payload of length 65535":
     let testString = rndStr(65535)
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -145,7 +147,7 @@ suite "Test transmission":
     await session.send(testString)
     await session.close()
 
-  test "Client - test reading simple frame":
+  asyncTest "Client - asyncTest reading simple frame":
     let testString = "Hello!"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -166,15 +168,16 @@ suite "Test transmission":
     await waitForClose(session)
 
 suite "Test ping-pong":
-
-  var
-    server: HttpServer
+  setup:
+    var
+      server: HttpServer
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "Server - test ping-pong control messages":
+  asyncTest "Server - asyncTest ping-pong control messages":
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -204,7 +207,7 @@ suite "Test ping-pong":
       ping
       pong
 
-  test "Client - test ping-pong control messages":
+  asyncTest "Client - asyncTest ping-pong control messages":
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -234,7 +237,7 @@ suite "Test ping-pong":
     await session.ping()
     await session.close()
 
-  test "Send ping with small text payload":
+  asyncTest "Send ping with small text payload":
     let testData = toBytes("Hello, world!")
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
@@ -265,7 +268,7 @@ suite "Test ping-pong":
       ping
       pong
 
-  test "Test ping payload message length":
+  asyncTest "Test ping payload message length":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
@@ -287,15 +290,16 @@ suite "Test ping-pong":
     await session.close()
 
 suite "Test framing":
-
-  var
-    server: HttpServer
+  setup:
+    var
+      server: HttpServer
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "should split message into frames":
+  asyncTest "should split message into frames":
     let testString = "1234567890"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -328,7 +332,7 @@ suite "Test framing":
     await session.send(testString)
     await session.close()
 
-  test "should fail to read past max message size":
+  asyncTest "should fail to read past max message size":
     let testString = "1234567890"
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -349,15 +353,16 @@ suite "Test framing":
     await waitForClose(session)
 
 suite "Test Closing":
-
-  var
-    server: HttpServer
+  setup:
+    var
+      server: HttpServer
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "Server closing":
+  asyncTest "Server closing":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
@@ -373,7 +378,7 @@ suite "Test Closing":
     await waitForClose(session)
     check session.readyState == ReadyState.Closed
 
-  test "Server closing with status":
+  asyncTest "Server closing with status":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
@@ -415,7 +420,7 @@ suite "Test Closing":
     await waitForClose(session)
     check session.readyState == ReadyState.Closed
 
-  test "Client closing":
+  asyncTest "Client closing":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
@@ -430,7 +435,7 @@ suite "Test Closing":
     let session = await connectClient()
     await session.close()
 
-  test "Client closing with status":
+  asyncTest "Client closing with status":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       proc closeServer(status: StatusCodes, reason: string): CloseResult{.gcsafe,
@@ -470,7 +475,7 @@ suite "Test Closing":
     await session.close()
     check session.readyState == ReadyState.Closed
 
-  test "Mutual closing":
+  asyncTest "Mutual closing":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
@@ -487,7 +492,7 @@ suite "Test Closing":
     await waitForClose(session)
     check session.readyState == ReadyState.Closed
 
-  test "Server closing with valid close code 3999":
+  asyncTest "Server closing with valid close code 3999":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       let server = WSServer.new(protos = ["proto"])
@@ -514,7 +519,7 @@ suite "Test Closing":
 
     await waitForClose(session)
 
-  test "Client closing with valid close code 3999":
+  asyncTest "Client closing with valid close code 3999":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       proc closeServer(status: StatusCodes, reason: string): CloseResult{.gcsafe,
@@ -541,7 +546,7 @@ suite "Test Closing":
     let session = await connectClient()
     await session.close(code = StatusCodes(3999))
 
-  test "Server closing with Payload of length 2":
+  asyncTest "Server closing with Payload of length 2":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
@@ -559,7 +564,7 @@ suite "Test Closing":
     let session = await connectClient()
     await waitForClose(session)
 
-  test "Client closing with Payload of length 2":
+  asyncTest "Client closing with Payload of length 2":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
@@ -579,14 +584,16 @@ suite "Test Closing":
     await session.close(reason = "HH")
 
 suite "Test Payload":
-  var
-    server: HttpServer
+  setup:
+    var
+      server: HttpServer
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "Test payload of length 0":
+  asyncTest "Test payload of length 0":
     let emptyStr = ""
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -617,7 +624,7 @@ suite "Test Payload":
 
     await session.close()
 
-  test "Test multiple payloads of length 0":
+  asyncTest "Test multiple payloads of length 0":
     let emptyStr = ""
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -655,7 +662,7 @@ suite "Test Payload":
 
     await session.close()
 
-  test "Send two fragments":
+  asyncTest "Send two fragments":
     var ping, pong = false
     let testString = "1234567890"
     let msg = toBytes(testString)
@@ -709,7 +716,7 @@ suite "Test Payload":
 
     await session.close()
 
-  test "Send two fragments with a ping with payload in-between":
+  asyncTest "Send two fragments with a ping with payload in-between":
     var ping, pong = false
     let testString = "1234567890"
     let msg = toBytes(testString)
@@ -774,7 +781,7 @@ suite "Test Payload":
       ping
       pong
 
-  test "Send text message with multiple frames":
+  asyncTest "Send text message with multiple frames":
     const FrameSize = 3000
     let testData = rndStr(FrameSize * 3)
     proc handle(request: HttpRequest) {.async.} =
@@ -807,14 +814,16 @@ suite "Test Payload":
       ws.binary == false
 
 suite "Test Binary message with Payload":
-  var
-    server: HttpServer
+  setup:
+    var
+      server: HttpServer
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  test "Test binary message with single empty payload message":
+  asyncTest "Test binary message with single empty payload message":
     let emptyData = newSeq[byte](0)
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -838,7 +847,7 @@ suite "Test Binary message with Payload":
     await session.send(emptyData, Opcode.Binary)
     await session.close()
 
-  test "Test binary message with multiple empty payload":
+  asyncTest "Test binary message with multiple empty payload":
     let emptyData = newSeq[byte](0)
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
@@ -865,7 +874,7 @@ suite "Test Binary message with Payload":
       await session.send(emptyData, Opcode.Binary)
     await session.close()
 
-  test "Send binary data with small text payload":
+  asyncTest "Send binary data with small text payload":
     let testData = rndBin(10)
     trace "testData", testData = testData
     var ping, pong = false
@@ -900,7 +909,7 @@ suite "Test Binary message with Payload":
     await session.send(testData, Opcode.Binary)
     await session.close()
 
-  test "Send binary message message with payload of length 125":
+  asyncTest "Send binary message message with payload of length 125":
     let testData = rndBin(125)
     var ping, pong = false
     proc handle(request: HttpRequest) {.async.} =
@@ -934,7 +943,7 @@ suite "Test Binary message with Payload":
     await session.send(testData, Opcode.Binary)
     await session.close()
 
-  test "Send binary message with multiple frames":
+  asyncTest "Send binary message with multiple frames":
     const FrameSize = 3000
     let testData = rndBin(FrameSize * 3)
     proc handle(request: HttpRequest) {.async.} =
@@ -974,62 +983,64 @@ suite "Test Binary message with Payload":
       ws.binary == true
 
 suite "Partial frames":
-  var
-    server: HttpServer
+  setup:
+    var
+      server: HttpServer
+
+    proc lowLevelRecv(
+      senderFrameSize, receiverFrameSize, readChunkSize: int) {.async.} =
+
+      const
+        howMuchWood = "How much wood could a wood chuck chuck ..."
+
+      proc handle(request: HttpRequest) {.async.} =
+        check request.uri.path == WSPath
+
+        let
+          server = WSServer.new(frameSize = receiverFrameSize)
+          ws = await server.handleRequest(request)
+
+        var
+          res = newSeq[byte](howMuchWood.len)
+          pos = 0
+
+        while ws.readyState != ReadyState.Closed:
+          let read = await ws.recv(addr res[pos], min(res.len - pos, readChunkSize))
+          pos += read
+
+          if pos >= res.len:
+            break
+
+        res.setlen(pos)
+        check res.len == howMuchWood.toBytes().len
+        check res == howMuchWood.toBytes()
+        await ws.waitForClose()
+
+      server = createServer(
+        address = address,
+        handler = handle,
+        flags = {ReuseAddr})
+
+      let session = await connectClient(
+        address = address,
+        frameSize = senderFrameSize)
+
+      await session.send(howMuchWood)
+      await session.close()
 
   teardown:
-    server.stop()
-    await server.closeWait()
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
 
-  proc lowLevelRecv(
-    senderFrameSize, receiverFrameSize, readChunkSize: int) {.async.} =
-
-    const
-      howMuchWood = "How much wood could a wood chuck chuck ..."
-
-    proc handle(request: HttpRequest) {.async.} =
-      check request.uri.path == WSPath
-
-      let
-        server = WSServer.new(frameSize = receiverFrameSize)
-        ws = await server.handleRequest(request)
-
-      var
-        res = newSeq[byte](howMuchWood.len)
-        pos = 0
-
-      while ws.readyState != ReadyState.Closed:
-        let read = await ws.recv(addr res[pos], min(res.len - pos, readChunkSize))
-        pos += read
-
-        if pos >= res.len:
-          break
-
-      res.setlen(pos)
-      check res.len == howMuchWood.toBytes().len
-      check res == howMuchWood.toBytes()
-      await ws.waitForClose()
-
-    server = createServer(
-      address = address,
-      handler = handle,
-      flags = {ReuseAddr})
-
-    let session = await connectClient(
-      address = address,
-      frameSize = senderFrameSize)
-
-    await session.send(howMuchWood)
-    await session.close()
-
-  test "read in chunks less than sender frameSize":
+  asyncTest "read in chunks less than sender frameSize":
     await lowLevelRecv(7, 7, 5)
 
-  test "read in chunks greater than sender frameSize":
+  asyncTest "read in chunks greater than sender frameSize":
     await lowLevelRecv(3, 7, 5)
 
-  test "sender frameSize greater than receiver":
+  asyncTest "sender frameSize greater than receiver":
     await lowLevelRecv(7, 5, 5)
 
-  test "receiver frameSize greater than sender":
+  asyncTest "receiver frameSize greater than sender":
     await lowLevelRecv(7, 10, 5)

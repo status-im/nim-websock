@@ -7,8 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/stew/byteutils
-import pkg/asynctest/unittest2
+import
+  pkg/stew/byteutils,
+  pkg/chronos/unittest2/asynctests
 
 include ../websock/frame
 include ../websock/utils
@@ -16,10 +17,10 @@ include ../websock/utils
 # TODO: Fix Test.
 
 suite "Test data frames":
+  setup:
+    var maskKey: array[4, char]
 
-  var maskKey: array[4, char]
-
-  test "# 7bit length text":
+  asyncTest "# 7bit length text":
     check (await Frame(
       fin: false,
       rsv1: false,
@@ -30,7 +31,7 @@ suite "Test data frames":
       data: toBytes("hi there")
     ).encode()) == toBytes("\1\8hi there")
 
-  test "# 7bit length text fin bit":
+  asyncTest "# 7bit length text fin bit":
     check (await Frame(
       fin: true,
       rsv1: false,
@@ -42,7 +43,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\129\8hi there")
 
-  test "# 7bit length binary":
+  asyncTest "# 7bit length binary":
     check (await Frame(
       fin: false,
       rsv1: false,
@@ -54,7 +55,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\2\8hi there")
 
-  test "# 7bit length binary fin bit":
+  asyncTest "# 7bit length binary fin bit":
     check (await Frame(
       fin: true,
       rsv1: false,
@@ -66,7 +67,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\130\8hi there")
 
-  test "# 7bit length continuation":
+  asyncTest "# 7bit length continuation":
     check (await Frame(
       fin: false,
       rsv1: false,
@@ -78,7 +79,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\0\8hi there")
 
-  test "# 7+16 length text":
+  asyncTest "# 7+16 length text":
     var data = ""
     for i in 0..32:
       data.add "How are you this is the payload!!!"
@@ -94,7 +95,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\1\126\4\98" & data)
 
-  test "# 7+16 length text fin bit":
+  asyncTest "# 7+16 length text fin bit":
     var data = ""
     for i in 0..32:
       data.add "How are you this is the payload!!!"
@@ -110,7 +111,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\1\126\4\98" & data)
 
-  test "# 7+16 length binary":
+  asyncTest "# 7+16 length binary":
     var data = ""
     for i in 0..32:
       data.add "How are you this is the payload!!!"
@@ -126,7 +127,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\2\126\4\98" & data)
 
-  test "# 7+16 length binary fin bit":
+  asyncTest "# 7+16 length binary fin bit":
     var data = ""
     for i in 0..32:
       data.add "How are you this is the payload!!!"
@@ -142,7 +143,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\130\126\4\98" & data)
 
-  test "# 7+16 length continuation":
+  asyncTest "# 7+16 length continuation":
     var data = ""
     for i in 0..32:
       data.add "How are you this is the payload!!!"
@@ -158,7 +159,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\0\126\4\98" & data)
 
-  test "# 7+64 length text":
+  asyncTest "# 7+64 length text":
     var data = ""
     for i in 0..3200:
       data.add "How are you this is the payload!!!"
@@ -174,7 +175,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\1\127\0\0\0\0\0\1\169\34" & data)
 
-  test "# 7+64 length fin bit":
+  asyncTest "# 7+64 length fin bit":
     var data = ""
     for i in 0..3200:
       data.add "How are you this is the payload!!!"
@@ -190,7 +191,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\129\127\0\0\0\0\0\1\169\34" & data)
 
-  test "# 7+64 length binary":
+  asyncTest "# 7+64 length binary":
     var data = ""
     for i in 0..3200:
       data.add "How are you this is the payload!!!"
@@ -206,7 +207,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\2\127\0\0\0\0\0\1\169\34" & data)
 
-  test "# 7+64 length binary fin bit":
+  asyncTest "# 7+64 length binary fin bit":
     var data = ""
     for i in 0..3200:
       data.add "How are you this is the payload!!!"
@@ -222,7 +223,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\130\127\0\0\0\0\0\1\169\34" & data)
 
-  test "# 7+64 length binary":
+  asyncTest "# 7+64 length binary":
     var data = ""
     for i in 0..3200:
       data.add "How are you this is the payload!!!"
@@ -238,7 +239,7 @@ suite "Test data frames":
       maskKey: maskKey
     ).encode()) == toBytes("\0\127\0\0\0\0\0\1\169\34" & data)
 
-  test "# masking":
+  asyncTest "# masking":
     let data = (await Frame(
       fin: true,
       rsv1: false,
@@ -253,10 +254,10 @@ suite "Test data frames":
     check data == toBytes("\129\136\207\216\5e\167\177%\17\167\189w\0")
 
 suite "Test control frames":
+  setup:
+    var maskKey: array[4, char]
 
-  var maskKey: array[4, char]
-
-  test "Close":
+  asyncTest "Close":
     check (await Frame(
       fin: true,
       rsv1: false,
@@ -268,7 +269,7 @@ suite "Test control frames":
       maskKey: maskKey
     ).encode()) == toBytes("\136\10\3\232hi there")
 
-  test "Ping":
+  asyncTest "Ping":
     check (await Frame(
       fin: false,
       rsv1: false,
@@ -279,7 +280,7 @@ suite "Test control frames":
       maskKey: maskKey
     ).encode()) == toBytes("\9\0")
 
-  test "Pong":
+  asyncTest "Pong":
     check (await Frame(
       fin: false,
       rsv1: false,

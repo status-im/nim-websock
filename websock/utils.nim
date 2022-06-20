@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import bearssl/[hash, rand]
+import bearssl/[rand]
 export rand
 
 ## Random helpers: similar as in stdlib, but with HmacDrbgContext rng
