@@ -783,11 +783,11 @@ suite "Test Payload":
 
   asyncTest "Send text message with multiple frames":
     const FrameSize = 3000
-    let testData = rndStr(FrameSize * 3)
+    let testData = rndStr(FrameSize * 3 + 100)
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
-      let server = WSServer.new(protos = ["proto"])
+      let server = WSServer.new(protos = ["proto"], frameSize = FrameSize)
       let ws = await server.handleRequest(request)
       let res = await ws.recvMsg()
 
