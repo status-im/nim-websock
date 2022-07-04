@@ -53,6 +53,22 @@ const
   ExtDeflateThreshold* = 1024
   ExtDeflateDecompressLimit* = 10 shl 20  # 10mb
 
+proc destroyExt(ext: DeflateExt) =
+  if ext.compCtxState != ContextState.Invalid:
+    # zlib.deflateEnd somehow return DATA_ERROR
+    # when compression succeed some cases.
+    # we forget to do something?
+    discard ext.compCtx.deflateEnd()
+    ext.compCtxState = ContextState.Invalid
+
+  if ext.decompCtxState != ContextState.Invalid:
+    doAssert(ext.decompCtx.inflateEnd() == Z_OK)
+    ext.decompCtxState = ContextState.Invalid
+
+# Need to be declared early and not be generic to work with ARC/ORC
+proc newDeflateExt: DeflateExt =
+  result.new(destroyExt)
+
 proc concatParam(resp: var string, param: string) =
   resp.add "; "
   resp.add param
@@ -327,18 +343,6 @@ method toHttpOptions(ext: DeflateExt): string =
   # using paramStr here is a bit clunky
   extID & ext.paramStr
 
-proc destroyExt(ext: DeflateExt) =
-  if ext.compCtxState != ContextState.Invalid:
-    # zlib.deflateEnd somehow return DATA_ERROR
-    # when compression succeed some cases.
-    # we forget to do something?
-    discard ext.compCtx.deflateEnd()
-    ext.compCtxState = ContextState.Invalid
-
-  if ext.decompCtxState != ContextState.Invalid:
-    doAssert(ext.decompCtx.inflateEnd() == Z_OK)
-    ext.decompCtxState = ContextState.Invalid
-
 proc makeOffer(
   clientNoContextTakeOver: bool,
   clientMaxWindowBits: int): string =
@@ -380,8 +384,7 @@ proc deflateFactory*(
     if resp.isErr:
       return err(resp.error)
 
-    var ext: DeflateExt
-    ext.new(destroyExt)
+    var ext = newDeflateExt()
     ext.name          = extID
     ext.paramStr      = resp.get()
     ext.opts          = opts
