@@ -26,9 +26,15 @@ requires "zlib"
 task test, "run tests":
   let
     envNimflags = getEnv("NIMFLAGS")
+    styleCheckStyle =
+      if (NimMajor, NimMinor) < (1, 6):
+        "hint"
+      else:
+        "error"
     nimFlags = envNimFlags &
       " --verbosity:0 --hints:off --hint:Name:on " &
-      "--styleCheck:usages --styleCheck:hint -d:chronosStrictException"
+      "--styleCheck:usages --styleCheck:" & styleCheckStyle &
+      " -d:chronosStrictException"
 
   # dont't need to run it, only want to test if it is compileable
   exec "nim c -c " & nimFlags & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json --styleCheck:usages --styleCheck:hint ./tests/all_tests"

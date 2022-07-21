@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021 Status Research & Development GmbH
+## Copyright (c) 2021-2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -8,7 +8,7 @@
 ## those terms.
 
 import std/os
-import pkg/[chronicles, chronos/unittest2/asynctests, stew/io2]
+import pkg/[chronos/unittest2/asynctests, stew/io2]
 import ../../websock/websock
 import ../../websock/extensions/compression/deflate
 
