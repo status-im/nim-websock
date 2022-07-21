@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021 Status Research & Development GmbH
+## Copyright (c) 2021-2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -137,7 +137,7 @@ proc parseExt*[T: BChar](data: openArray[T], output: var seq[AppExt]): bool =
       ext.params[^1].name  = system.move(param.name)
       ext.params[^1].value = system.move(param.value)
 
-      if lex.tok notin {tkSemcol, tkComma, tkEof}:
+      if lex.tok notin {tkSemCol, tkComma, tkEof}:
         return false
 
     output.setLen(output.len + 1)

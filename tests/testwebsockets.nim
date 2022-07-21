@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021 Status Research & Development GmbH
+## Copyright (c) 2021-2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -1011,7 +1011,7 @@ suite "Partial frames":
           if pos >= res.len:
             break
 
-        res.setlen(pos)
+        res.setLen(pos)
         check res.len == howMuchWood.toBytes().len
         check res == howMuchWood.toBytes()
         await ws.waitForClose()
