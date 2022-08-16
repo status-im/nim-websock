@@ -5,7 +5,9 @@
 ![Github action](https://github.com/status-im/nim-websock/workflows/CI/badge.svg)
 
 This is an implementation of [Websocket](https://tools.ietf.org/html/rfc6455) protocol for
-[Nim](https://nim-lang.org/). nim-websock have both client and server in regular ws and wss(secure) mode.
+[Nim](https://nim-lang.org/) and [chronos](https://github.com/status-im/nim-chronos/).
+
+`nim-websock` includes both client and server in regular ws and wss(secure) mode.
 
 It also pass all autobahn tests [Autobahn summary report](https://status-im.github.io/nim-websock/).
 
