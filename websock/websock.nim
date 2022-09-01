@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021 Status Research & Development GmbH
+## Copyright (c) 2021-2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -109,6 +109,7 @@ proc connect*(
   hostName: string = "", # override used when the hostname has been externally resolved
   protocols: seq[string] = @[],
   factories: seq[ExtFactory] = @[],
+  extraHeaders: HttpTable = default(HttpTable),
   hooks: seq[Hook] = @[],
   secure = false,
   flags: set[TLSFlags] = {},
@@ -149,6 +150,9 @@ proc connect*(
 
   if extOffer.len > 0:
     headers.add("Sec-WebSocket-Extensions", extOffer)
+
+  for header in extraHeaders.stringItems:
+    headers.add(header.key, header.value)
 
   for hp in hooks:
     if hp.append == nil: continue
@@ -209,6 +213,7 @@ proc connect*(
   uri: Uri,
   protocols: seq[string] = @[],
   factories: seq[ExtFactory] = @[],
+  extraHeaders: HttpTable = default(HttpTable),
   hooks: seq[Hook] = @[],
   flags: set[TLSFlags] = {},
   version = WSDefaultVersion,
@@ -238,6 +243,7 @@ proc connect*(
     path = uri.path,
     protocols = protocols,
     factories = factories,
+    extraHeaders = extraHeaders,
     hooks = hooks,
     secure = secure,
     flags = flags,
