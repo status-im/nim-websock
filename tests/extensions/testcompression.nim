@@ -7,13 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/os
+import std/[os, strutils]
 import pkg/[chronos/unittest2/asynctests, stew/io2]
 import ../../websock/websock
 import ../../websock/extensions/compression/deflate
 
 const
-  dataFolder = "tests" / "extensions" / "data"
+  dataFolder = currentSourcePath.rsplit(os.DirSep, 1)[0] / "data"
 
 suite "permessage deflate compression":
   setup:

@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021 Status Research & Development GmbH
+## Copyright (c) 2021-2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,12 +9,15 @@
 
 {.push raises: [Defect].}
 
+import std/deques
 import pkg/[chronos,
             chronos/streams/tlsstream,
             chronos/apps/http/httptable,
             httputils,
             stew/results]
 import ./utils
+
+export deques
 
 const
   SHA1DigestSize* = 20
@@ -98,6 +101,14 @@ type
     first*: bool
     reading*: bool
     proto*: string
+
+    # The fragments of one message MUST NOT be interleaved between the
+    # fragments of another message unless an extension has been
+    # negotiated that can interpret the interleaving.
+    # See RFC 6455 Section 5.4 Fragmentation
+    sendFut*: Future[void]
+    sendQueue*: Deque[
+      tuple[data: seq[byte], opcode: Opcode, fut: Future[void]]]
 
   Ext* = ref object of RootObj
     name*: string
