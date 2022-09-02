@@ -151,7 +151,7 @@ proc doSend(
 
   sendFut
 
-proc continueSending(ws: WSSession) =
+proc continueSending(ws: WSSession) {.gcsafe.} =
   while ws.sendQueue.len > 0:
     let
       task = ws.sendQueue.popFirst()
