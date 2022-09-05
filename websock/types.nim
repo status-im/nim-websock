@@ -106,7 +106,7 @@ type
     # fragments of another message unless an extension has been
     # negotiated that can interpret the interleaving.
     # See RFC 6455 Section 5.4 Fragmentation
-    sendFut*: Future[void]
+    sendLoop*: Future[void]
     sendQueue*: Deque[
       tuple[data: seq[byte], opcode: Opcode, fut: Future[void]]]
 
