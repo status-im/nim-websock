@@ -146,6 +146,8 @@ proc doSend(
 proc sendLoop(ws: WSSession) {.gcsafe, async.} =
   while ws.sendQueue.len > 0:
     let task = ws.sendQueue.popFirst()
+    if task.fut.cancelled:
+      continue
 
     try:
       await ws.doSend(task.data, task.opcode)

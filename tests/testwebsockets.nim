@@ -409,6 +409,9 @@ suite "Test framing":
         except CatchableError:
           fail()
 
+      expect WSClosedError:
+        discard await ws.recvMsg()  # try to receive canceled message
+
       await waitForClose(ws)
 
     server = createServer(
@@ -424,7 +427,7 @@ suite "Test framing":
     for i in 0 ..< numMessages:
       futs.add session.send(testData, Opcode.Binary)
     futs[0].cancel()  # expected to complete as it already started sending
-    futs[^1].cancel() # expected to be canceled as it has not started yet
+    futs[^2].cancel()  # expected to be canceled as it has not started yet
     await allFutures(futs)
     await session.close()
 
