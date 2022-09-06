@@ -23,7 +23,7 @@ proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
   if ord(code) > 999:
     result = @(ord(code).uint16.toBytesBE()) & result
 
-proc writeMessage*(ws: WSSession,
+proc writeMessage(ws: WSSession,
   data: seq[byte] = @[],
   opcode: Opcode,
   maskKey: MaskKey,
@@ -36,7 +36,7 @@ proc writeMessage*(ws: WSSession,
 
   let maxSize = ws.frameSize
   var i = 0
-  while ws.readyState notin {ReadyState.Closing}:
+  while ws.readyState notin {ReadyState.Closing, ReadyState.Closed}:
     let canSend = min(data.len - i, maxSize)
     let frame = Frame(
         fin: if (canSend + i >= data.len): true else: false,
@@ -55,7 +55,7 @@ proc writeMessage*(ws: WSSession,
     if i >= data.len:
       break
 
-proc writeControl*(
+proc writeControl(
   ws: WSSession,
   data: seq[byte] = @[],
   opcode: Opcode,
@@ -89,11 +89,14 @@ proc writeControl*(
 
   trace "Wrote control frame"
 
-proc send*(
+func isControl(opcode: Opcode): bool =
+  opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}
+
+proc nonCancellableSend(
   ws: WSSession,
   data: seq[byte] = @[],
   opcode: Opcode): Future[void]
-  {.async, raises: [Defect, WSClosedError].} =
+  {.async.} =
   ## Send a frame
   ##
 
@@ -116,13 +119,61 @@ proc send*(
     else:
       default(MaskKey)
 
-  if opcode in {Opcode.Text, Opcode.Cont, Opcode.Binary}:
-    await ws.writeMessage(
-      data, opcode, maskKey, ws.extensions)
+  if opcode.isControl:
+    await ws.writeControl(data, opcode, maskKey)
+  else:
+    await ws.writeMessage(data, opcode, maskKey, ws.extensions)
 
-    return
+proc doSend(
+  ws: WSSession,
+  data: seq[byte] = @[],
+  opcode: Opcode
+  ): Future[void] =
+  let
+    retFut = newFuture[void]("doSend")
+    sendFut = ws.nonCancellableSend(data, opcode)
 
-  await ws.writeControl(data, opcode, maskKey)
+  proc handleSend {.async.} =
+    try:
+      await sendFut
+      retFut.complete()
+    except CatchableError as exc:
+      retFut.fail(exc)
+
+  asyncSpawn handleSend()
+  retFut
+
+proc sendLoop(ws: WSSession) {.gcsafe, async.} =
+  while ws.sendQueue.len > 0:
+    let task = ws.sendQueue.popFirst()
+    if task.fut.cancelled:
+      continue
+
+    try:
+      await ws.doSend(task.data, task.opcode)
+      task.fut.complete()
+    except CatchableError as exc:
+      task.fut.fail(exc)
+
+proc send*(
+  ws: WSSession,
+  data: seq[byte] = @[],
+  opcode: Opcode): Future[void] =
+  if opcode.isControl:
+    # Control frames (see Section 5.5) MAY be injected in the middle of
+    # a fragmented message.  Control frames themselves MUST NOT be
+    # fragmented.
+    # See RFC 6455 Section 5.4 Fragmentation
+    return ws.doSend(data, opcode)
+
+  let fut = newFuture[void]("send")
+
+  ws.sendQueue.addLast (data: data, opcode: opcode, fut: fut)
+
+  if isNil(ws.sendLoop) or ws.sendLoop.finished:
+    ws.sendLoop = sendLoop(ws)
+
+  fut
 
 proc send*(
   ws: WSSession,
@@ -419,6 +470,10 @@ proc recvMsg*(
       if ws.frame.fin and ws.frame.remainder <= 0:
         trace "Read full message, breaking!"
         break
+
+    if ws.readyState == ReadyState.Closed:
+      # avoid reporting incomplete message
+      raise newException(WSClosedError, "WebSocket is closed!")
 
     if not ws.binary and validateUTF8(res.toOpenArray(0, res.high)) == false:
       raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")

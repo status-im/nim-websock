@@ -7,7 +7,10 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/strutils
+import std/[
+  random,
+  sequtils,
+  strutils]
 import pkg/[
   httputils,
   chronos/unittest2/asynctests,
@@ -351,6 +354,120 @@ suite "Test framing":
     expect WSMaxMessageSizeError:
       discard await session.recvMsg(5)
     await waitForClose(session)
+
+  asyncTest "should serialize long messages":
+    const numMessages = 10
+    let testData = newSeqWith(10 * 1024 * 1024, byte.rand())
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+
+      for i in 0 ..< numMessages:
+        try:
+          let message = await ws.recvMsg()
+          let matchesExpectedMessage = (message == testData)
+          check matchesExpectedMessage
+        except CatchableError:
+          fail()
+
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let session = await connectClient(
+      address = initTAddress("127.0.0.1:8888"),
+      frameSize = 1 * 1024 * 1024)
+
+    var futs: seq[Future[void]]
+    for i in 0 ..< numMessages:
+      futs.add session.send(testData, Opcode.Binary)
+    await allFutures(futs)
+    await session.close()
+
+  asyncTest "should handle cancellations":
+    const numMessages = 10
+    let expectedNumMessages = numMessages - 1
+    let testData = newSeqWith(10 * 1024 * 1024, byte.rand())
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+
+      for i in 0 ..< expectedNumMessages:
+        try:
+          let message = await ws.recvMsg()
+          let matchesExpectedMessage = (message == testData)
+          check matchesExpectedMessage
+        except CatchableError:
+          fail()
+
+      expect WSClosedError:
+        discard await ws.recvMsg()  # try to receive canceled message
+
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let session = await connectClient(
+      address = initTAddress("127.0.0.1:8888"),
+      frameSize = 1 * 1024 * 1024)
+
+    var futs: seq[Future[void]]
+    for i in 0 ..< numMessages:
+      futs.add session.send(testData, Opcode.Binary)
+    futs[0].cancel()  # expected to complete as it already started sending
+    futs[^2].cancel()  # expected to be canceled as it has not started yet
+    await allFutures(futs)
+    await session.close()
+
+  asyncTest "should prioritize control packets":
+    const numMessages = 10
+    let testData = newSeqWith(10 * 1024 * 1024, byte.rand())
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+
+      expect WSClosedError:
+        discard await ws.recvMsg()
+
+      await waitForClose(ws)
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    let session = await connectClient(
+      address = initTAddress("127.0.0.1:8888"),
+      frameSize = 1 * 1024 * 1024)
+
+    let messageFut = session.send(testData, Opcode.Binary)
+
+    # interleave ping packets
+    var futs: seq[Future[void]]
+    for i in 0 ..< numMessages:
+      futs.add session.send(opcode = Opcode.Ping)
+    await allFutures(futs)
+    check not messageFut.finished
+
+    # interleave close packet
+    await session.close()
+    check messageFut.finished
+    await messageFut
 
 suite "Test Closing":
   setup:
