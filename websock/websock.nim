@@ -236,6 +236,7 @@ proc connect*(
   return WebSocket.connect(
     host = uri.hostname & ":" & uri.port,
     path = uri.path,
+    hostName = uri.hostname,
     protocols = protocols,
     factories = factories,
     hooks = hooks,
