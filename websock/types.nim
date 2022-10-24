@@ -210,5 +210,5 @@ method decode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
 method encode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
   raiseAssert "Not implemented!"
 
-method toHttpOptions*(self: Ext): string {.base.} =
+method toHttpOptions*(self: Ext): string {.base, gcsafe.} =
   raiseAssert "Not implemented!"
