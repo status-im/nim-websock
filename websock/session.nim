@@ -502,10 +502,9 @@ proc close*(
   if ws.readyState != ReadyState.Open:
     return
 
-  try:
-    ws.readyState = ReadyState.Closing
+  proc gentleCloser(ws: WSSession, closeBody: seq[byte]) {.async.} =
     await ws.send(
-      prepareCloseBody(code, reason),
+      closeBody,
       opcode = Opcode.Close)
 
     # read frames until closed
@@ -513,7 +512,12 @@ proc close*(
       while ws.readyState != ReadyState.Closed:
         discard await ws.readFrame()
     except CatchableError as exc:
-      ws.readyState = ReadyState.Closed
-      await ws.stream.closeWait()
+      discard # most likely EOF
+  try:
+    ws.readyState = ReadyState.Closing
+    await gentleCloser(ws, prepareCloseBody(code, reason)).wait(10.seconds)
   except CatchableError as exc:
     trace "Exception closing", exc = exc.msg
+  finally:
+    await ws.stream.closeWait()
+    ws.readyState = ReadyState.Closed
