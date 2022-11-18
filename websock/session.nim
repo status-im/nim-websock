@@ -249,7 +249,7 @@ proc handleClose*(
   if ws.readyState != ReadyState.Closing:
     ws.readyState = ReadyState.Closing
     trace "Sending close", code = ord(code), reason
-    await ws.send(prepareCloseBody(code, reason), Opcode.Close)
+    discard await ws.send(prepareCloseBody(code, reason), Opcode.Close).withTimeout(5.seconds)
 
     ws.readyState = ReadyState.Closed
 
