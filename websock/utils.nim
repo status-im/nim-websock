@@ -13,13 +13,7 @@ export rand
 ## Random helpers: similar as in stdlib, but with HmacDrbgContext rng
 const randMax = 18_446_744_073_709_551_615'u64
 
-type
-  Rng* = ref HmacDrbgContext
-
-proc newRng*(): Rng =
-  # You should only create one instance of the RNG per application / library
-  # Ref is used so that it can be shared between components
-  HmacDrbgContext.new()
+type Rng* = ref HmacDrbgContext
 
 proc rand*(rng: Rng, max: Natural): int =
   if max == 0: return 0
