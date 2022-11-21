@@ -121,7 +121,7 @@ suite "Decode frame extensions flow":
   var
     address: TransportAddress
     server: StreamServer
-    maskKey = genMaskKey(newRng())
+    maskKey = genMaskKey(HmacDrbgContext.new())
     transport: StreamTransport
     reader: AsyncStreamReader
     frame: Frame

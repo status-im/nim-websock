@@ -120,7 +120,7 @@ proc connect*(
   rng: Rng = nil): Future[WSSession] {.async.} =
 
   let
-    rng = if isNil(rng): newRng() else: rng
+    rng = if isNil(rng): HmacDrbgContext.new() else: rng
     key = Base64Pad.encode(genWebSecKey(rng))
     hostname = if hostName.len > 0: hostName else: $host
 
@@ -364,7 +364,7 @@ proc new*(
   return WSServer(
     protocols: @protos,
     masked: false,
-    rng: if isNil(rng): newRng() else: rng,
+    rng: if isNil(rng): HmacDrbgContext.new() else: rng,
     frameSize: frameSize,
     factories: @factories,
     onPing: onPing,
