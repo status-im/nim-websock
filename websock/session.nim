@@ -252,7 +252,7 @@ proc handleClose*(
     try:
       await ws.send(prepareCloseBody(code, reason), Opcode.Close).wait(5.seconds)
     except CatchableError as exc:
-      debug "Failed to send Close opcode", err=exc.msg
+      trace "Failed to send Close opcode", err=exc.msg
 
     ws.readyState = ReadyState.Closed
 
