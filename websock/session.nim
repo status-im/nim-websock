@@ -349,7 +349,7 @@ proc ping*(
 
 proc recv*(
   ws: WSSession,
-  data: pointer,
+  data: ptr byte | ref seq[byte],
   size: int): Future[int] {.async.} =
   ## Attempts to read up to ``size`` bytes
   ##
@@ -371,7 +371,8 @@ proc recv*(
   defer: ws.reading = false
 
   var consumed = 0
-  var pbuffer = cast[ptr UncheckedArray[byte]](data)
+  when data is ptr byte:
+    let pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
     if isNil(ws.frame):
       ws.frame = await ws.readFrame(ws.extensions)
@@ -404,7 +405,11 @@ proc recv*(
       let len = min(ws.frame.remainder.int, size - consumed)
       if len > 0:
         trace "Reading bytes from frame stream", len
-        let read = await ws.frame.read(ws.stream.reader, addr pbuffer[consumed], len)
+        when data is ref seq[byte]:
+          data[].setLen(consumed + len)
+          let read = await ws.frame.read(ws.stream.reader, addr data[][consumed], len)
+        else:
+          let read = await ws.frame.read(ws.stream.reader, addr pbuffer[consumed], len)
         if read <= 0:
           trace "Didn't read any bytes, stopping"
           raise newException(WSClosedError, "WebSocket is closed!")
@@ -455,15 +460,14 @@ proc recvMsg*(
   try:
     var res: seq[byte]
     while ws.readyState != ReadyState.Closed:
-      var buf = newSeq[byte](min(size, ws.frameSize))
-      let read = await ws.recv(addr buf[0], buf.len)
+      var buf = new(seq[byte])
+      let read = await ws.recv(buf, min(size, ws.frameSize))
 
-      buf.setLen(read)
-      if res.len + buf.len > size:
+      if res.len + buf[].len > size:
         raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
       trace "Read message", size = read
-      res.add(buf)
+      res.add(buf[])
 
       # no more frames
       if isNil(ws.frame):
