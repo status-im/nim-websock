@@ -349,7 +349,7 @@ proc ping*(
 
 proc recv*(
   ws: WSSession,
-  data: pointer | ref seq[byte],
+  data: pointer | ptr byte | ref seq[byte], # nim bug: pointer doesn't match ptr byte?
   size: int): Future[int] {.async.} =
   ## Attempts to read up to ``size`` bytes
   ##
@@ -371,7 +371,7 @@ proc recv*(
   defer: ws.reading = false
 
   var consumed = 0
-  when data is pointer:
+  when data is pointer or data is ptr byte:
     let pbuffer = cast[ptr UncheckedArray[byte]](data)
   try:
     if isNil(ws.frame):
