@@ -454,27 +454,55 @@ proc recvMsg*(
   ##
   try:
     var res: seq[byte]
+    ws.first = true
+    defer: ws.first = false
+    var fin = false
+    
     while ws.readyState != ReadyState.Closed:
-      var buf = newSeq[byte](min(size, ws.frameSize))
-      let read = await ws.recv(addr buf[0], buf.len)
-
-      buf.setLen(read)
-      if res.len + buf.len > size:
-        raise newException(WSMaxMessageSizeError, "Max message size exceeded")
-
-      trace "Read message", size = read
-      res.add(buf)
-
-      # no more frames
       if isNil(ws.frame):
+        ws.frame = await ws.readFrame(ws.extensions)
+        ws.first = true
+
+      if isNil(ws.frame):
+        assert ws.readyState == ReadyState.Closed
+        trace "Closed connection, breaking"
+        break
+      
+      if ws.first:
+        ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
+        trace "Setting binary flag"
+
+      fin = ws.frame.fin
+      var toRead = ws.frame.length
+      
+      if res.len + toRead.int > size:
+        raise newException(WSMaxMessageSizeError, "Max message size exceeded")
+      
+      if toRead == 0:
+        ws.frame = nil
         break
 
-      # read the entire message, exit
-      if ws.frame.fin and ws.frame.remainder <= 0:
-        trace "Read full message, breaking!"
+      while toRead > 0:
+        let pos = res.len.uint64
+        res.setLen(pos + toRead)
+        let read = await ws.recv(addr res[pos], toRead.int)
+        
+        trace "Read message", size = read
+        if read <= 0:
+          trace "Didn't read any bytes, stopping"
+          raise newException(WSClosedError, "WebSocket is closed!")
+        toRead -= read.uint64
+
+        # no more frames
+        if isNil(ws.frame):
+          # fin = true
+          break
+
+      if isNil(ws.frame):
+        # fin = true
         break
 
-    if ws.readyState == ReadyState.Closed:
+    if not fin and ws.readyState == ReadyState.Closed:
       # avoid reporting incomplete message
       raise newException(WSClosedError, "WebSocket is closed!")
 
