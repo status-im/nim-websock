@@ -183,11 +183,11 @@ proc compress(zs: var ZStream, data: openArray[byte]): seq[byte] =
 
   # these casting is needed to prevent compilation
   # error with CLANG
-  zs.next_in   = cast[ptr cuchar](data[0].unsafeAddr)
+  zs.next_in   = cast[ptr uint8](data[0].unsafeAddr)
   zs.avail_in  = data.len.cuint
 
   while true:
-    zs.next_out  = cast[ptr cuchar](buf[0].addr)
+    zs.next_out  = cast[ptr uint8](buf[0].addr)
     zs.avail_out = buf.len.cuint
 
     let r = zs.deflate(Z_SYNC_FLUSH)
@@ -210,11 +210,11 @@ proc decompress(zs: var ZStream, limit: int, data: openArray[byte]): seq[byte] =
 
   # these casting is needed to prevent compilation
   # error with CLANG
-  zs.next_in   = cast[ptr cuchar](data[0].unsafeAddr)
+  zs.next_in   = cast[ptr uint8](data[0].unsafeAddr)
   zs.avail_in  = data.len.cuint
 
   while true:
-    zs.next_out  = cast[ptr cuchar](buf[0].addr)
+    zs.next_out  = cast[ptr uint8](buf[0].addr)
     zs.avail_out = buf.len.cuint
 
     let r = zs.inflate(Z_NO_FLUSH)
