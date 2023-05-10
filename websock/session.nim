@@ -264,6 +264,16 @@ proc handleClose*(
   await sleepAsync(10.millis)
   await ws.stream.closeWait()
 
+  if not isNil(ws.sendLoop):
+    ws.sendLoop.cancel()
+  # don't care about opcode,
+  # but we can only have a single
+  # `_` in 1.2
+  for (_, opcode, fut) in ws.sendQueue:
+    if not fut.finished:
+      fut.fail(WSClosedError.newException("Session got closed"))
+  ws.sendQueue.clear()
+
 proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
   ## Handle control frames
   ##
