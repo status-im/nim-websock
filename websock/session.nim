@@ -528,3 +528,10 @@ proc close*(
   finally:
     await ws.stream.closeWait()
     ws.readyState = ReadyState.Closed
+
+    if not isNil(ws.sendLoop):
+      ws.sendLoop.cancel()
+    for (_, _, fut) in ws.sendQueue:
+      if not fut.finished:
+        fut.fail(WSClosedError.newException("Session got closed"))
+    ws.sendQueue.clear()
