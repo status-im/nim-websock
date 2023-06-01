@@ -175,7 +175,7 @@ jobs:
       max-parallel: 20
       matrix:
         websock: [ws, wsc, wss, wssc]
-        branch: [version-1-2, version-1-4, version-1-6, devel]
+        branch: [version-1-6, version-2-0, devel]
 
     defaults:
       run:
@@ -198,14 +198,14 @@ jobs:
       - name: Setup Python version
         uses: actions/setup-python@v2
         with:
-          python-version: pypy-2.7
+          python-version: pypy-3.7
 
       - name: Setup Autobahn.
         run: |
-          sudo apt-get install -y python-dev
+          sudo apt-get install -y python3-dev
           pip install virtualenv
           pip install markdown2
-          virtualenv --python=/usr/bin/python2 autobahn
+          virtualenv --python=/usr/bin/python3 autobahn
           source autobahn/bin/activate
           pip install autobahntestsuite
           nimble install -y --depsOnly
