@@ -170,6 +170,34 @@ suite "Test transmission":
     check string.fromBytes(clientRes) == testString
     await waitForClose(session)
 
+  asyncTest "Close handle ancellation ":
+    let testString = "Hello!"
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+      let servRes = await ws.recvMsg()
+
+      check string.fromBytes(servRes) == testString
+      await ws.waitForClose()
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    proc client() {.async, gcsafe.} =
+      let session = await connectClient()
+      await session.send(testString)
+      expect CancelledError:
+        await session.close()
+
+    let task = client()
+    await sleepAsync(10)
+
+    await task.cancelAndWait()
+
 suite "Test ping-pong":
   setup:
     var
@@ -1161,3 +1189,5 @@ suite "Partial frames":
 
   asyncTest "receiver frameSize greater than sender":
     await lowLevelRecv(7, 10, 5)
+
+
