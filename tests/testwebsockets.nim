@@ -170,8 +170,10 @@ suite "Test transmission":
     check string.fromBytes(clientRes) == testString
     await waitForClose(session)
 
-  asyncTest "Close handle ancellation ":
+  asyncTest "Close handle cancellation":
     let testString = "Hello!"
+    let cancelSignal = newFuture[void]()
+
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
@@ -190,12 +192,13 @@ suite "Test transmission":
     proc client() {.async, gcsafe.} =
       let session = await connectClient()
       await session.send(testString)
+      cancelSignal.complete()
       expect CancelledError:
         await session.close()
 
     let task = client()
-    await sleepAsync(10)
 
+    await cancelSignal
     await task.cancelAndWait()
 
 suite "Test ping-pong":
@@ -1189,5 +1192,3 @@ suite "Partial frames":
 
   asyncTest "receiver frameSize greater than sender":
     await lowLevelRecv(7, 10, 5)
-
-
