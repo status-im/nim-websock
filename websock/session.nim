@@ -518,11 +518,16 @@ proc close*(
     try:
       while ws.readyState != ReadyState.Closed:
         discard await ws.readFrame()
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       discard # most likely EOF
   try:
     ws.readyState = ReadyState.Closing
     await gentleCloser(ws, prepareCloseBody(code, reason)).wait(10.seconds)
+  except CancelledError as exc:
+    trace "Cancellation when closing!", exc = exc.msg
+    raise exc
   except CatchableError as exc:
     trace "Exception closing", exc = exc.msg
   finally:
