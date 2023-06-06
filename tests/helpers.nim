@@ -79,16 +79,18 @@ proc createServer*(
     raise newException(Defect, exc.msg)
 
 proc connectClient*(
-  address = initTAddress("127.0.0.1:8888"),
-  path = WSPath,
-  protocols: seq[string] = @["proto"],
-  flags: set[TLSFlags] = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
-  version = WSDefaultVersion,
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng: ref SecureRngContext = nil): Future[WSSession] {.async.} =
+    address = initTAddress("127.0.0.1:8888"),
+    path = WSPath,
+    protocols: seq[string] = @["proto"],
+    flags: set[TLSFlags] = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
+    version = WSDefaultVersion,
+    frameSize = WSDefaultFrameSize,
+    onPing: ControlCb = nil,
+    onPong: ControlCb = nil,
+    onClose: CloseCb = nil,
+    rng = SecureRngContext.new()): Future[WSSession] {.async.} =
+  doAssert rng != nil, "Cannot initialize RNG"
+
   let secure = when defined secure: true else: false
   return await WebSocket.connect(
     host = address,

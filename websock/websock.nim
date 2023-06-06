@@ -33,14 +33,6 @@ export utils, session, frame, types, http, httptable
 logScope:
   topics = "websock ws-server"
 
-proc newRngIfNeeded(rng: ref SecureRngContext): ref SecureRngContext =
-  if rng == nil:
-    let r = SecureRngContext.new()
-    doAssert r != nil, "Cannot initialize RNG"
-    r
-  else:
-    rng
-
 type
   WSServer* = ref object of WebSocket
     protocols: seq[string]
@@ -111,24 +103,24 @@ proc selectExt(isServer: bool,
   response
 
 proc connect*(
-  _: type WebSocket,
-  host: string | TransportAddress,
-  path: string,
-  hostName: string = "", # override used when the hostname has been externally resolved
-  protocols: seq[string] = @[],
-  factories: seq[ExtFactory] = @[],
-  hooks: seq[Hook] = @[],
-  secure = false,
-  flags: set[TLSFlags] = {},
-  version = WSDefaultVersion,
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng: ref SecureRngContext = nil): Future[WSSession] {.async.} =
+    _: type WebSocket,
+    host: string | TransportAddress,
+    path: string,
+    hostName: string = "", # override used when the hostname has been externally resolved
+    protocols: seq[string] = @[],
+    factories: seq[ExtFactory] = @[],
+    hooks: seq[Hook] = @[],
+    secure = false,
+    flags: set[TLSFlags] = {},
+    version = WSDefaultVersion,
+    frameSize = WSDefaultFrameSize,
+    onPing: ControlCb = nil,
+    onPong: ControlCb = nil,
+    onClose: CloseCb = nil,
+    rng = SecureRngContext.new()): Future[WSSession] {.async.} =
+  doAssert rng != nil, "Cannot initialize RNG"
 
   let
-    rng = newRngIfNeeded(rng)
     key = Base64Pad.encode(genWebSecKey(rng))
     hostname = if hostName.len > 0: hostName else: $host
 
@@ -213,22 +205,23 @@ proc connect*(
   return session
 
 proc connect*(
-  _: type WebSocket,
-  uri: Uri,
-  protocols: seq[string] = @[],
-  factories: seq[ExtFactory] = @[],
-  hooks: seq[Hook] = @[],
-  flags: set[TLSFlags] = {},
-  version = WSDefaultVersion,
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng: ref SecureRngContext = nil): Future[WSSession]
-  {.raises: [Defect, WSWrongUriSchemeError].} =
+    _: type WebSocket,
+    uri: Uri,
+    protocols: seq[string] = @[],
+    factories: seq[ExtFactory] = @[],
+    hooks: seq[Hook] = @[],
+    flags: set[TLSFlags] = {},
+    version = WSDefaultVersion,
+    frameSize = WSDefaultFrameSize,
+    onPing: ControlCb = nil,
+    onPong: ControlCb = nil,
+    onClose: CloseCb = nil,
+    rng = SecureRngContext.new()): Future[WSSession]
+    {.raises: [Defect, WSWrongUriSchemeError].} =
   ## Create a new websockets client
   ## using a Uri
   ##
+  doAssert rng != nil, "Cannot initialize RNG"
 
   let secure = case uri.scheme:
     of "wss": true
@@ -360,19 +353,20 @@ proc handleRequest*(
   return session
 
 proc new*(
-  _: typedesc[WSServer],
-  protos: openArray[string] = [""],
-  factories: openArray[ExtFactory] = [],
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng: ref SecureRngContext = nil): WSServer =
+    _: typedesc[WSServer],
+    protos: openArray[string] = [""],
+    factories: openArray[ExtFactory] = [],
+    frameSize = WSDefaultFrameSize,
+    onPing: ControlCb = nil,
+    onPong: ControlCb = nil,
+    onClose: CloseCb = nil,
+    rng = SecureRngContext.new()): WSServer =
+  doAssert rng != nil, "Cannot initialize RNG"
 
   return WSServer(
     protocols: @protos,
     masked: false,
-    rng: newRngIfNeeded(rng),
+    rng: rng,
     frameSize: frameSize,
     factories: @factories,
     onPing: onPing,
