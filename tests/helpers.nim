@@ -88,7 +88,7 @@ proc connectClient*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
+  rng: ref SecureRngContext = nil): Future[WSSession] {.async.} =
   let secure = when defined secure: true else: false
   return await WebSocket.connect(
     host = address,

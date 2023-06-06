@@ -117,10 +117,10 @@ proc connect*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
+  rng: ref SecureRngContext = nil): Future[WSSession] {.async.} =
 
   let
-    rng = if isNil(rng): HmacDrbgContext.new() else: rng
+    rng = if isNil(rng): SecureRngContext.new() else: rng
     key = Base64Pad.encode(genWebSecKey(rng))
     hostname = if hostName.len > 0: hostName else: $host
 
@@ -216,7 +216,7 @@ proc connect*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession]
+  rng: ref SecureRngContext = nil): Future[WSSession]
   {.raises: [Defect, WSWrongUriSchemeError].} =
   ## Create a new websockets client
   ## using a Uri
@@ -359,12 +359,12 @@ proc new*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): WSServer =
+  rng: ref SecureRngContext = nil): WSServer =
 
   return WSServer(
     protocols: @protos,
     masked: false,
-    rng: if isNil(rng): HmacDrbgContext.new() else: rng,
+    rng: if isNil(rng): SecureRngContext.new() else: rng,
     frameSize: frameSize,
     factories: @factories,
     onPing: onPing,

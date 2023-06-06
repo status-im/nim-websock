@@ -89,7 +89,7 @@ type
     masked*: bool             # send masked packets
     binary*: bool             # is payload binary?
     flags*: set[TLSFlags]
-    rng*: Rng
+    rng*: ref SecureRngContext
     frameSize*: int           # max frame buffer size
     onPing*: ControlCb
     onPong*: ControlCb

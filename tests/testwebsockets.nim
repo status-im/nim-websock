@@ -806,7 +806,7 @@ suite "Test Payload":
       address = initTAddress("127.0.0.1:8888"),
       frameSize = maxFrameSize)
 
-    let maskKey = genMaskKey(HmacDrbgContext.new())
+    let maskKey = genMaskKey(SecureRngContext.new())
     await session.stream.writer.write(
       (await Frame(
         fin: false,
@@ -866,7 +866,7 @@ suite "Test Payload":
         pong = true
     )
 
-    let maskKey = genMaskKey(HmacDrbgContext.new())
+    let maskKey = genMaskKey(SecureRngContext.new())
     await session.stream.writer.write(
       (await Frame(
         fin: false,
