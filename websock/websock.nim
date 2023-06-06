@@ -33,6 +33,14 @@ export utils, session, frame, types, http, httptable
 logScope:
   topics = "websock ws-server"
 
+proc newRngIfNeeded(rng: ref SecureRngContext): ref SecureRngContext =
+  if rng == nil:
+    let r = SecureRngContext.new()
+    doAssert r != nil, "Cannot initialize RNG"
+    r
+  else:
+    rng
+
 type
   WSServer* = ref object of WebSocket
     protocols: seq[string]
@@ -120,7 +128,7 @@ proc connect*(
   rng: ref SecureRngContext = nil): Future[WSSession] {.async.} =
 
   let
-    rng = if isNil(rng): SecureRngContext.new() else: rng
+    rng = newRngIfNeeded(rng)
     key = Base64Pad.encode(genWebSecKey(rng))
     hostname = if hostName.len > 0: hostName else: $host
 
@@ -364,7 +372,7 @@ proc new*(
   return WSServer(
     protocols: @protos,
     masked: false,
-    rng: if isNil(rng): SecureRngContext.new() else: rng,
+    rng: newRngIfNeeded(rng),
     frameSize: frameSize,
     factories: @factories,
     onPing: onPing,
