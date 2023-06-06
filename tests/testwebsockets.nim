@@ -170,6 +170,37 @@ suite "Test transmission":
     check string.fromBytes(clientRes) == testString
     await waitForClose(session)
 
+  asyncTest "Close handle cancellation":
+    let testString = "Hello!"
+    let cancelSignal = newFuture[void]()
+
+    proc handle(request: HttpRequest) {.async.} =
+      check request.uri.path == WSPath
+
+      let server = WSServer.new(protos = ["proto"])
+      let ws = await server.handleRequest(request)
+      let servRes = await ws.recvMsg()
+
+      check string.fromBytes(servRes) == testString
+      await ws.waitForClose()
+
+    server = createServer(
+      address = address,
+      handler = handle,
+      flags = {ReuseAddr})
+
+    proc client() {.async, gcsafe.} =
+      let session = await connectClient()
+      await session.send(testString)
+      cancelSignal.complete()
+      expect CancelledError:
+        await session.close()
+
+    let task = client()
+
+    await cancelSignal
+    await task.cancelAndWait()
+
 suite "Test ping-pong":
   setup:
     var
