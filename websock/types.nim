@@ -213,3 +213,6 @@ method encode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
 
 method toHttpOptions*(self: Ext): string {.base, gcsafe.} =
   raiseAssert "Not implemented!"
+
+func random*(T: typedesc[MaskKey|WebSecKey], rng: var HmacDrbgContext): T =
+  rng.generate(result)

@@ -838,7 +838,7 @@ suite "Test Payload":
       address = initTAddress("127.0.0.1:8888"),
       frameSize = maxFrameSize)
 
-    let maskKey = rng[].generate(MaskKey)
+    let maskKey = MaskKey.random(rng[])
     await session.stream.writer.write(
       (await Frame(
         fin: false,
@@ -898,7 +898,7 @@ suite "Test Payload":
         pong = true
     )
 
-    let maskKey = rng[].generate(MaskKey)
+    let maskKey = MaskKey.random(rng[])
     await session.stream.writer.write(
       (await Frame(
         fin: false,

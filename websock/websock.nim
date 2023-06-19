@@ -120,7 +120,7 @@ proc connect*(
   rng = HmacDrbgContext.new()): Future[WSSession] {.async.} =
 
   let
-    key = Base64Pad.encode(rng[].generate(WebSecKey))
+    key = Base64Pad.encode(WebSecKey.random(rng[]))
     hostname = if hostName.len > 0: hostName else: $host
 
   let client = if secure:

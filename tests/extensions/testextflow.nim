@@ -122,7 +122,7 @@ suite "Decode frame extensions flow":
   var
     address: TransportAddress
     server: StreamServer
-    maskKey = rng[].generate(MaskKey)
+    maskKey = MaskKey.random(rng[])
     transport: StreamTransport
     reader: AsyncStreamReader
     frame: Frame

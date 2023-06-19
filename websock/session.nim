@@ -116,7 +116,7 @@ proc nonCancellableSend(
 
   let maskKey =
     if ws.masked:
-      ws.rng[].generate(MaskKey)
+      MaskKey.random(ws.rng[])
     else:
       default(MaskKey)
 
