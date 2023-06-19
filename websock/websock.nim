@@ -26,9 +26,9 @@ import pkg/[chronos,
             stew/base10,
             nimcrypto/sha]
 
-import ./utils, ./frame, ./session, /types, ./http, ./extensions/extutils
+import ./frame, ./session, /types, ./http, ./extensions/extutils
 
-export utils, session, frame, types, http, httptable
+export session, frame, types, http, httptable
 
 logScope:
   topics = "websock ws-server"
@@ -117,11 +117,10 @@ proc connect*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
+  rng = HmacDrbgContext.new()): Future[WSSession] {.async.} =
 
   let
-    rng = if isNil(rng): HmacDrbgContext.new() else: rng
-    key = Base64Pad.encode(genWebSecKey(rng))
+    key = Base64Pad.encode(rng[].generate(WebSecKey))
     hostname = if hostName.len > 0: hostName else: $host
 
   let client = if secure:
@@ -216,7 +215,7 @@ proc connect*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession]
+  rng = HmacDrbgContext.new()): Future[WSSession]
   {.raises: [Defect, WSWrongUriSchemeError].} =
   ## Create a new websockets client
   ## using a Uri
@@ -359,12 +358,12 @@ proc new*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): WSServer =
+  rng = HmacDrbgContext.new()): WSServer =
 
   return WSServer(
     protocols: @protos,
     masked: false,
-    rng: if isNil(rng): HmacDrbgContext.new() else: rng,
+    rng: rng,
     frameSize: frameSize,
     factories: @factories,
     onPing: onPing,

@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021-2022 Status Research & Development GmbH
+## Copyright (c) 2021-2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -11,7 +11,7 @@
 
 import std/strformat
 import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
-import ./types, ./frame, ./utils, ./utf8dfa, ./http
+import ./types, ./frame, ./utf8dfa, ./http
 
 import pkg/chronos/streams/asyncstream
 
@@ -114,8 +114,9 @@ proc nonCancellableSend(
 
   trace "Sending data to remote"
 
-  let maskKey = if ws.masked:
-      genMaskKey(ws.rng)
+  let maskKey =
+    if ws.masked:
+      ws.rng[].generate(MaskKey)
     else:
       default(MaskKey)
 
