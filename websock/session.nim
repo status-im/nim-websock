@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push gcsafe, raises: [].}
 
 import std/strformat
 import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
@@ -17,6 +17,10 @@ import pkg/chronos/streams/asyncstream
 
 logScope:
   topics = "websock ws-session"
+
+template used(x: typed) =
+  # silence unused warning
+  discard
 
 proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
   result = reason.toBytes
@@ -178,8 +182,7 @@ proc send*(
 
 proc send*(
   ws: WSSession,
-  data: string): Future[void]
-  {.raises: [Defect, WSClosedError].} =
+  data: string): Future[void] =
   send(ws, data.toBytes(), Opcode.Text)
 
 proc handleClose*(
@@ -214,7 +217,7 @@ proc handleClose*(
   else:
     try:
       code = StatusCodes(uint16.fromBytesBE(payload[0..<2]))
-    except RangeError:
+    except RangeDefect:
       raise newException(WSInvalidCloseCodeError,
         "Status code out of range!")
 
@@ -241,6 +244,7 @@ proc handleClose*(
     try:
       (code, reason) = ws.onClose(code, reason)
     except CatchableError as exc:
+      used(exc)
       trace "Exception in Close callback, this is most likely a bug", exc = exc.msg
   else:
     code = StatusFulfilled
@@ -253,6 +257,7 @@ proc handleClose*(
     try:
       await ws.send(prepareCloseBody(code, reason), Opcode.Close).wait(5.seconds)
     except CatchableError as exc:
+      used(exc)
       trace "Failed to send Close opcode", err=exc.msg
 
     ws.readyState = ReadyState.Closed
@@ -303,6 +308,7 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
       try:
         ws.onPing(payload)
       except CatchableError as exc:
+        used(exc)
         trace "Exception in Ping callback, this is most likely a bug", exc = exc.msg
 
     # send pong to remote
@@ -312,11 +318,14 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
       try:
         ws.onPong(payload)
       except CatchableError as exc:
+        used(exc)
         trace "Exception in Pong callback, this is most likely a bug", exc = exc.msg
   of Opcode.Close:
     await ws.handleClose(frame, payload)
   else:
     raise newException(WSInvalidOpcodeError, "Invalid control opcode!")
+
+{.warning[HoleEnumConv]:off.}
 
 proc readFrame*(ws: WSSession, extensions: seq[Ext] = @[]): Future[Frame] {.async.} =
   ## Gets a frame from the WebSocket.
@@ -342,10 +351,11 @@ proc readFrame*(ws: WSSession, extensions: seq[Ext] = @[]): Future[Frame] {.asyn
 
     return frame
 
+{.warning[HoleEnumConv]:on.}
+
 proc ping*(
   ws: WSSession,
-  data: seq[byte] = @[]): Future[void]
-  {.raises: [Defect, WSClosedError].} =
+  data: seq[byte] = @[]): Future[void] =
   ws.send(data, opcode = Opcode.Ping)
 
 proc recv*(
@@ -462,7 +472,7 @@ proc recvMsg*(
     var res: seq[byte]
     while ws.readyState != ReadyState.Closed:
       var buf = new(seq[byte])
-      let read = await ws.recv(buf, min(size, ws.frameSize))
+      let read {.used.} = await ws.recv(buf, min(size, ws.frameSize))
 
       if res.len + buf[].len > size:
         raise newException(WSMaxMessageSizeError, "Max message size exceeded")
@@ -522,7 +532,7 @@ proc close*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      discard # most likely EOF
+      discard exc # most likely EOF
   try:
     ws.readyState = ReadyState.Closing
     await gentleCloser(ws, prepareCloseBody(code, reason)).wait(10.seconds)
@@ -530,6 +540,7 @@ proc close*(
     trace "Cancellation when closing!", exc = exc.msg
     raise exc
   except CatchableError as exc:
+    used(exc)
     trace "Exception closing", exc = exc.msg
   finally:
     await ws.stream.closeWait()

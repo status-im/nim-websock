@@ -25,30 +25,30 @@ type
     request: HttpRequest
 
 proc clientAppendGoodToken(ctx: Hook, headers: var HttpTable):
-     Result[void, string] {.gcsafe, raises: [Defect].} =
+     Result[void, string] {.gcsafe, raises: [].} =
   headers.add("auth-token", "good-token")
   return ok()
 
 proc clientAppendBadToken(ctx: Hook, headers: var HttpTable):
-     Result[void, string] {.gcsafe, raises: [Defect].} =
+     Result[void, string] {.gcsafe, raises: [].} =
   headers.add("auth-token", "bad-token")
   return ok()
 
 proc clientVerify(ctx: Hook, headers: HttpTable):
-     Future[Result[void, string]] {.async, gcsafe, raises: [Defect].} =
+     Future[Result[void, string]] {.gcsafe, async: (raises: []).} =
   var p = TokenHook(ctx)
   p.token = headers.getString("auth-status")
   return ok()
 
 proc serverVerify(ctx: Hook, headers: HttpTable):
-     Future[Result[void, string]] {.async, gcsafe, raises: [Defect].} =
+     Future[Result[void, string]] {.gcsafe, async: (raises: []).} =
   var p = TokenHook(ctx)
   if headers.getString("auth-token") == "good-token":
     p.status = 101
   return ok()
 
 proc serverAppend(ctx: Hook, headers: var HttpTable):
-     Result[void, string] {.gcsafe, raises: [Defect].} =
+     Result[void, string] {.gcsafe, raises: [].} =
   var p = TokenHook(ctx)
   if p.status == 101:
     headers.add("auth-status", "accept")
@@ -76,14 +76,17 @@ proc serverHook(): Hook =
   )
 
 proc serverVerifyWithCode(ctx: Hook, headers: HttpTable):
-     Future[Result[void, string]] {.async, gcsafe, raises: [Defect].} =
-  var p = TokenHook(ctx)
-  if headers.getString("auth-token") == "good-token":
-    p.status = 101
-    return ok()
-  else:
-    await p.request.stream.writer.sendError(Http401)
-    return err("authentication error")
+     Future[Result[void, string]] {.gcsafe, async: (raises: []).} =
+  try:
+    var p = TokenHook(ctx)
+    if headers.getString("auth-token") == "good-token":
+      p.status = 101
+      return ok()
+    else:
+      await p.request.stream.writer.sendError(Http401)
+      return err("authentication error")
+  except CatchableError as exc:
+    return err(exc.msg)
 
 proc serverHookWithCode(request: HttpRequest): Hook =
   TokenHook(
@@ -96,8 +99,8 @@ suite "Test Hooks":
   setup:
     var
       server: HttpServer
-      goodCP = goodClientHook()
-      badCP  = badClientHook()
+      goodCP {.used.} = goodClientHook()
+      badCP {.used.} = badClientHook()
 
   teardown:
     if server != nil:
@@ -109,7 +112,7 @@ suite "Test Hooks":
       check request.uri.path == WSPath
       let
         server = WSServer.new()
-        ws = await server.handleRequest(
+      discard await server.handleRequest(
           request,
           hooks = @[serverHook()]
         )
@@ -133,7 +136,7 @@ suite "Test Hooks":
       check request.uri.path == WSPath
       let
         server = WSServer.new()
-        ws = await server.handleRequest(
+      discard await server.handleRequest(
           request,
           hooks = @[serverHook()]
         )
@@ -157,7 +160,7 @@ suite "Test Hooks":
       check request.uri.path == WSPath
       let
         server = WSServer.new()
-        ws = await server.handleRequest(
+      discard await server.handleRequest(
           request,
           hooks = @[serverHookWithCode(request)]
         )
@@ -181,7 +184,7 @@ suite "Test Hooks":
       check request.uri.path == WSPath
       let
         server = WSServer.new()
-        ws = await server.handleRequest(
+      discard await server.handleRequest(
           request,
           hooks = @[serverHookWithCode(request)]
         )

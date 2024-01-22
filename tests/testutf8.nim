@@ -124,7 +124,7 @@ suite "UTF-8 validator in action":
       check request.uri.path == "/ws"
 
       proc onClose(status: StatusCodes, reason: string):
-        CloseResult {.gcsafe, raises: [Defect].} =
+        CloseResult {.gcsafe, raises: [].} =
         try:
           check status == StatusFulfilled
           check reason == closeReason
@@ -182,6 +182,7 @@ suite "UTF-8 validator in action":
 
     expect WSInvalidUTF8:
       let data = await session.recvMsg()
+      discard data
 
   asyncTest "invalid UTF-8 sequence close code":
     let closeReason = "i want to close\xc0\xaf"
@@ -207,3 +208,4 @@ suite "UTF-8 validator in action":
 
     expect WSInvalidUTF8:
       let data = await session.recvMsg()
+      discard data

@@ -83,7 +83,7 @@ proc hexFactory*(): ExtFactory =
 
   proc factory(isServer: bool,
        args: seq[ExtParam]): Result[Ext, string] {.
-       gcsafe, raises: [Defect].} =
+       gcsafe, raises: [].} =
 
     # you can capture configuration variables via closure
     # if you want

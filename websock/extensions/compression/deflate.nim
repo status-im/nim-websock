@@ -140,6 +140,7 @@ proc createParams(args: seq[ExtParam],
 
   ok(resp)
 
+{.warning[HoleEnumConv]:off.}
 proc getWindowBits(opts: DeflateOpts, isServer: bool): ZWindowBits =
   if isServer:
     if opts.serverMaxWindowBits == 0:
@@ -151,6 +152,8 @@ proc getWindowBits(opts: DeflateOpts, isServer: bool): ZWindowBits =
       Z_RAW_DEFLATE
     else:
       ZWindowBits(-opts.clientMaxWindowBits)
+
+{.warning[HoleEnumConv]:on.}
 
 proc getContextTakeover(opts: DeflateOpts, isServer: bool): bool =
   if isServer:
@@ -369,7 +372,7 @@ proc deflateFactory*(
 
   proc factory(isServer: bool,
        args: seq[ExtParam]): Result[Ext, string] {.
-       gcsafe, raises: [Defect].} =
+       gcsafe, raises: [].} =
 
     # capture user configuration via closure
     var opts = DeflateOpts(
