@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push gcsafe, raises: [].}
 
 import std/[tables,
             strutils,
@@ -26,9 +26,9 @@ import pkg/[chronos,
             stew/base10,
             nimcrypto/sha]
 
-import ./utils, ./frame, ./session, /types, ./http, ./extensions/extutils
+import ./frame, ./session, /types, ./http, ./extensions/extutils
 
-export utils, session, frame, types, http, httptable
+export session, frame, types, http, httptable
 
 logScope:
   topics = "websock ws-server"
@@ -37,9 +37,6 @@ type
   WSServer* = ref object of WebSocket
     protocols: seq[string]
     factories: seq[ExtFactory]
-
-func toException(e: string): ref WebSocketError =
-  (ref WebSocketError)(msg: e)
 
 func toException(e: cstring): ref WebSocketError =
   (ref WebSocketError)(msg: $e)
@@ -57,7 +54,7 @@ proc getFactory(factories: openArray[ExtFactory], extName: string): ExtFactoryPr
 proc selectExt(isServer: bool,
   extensions: var seq[Ext],
   factories: openArray[ExtFactory],
-  exts: openArray[string]): string {.raises: [Defect, WSExtError].} =
+  exts: openArray[string]): string {.raises: [WSExtError].} =
 
   var extList: seq[AppExt]
   var response = ""
@@ -117,11 +114,10 @@ proc connect*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
+  rng = HmacDrbgContext.new()): Future[WSSession] {.async.} =
 
   let
-    rng = if isNil(rng): HmacDrbgContext.new() else: rng
-    key = Base64Pad.encode(genWebSecKey(rng))
+    key = Base64Pad.encode(WebSecKey.random(rng[]))
     hostname = if hostName.len > 0: hostName else: $host
 
   let client = if secure:
@@ -216,8 +212,8 @@ proc connect*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession]
-  {.raises: [Defect, WSWrongUriSchemeError].} =
+  rng = HmacDrbgContext.new()): Future[WSSession]
+  {.raises: [WSWrongUriSchemeError].} =
   ## Create a new websockets client
   ## using a Uri
   ##
@@ -255,11 +251,12 @@ proc handleRequest*(
   version: uint = WSDefaultVersion,
   hooks: seq[Hook] = @[]): Future[WSSession]
   {.
-    async,
-    raises: [
-      Defect,
+    async:
+    (raises: [
+      CancelledError,
+      CatchableError,
       WSHandshakeError,
-      WSProtoMismatchError]
+      WSProtoMismatchError])
   .} =
   ## Creates a new socket from a request.
   ##
@@ -359,12 +356,12 @@ proc new*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): WSServer =
+  rng = HmacDrbgContext.new()): WSServer =
 
   return WSServer(
     protocols: @protos,
     masked: false,
-    rng: if isNil(rng): HmacDrbgContext.new() else: rng,
+    rng: rng,
     frameSize: frameSize,
     factories: @factories,
     onPing: onPing,

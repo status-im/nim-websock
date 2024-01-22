@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021 Status Research & Development GmbH
+## Copyright (c) 2021-2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -8,17 +8,15 @@
 ## those terms.
 
 import
-  pkg/stew/byteutils,
   pkg/chronos/unittest2/asynctests
 
 include ../websock/frame
-include ../websock/utils
 
 # TODO: Fix Test.
 
 suite "Test data frames":
   setup:
-    var maskKey: array[4, char]
+    var maskKey {.used.} : array[4, char]
 
   asyncTest "# 7bit length text":
     check (await Frame(
@@ -255,7 +253,7 @@ suite "Test data frames":
 
 suite "Test control frames":
   setup:
-    var maskKey: array[4, char]
+    var maskKey {.used.} : array[4, char]
 
   asyncTest "Close":
     check (await Frame(

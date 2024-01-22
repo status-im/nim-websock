@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021 Status Research & Development GmbH
+## Copyright (c) 2021-2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -19,13 +19,15 @@ import pkg/[
 import ../websock/websock
 import ./keys
 
+{.push gcsafe, raises: [].}
+
 const WSPath* = when defined secure: "/wss" else: "/ws"
 
-proc rndStr*(size: int): string =
+proc rndStr*(size: int): string {.gcsafe, raises: [].} =
   for _ in 0..<size:
     add(result, char(rand(int('A') .. int('z'))))
 
-proc rndBin*(size: int): seq[byte] =
+proc rndBin*(size: int): seq[byte] {.gcsafe, raises: [].} =
    for _ in 0..<size:
       add(result, byte(rand(0 .. 255)))
 
@@ -45,7 +47,7 @@ proc createServer*(
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS12,
   tlsMaxVersion = TLSVersion.TLS12): HttpServer
-  {.raises: [Defect, HttpError].} =
+  {.raises: [].} =
   try:
     let server = when defined secure:
       TlsHttpServer.create(
@@ -62,7 +64,7 @@ proc createServer*(
         flags = flags)
 
     when defined accepts:
-      proc accepts() {.async, raises: [Defect].} =
+      proc accepts() {.async, raises: [].} =
         try:
           let req = await server.accept()
           await req.handler()
@@ -88,7 +90,7 @@ proc connectClient*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: Rng = nil): Future[WSSession] {.async.} =
+  rng = HmacDrbgContext.new()): Future[WSSession] {.async.} =
   let secure = when defined secure: true else: false
   return await WebSocket.connect(
     host = address,

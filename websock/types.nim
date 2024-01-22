@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021-2022 Status Research & Development GmbH
+## Copyright (c) 2021-2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,17 +7,17 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push gcsafe, raises: [].}
 
 import std/deques
 import pkg/[chronos,
             chronos/streams/tlsstream,
             chronos/apps/http/httptable,
+            bearssl/rand,
             httputils,
             stew/results]
-import ./utils
 
-export deques
+export deques, rand
 
 const
   SHA1DigestSize* = 20
@@ -55,6 +55,7 @@ type
   HeaderFlags* = set[HeaderFlag]
 
   MaskKey* = array[4, char]
+  WebSecKey* = array[16, byte]
 
   Frame* = ref object
     fin*: bool                 ## Indicates that this is the final fragment in a message.
@@ -72,14 +73,14 @@ type
   StatusCodes* = distinct range[0..4999]
 
   ControlCb* = proc(data: openArray[byte] = [])
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [].}
 
   CloseResult* = tuple
     code: StatusCodes
     reason: string
 
   CloseCb* = proc(code: StatusCodes, reason: string):
-    CloseResult {.gcsafe, raises: [Defect].}
+    CloseResult {.gcsafe, raises: [].}
 
   WebSocket* = ref object of RootObj
     extensions*: seq[Ext]
@@ -89,7 +90,7 @@ type
     masked*: bool             # send masked packets
     binary*: bool             # is payload binary?
     flags*: set[TLSFlags]
-    rng*: Rng
+    rng*: ref HmacDrbgContext
     frameSize*: int           # max frame buffer size
     onPing*: ControlCb
     onPong*: ControlCb
@@ -121,7 +122,7 @@ type
   ExtFactoryProc* = proc(
     isServer: bool,
     args: seq[ExtParam]): Result[Ext, string]
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [].}
 
   ExtFactory* = object
     name*: string
@@ -143,10 +144,10 @@ type
   Hook* = ref object of RootObj
     append*: proc(ctx: Hook,
                   headers: var HttpTable): Result[void, string]
-                  {.gcsafe, raises: [Defect].}
+                  {.gcsafe, raises: [].}
     verify*: proc(ctx: Hook,
                   headers: HttpTable): Future[Result[void, string]]
-                  {.closure, gcsafe, raises: [Defect].}
+                  {.gcsafe, async: (raises: []).}
 
   WebSocketError* = object of CatchableError
   WSMalformedHeaderError* = object of WebSocketError
@@ -212,3 +213,6 @@ method encode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
 
 method toHttpOptions*(self: Ext): string {.base, gcsafe.} =
   raiseAssert "Not implemented!"
+
+func random*(T: typedesc[MaskKey|WebSecKey], rng: var HmacDrbgContext): T =
+  rng.generate(result)
