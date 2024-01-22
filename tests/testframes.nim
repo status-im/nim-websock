@@ -8,7 +8,6 @@
 ## those terms.
 
 import
-  pkg/stew/byteutils,
   pkg/chronos/unittest2/asynctests
 
 include ../websock/frame
@@ -17,7 +16,7 @@ include ../websock/frame
 
 suite "Test data frames":
   setup:
-    var maskKey: array[4, char]
+    var maskKey {.used.} : array[4, char]
 
   asyncTest "# 7bit length text":
     check (await Frame(
@@ -254,7 +253,7 @@ suite "Test data frames":
 
 suite "Test control frames":
   setup:
-    var maskKey: array[4, char]
+    var maskKey {.used.} : array[4, char]
 
   asyncTest "Close":
     check (await Frame(

@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push gcsafe, raises: [].}
 
 import std/deques
 import pkg/[chronos,
@@ -73,14 +73,14 @@ type
   StatusCodes* = distinct range[0..4999]
 
   ControlCb* = proc(data: openArray[byte] = [])
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [].}
 
   CloseResult* = tuple
     code: StatusCodes
     reason: string
 
   CloseCb* = proc(code: StatusCodes, reason: string):
-    CloseResult {.gcsafe, raises: [Defect].}
+    CloseResult {.gcsafe, raises: [].}
 
   WebSocket* = ref object of RootObj
     extensions*: seq[Ext]
@@ -122,7 +122,7 @@ type
   ExtFactoryProc* = proc(
     isServer: bool,
     args: seq[ExtParam]): Result[Ext, string]
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [].}
 
   ExtFactory* = object
     name*: string
@@ -144,10 +144,10 @@ type
   Hook* = ref object of RootObj
     append*: proc(ctx: Hook,
                   headers: var HttpTable): Result[void, string]
-                  {.gcsafe, raises: [Defect].}
+                  {.gcsafe, raises: [].}
     verify*: proc(ctx: Hook,
                   headers: HttpTable): Future[Result[void, string]]
-                  {.closure, gcsafe, raises: [Defect].}
+                  {.gcsafe, async: (raises: []).}
 
   WebSocketError* = object of CatchableError
   WSMalformedHeaderError* = object of WebSocketError

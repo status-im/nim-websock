@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push gcsafe, raises: [].}
 
 import std/[tables,
             strutils,
@@ -38,9 +38,6 @@ type
     protocols: seq[string]
     factories: seq[ExtFactory]
 
-func toException(e: string): ref WebSocketError =
-  (ref WebSocketError)(msg: e)
-
 func toException(e: cstring): ref WebSocketError =
   (ref WebSocketError)(msg: $e)
 
@@ -57,7 +54,7 @@ proc getFactory(factories: openArray[ExtFactory], extName: string): ExtFactoryPr
 proc selectExt(isServer: bool,
   extensions: var seq[Ext],
   factories: openArray[ExtFactory],
-  exts: openArray[string]): string {.raises: [Defect, WSExtError].} =
+  exts: openArray[string]): string {.raises: [WSExtError].} =
 
   var extList: seq[AppExt]
   var response = ""
@@ -216,7 +213,7 @@ proc connect*(
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
   rng = HmacDrbgContext.new()): Future[WSSession]
-  {.raises: [Defect, WSWrongUriSchemeError].} =
+  {.raises: [WSWrongUriSchemeError].} =
   ## Create a new websockets client
   ## using a Uri
   ##
@@ -254,11 +251,12 @@ proc handleRequest*(
   version: uint = WSDefaultVersion,
   hooks: seq[Hook] = @[]): Future[WSSession]
   {.
-    async,
-    raises: [
-      Defect,
+    async:
+    (raises: [
+      CancelledError,
+      CatchableError,
       WSHandshakeError,
-      WSProtoMismatchError]
+      WSProtoMismatchError])
   .} =
   ## Creates a new socket from a request.
   ##

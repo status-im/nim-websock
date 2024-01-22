@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push gcsafe, raises: [].}
 
 import std/[uri, strutils]
 import pkg/[
@@ -170,13 +170,17 @@ proc connect*(
   tlsMinVersion = TLSVersion.TLS12,
   tlsMaxVersion = TLSVersion.TLS12,
   hostName = ""): Future[T]
-  {.async, raises: [Defect, HttpError].} =
+  {.async: (raises: [CatchableError, HttpError]).} =
 
   let wantedHostName = if hostName.len > 0:
       hostName
     else:
       host.split(":")[0]
 
+  template used(x: typed) =
+    # silence unused warning
+    discard
+    
   let addrs = resolveTAddress(host)
   for a in addrs:
     try:
@@ -190,6 +194,7 @@ proc connect*(
 
       return conn
     except TransportError as exc:
+      used(exc)
       trace "Error connecting to address", address = $a, exc = exc.msg
 
   raise newException(HttpError,

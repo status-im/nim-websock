@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push gcsafe, raises: [].}
 
 import std/uri
 import pkg/[
@@ -43,6 +43,10 @@ type
 
   TlsHttpServer* = HttpServer
 
+template used(x: typed) =
+  # silence unused warning
+  discard
+    
 proc validateRequest(
   stream: AsyncStreamWriter,
   header: HttpRequestHeader): Future[ReqStatus] {.async.} =
@@ -69,7 +73,7 @@ proc parseRequest(
   ##
 
   var buffer = newSeq[byte](MaxHttpHeadersSize)
-  let remoteAddr = stream.reader.tsource.remoteAddress()
+  let remoteAddr {.used.} = stream.reader.tsource.remoteAddress()
   trace "Received connection", address = $remoteAddr
   try:
     let hlenfut = stream.reader.readUntil(
@@ -115,11 +119,12 @@ proc parseRequest(
     # remote peer disconnected
     trace "Remote peer disconnected", address = $remoteAddr
   except TransportOsError as exc:
+    used(exc)
     trace "Problems with networking", address = $remoteAddr, error = exc.msg
 
 proc handleConnCb(
   server: StreamServer,
-  transp: StreamTransport) {.async.} =
+  transp: StreamTransport) {.async: (raises: []).} =
   var stream: AsyncStream
   try:
     stream = AsyncStream(
@@ -131,10 +136,15 @@ proc handleConnCb(
 
     await httpServer.handler(request)
   except CatchableError as exc:
+    used(exc)  
     debug "Exception in HttpHandler", exc = exc.msg
   finally:
-    await stream.closeWait()
-
+    try:
+      await stream.closeWait()
+    except CatchableError as exc:
+      used(exc)
+      debug "Exception in HttpHandler closewait", exc = exc.msg
+      
 proc handleTlsConnCb(
   server: StreamServer,
   transp: StreamTransport) {.async.} =
@@ -158,6 +168,7 @@ proc handleTlsConnCb(
 
     await httpServer.handler(request)
   except CatchableError as exc:
+    used(exc)
     debug "Exception in HttpHandler", exc = exc.msg
   finally:
     await stream.closeWait()
@@ -208,7 +219,7 @@ proc create*(
   headersTimeout = HttpHeadersTimeout,
   handshakeTimeout = 0.seconds
   ): HttpServer
-  {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
+  {.raises: [CatchableError].} = # TODO: remove CatchableError
   ## Make a new HTTP Server
   ##
 

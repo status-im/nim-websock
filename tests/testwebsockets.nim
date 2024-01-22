@@ -70,6 +70,7 @@ suite "Test handshake":
       let session = await connectClient(
         address = initTAddress("127.0.0.1:8888"),
         version = 14)
+      discard session
 
   asyncTest "Test for client headers":
     proc handle(request: HttpRequest) {.async.} =
@@ -457,8 +458,8 @@ suite "Test framing":
     var futs: seq[Future[void]]
     for i in 0 ..< numMessages:
       futs.add session.send(testData, Opcode.Binary)
-    futs[0].cancel()  # expected to complete as it already started sending
-    futs[^2].cancel()  # expected to be canceled as it has not started yet
+    futs[0].cancelSoon()  # expected to complete as it already started sending
+    futs[^2].cancelSoon()  # expected to be canceled as it has not started yet
     await allFutures(futs)
     await session.close()
 
@@ -531,7 +532,7 @@ suite "Test Closing":
       check request.uri.path == WSPath
 
       proc closeServer(status: StatusCodes, reason: string): CloseResult{.gcsafe,
-          raises: [Defect].} =
+          raises: [].} =
         try:
           check status == StatusTooLarge
           check reason == "Message too big!"
@@ -554,7 +555,7 @@ suite "Test Closing":
       flags = {ReuseAddr})
 
     proc clientClose(status: StatusCodes, reason: string): CloseResult {.gcsafe,
-      raises: [Defect].} =
+      raises: [].} =
       try:
         check status == StatusFulfilled
         return (StatusTooLarge, "Message too big!")
@@ -587,7 +588,7 @@ suite "Test Closing":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       proc closeServer(status: StatusCodes, reason: string): CloseResult{.gcsafe,
-          raises: [Defect].} =
+          raises: [].} =
         try:
           check status == StatusFulfilled
           return (StatusTooLarge, "Message too big!")
@@ -608,7 +609,7 @@ suite "Test Closing":
       flags = {ReuseAddr})
 
     proc clientClose(status: StatusCodes, reason: string): CloseResult {.gcsafe,
-      raises: [Defect].} =
+      raises: [].} =
       try:
         check status == StatusTooLarge
         check reason == "Message too big!"
@@ -654,7 +655,7 @@ suite "Test Closing":
       flags = {ReuseAddr})
 
     proc closeClient(status: StatusCodes, reason: string): CloseResult
-      {.gcsafe, raises: [Defect].} =
+      {.gcsafe, raises: [].} =
       try:
         check status == StatusCodes(StatusLibsCodes.high)
         return (StatusCodes(StatusLibsCodes.high), "Reserved StatusCodes")
@@ -671,7 +672,7 @@ suite "Test Closing":
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
       proc closeServer(status: StatusCodes, reason: string): CloseResult{.gcsafe,
-          raises: [Defect].} =
+          raises: [].} =
         try:
           check status == StatusCodes(3999)
           return (StatusCodes(3999), "Reserved StatusCodes")
@@ -733,7 +734,7 @@ suite "Test Closing":
 
 suite "Test Payload":
   setup:
-    let rng = HmacDrbgContext.new()
+    let rng {.used.} = HmacDrbgContext.new()
     var
       server: HttpServer
 
@@ -812,7 +813,6 @@ suite "Test Payload":
     await session.close()
 
   asyncTest "Send two fragments":
-    var ping, pong = false
     let testString = "1234567890"
     let msg = toBytes(testString)
     let maxFrameSize = 5
@@ -1026,7 +1026,9 @@ suite "Test Binary message with Payload":
   asyncTest "Send binary data with small text payload":
     let testData = rndBin(10)
     trace "testData", testData = testData
-    var ping, pong = false
+    var
+      ping = false
+      pong = false
     proc handle(request: HttpRequest) {.async.} =
       check request.uri.path == WSPath
 
