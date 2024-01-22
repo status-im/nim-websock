@@ -213,7 +213,7 @@ proc connect*(
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
   rng = HmacDrbgContext.new()): Future[WSSession]
-  {.raises: [Defect, WSWrongUriSchemeError].} =
+  {.raises: [WSWrongUriSchemeError].} =
   ## Create a new websockets client
   ## using a Uri
   ##
