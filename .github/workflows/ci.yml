@@ -196,7 +196,7 @@ jobs:
           echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
 
       - name: Setup Python version
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: pypy-2.7
 
@@ -262,7 +262,7 @@ jobs:
           kill $server
 
       - name: Upload Autobahn result
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: autobahn-report
           path: ./autobahn/reports
@@ -279,7 +279,7 @@ jobs:
 
     steps:
       - name: Download Autobahn reports
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: autobahn-report
           path: ./autobahn_reports
