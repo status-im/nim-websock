@@ -158,12 +158,12 @@ jobs:
             bash build_nim.sh nim csources dist/nimble NimBinaries
           echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
 
-#      - name: Run tests
-#        run: |
-#          nim --version
-#          nimble --version
-#          nimble install -y --depsOnly
-#          nimble test
+      - name: Run tests
+        run: |
+          nim --version
+          nimble --version
+          nimble install -y --depsOnly
+          nimble test
 
   autobahn-test:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
