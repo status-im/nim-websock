@@ -46,7 +46,7 @@ type
 template used(x: typed) =
   # silence unused warning
   discard
-    
+
 proc validateRequest(
   stream: AsyncStreamWriter,
   header: HttpRequestHeader): Future[ReqStatus] {.async.} =
@@ -124,7 +124,7 @@ proc parseRequest(
 
 proc handleConnCb(
   server: StreamServer,
-  transp: StreamTransport) {.async: (raises: []).} =
+  transp: StreamTransport) {.gcsafe, async: (raises: []).} =
   var stream: AsyncStream
   try:
     stream = AsyncStream(
@@ -136,7 +136,7 @@ proc handleConnCb(
 
     await httpServer.handler(request)
   except CatchableError as exc:
-    used(exc)  
+    used(exc)
     debug "Exception in HttpHandler", exc = exc.msg
   finally:
     try:
@@ -144,24 +144,32 @@ proc handleConnCb(
     except CatchableError as exc:
       used(exc)
       debug "Exception in HttpHandler closewait", exc = exc.msg
-      
+
 proc handleTlsConnCb(
   server: StreamServer,
-  transp: StreamTransport) {.async.} =
+  transp: StreamTransport) {.gcsafe, async: (raises: []).} =
 
   let tlsHttpServer = TlsHttpServer(server)
-  let tlsStream = newTLSServerAsyncStream(
-    newAsyncStreamReader(transp),
-    newAsyncStreamWriter(transp),
-    tlsHttpServer.tlsPrivateKey,
-    tlsHttpServer.tlsCertificate,
-    minVersion = tlsHttpServer.minVersion,
-    maxVersion = tlsHttpServer.maxVersion,
-    flags = tlsHttpServer.tlsFlags)
+  var tlsStream: TLSAsyncStream
+
+  try:
+    tlsStream = newTLSServerAsyncStream(
+      newAsyncStreamReader(transp),
+      newAsyncStreamWriter(transp),
+      tlsHttpServer.tlsPrivateKey,
+      tlsHttpServer.tlsCertificate,
+      minVersion = tlsHttpServer.minVersion,
+      maxVersion = tlsHttpServer.maxVersion,
+      flags = tlsHttpServer.tlsFlags)
+  except CatchableError as exc:
+    used(exc)
+    debug "Exception when initialize TLS stream", exc = exc.msg
+    return
 
   let stream = AsyncStream(
       reader: tlsStream.reader,
       writer: tlsStream.writer)
+
   try:
     let httpServer = HttpServer(server)
     let request = await httpServer.parseRequest(stream)
@@ -169,9 +177,13 @@ proc handleTlsConnCb(
     await httpServer.handler(request)
   except CatchableError as exc:
     used(exc)
-    debug "Exception in HttpHandler", exc = exc.msg
+    debug "Exception in HttpsHandler", exc = exc.msg
   finally:
-    await stream.closeWait()
+    try:
+      await stream.closeWait()
+    except CatchableError as exc:
+      used(exc)
+      debug "Exception in HttpsHandler closewait", exc = exc.msg
 
 proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
   if not isNil(server.handler):
@@ -263,7 +275,7 @@ proc create*(
   headersTimeout = HttpHeadersTimeout,
   handshakeTimeout = 0.seconds
   ): TlsHttpServer
-  {.raises: [Defect, CatchableError].} = # TODO: remove CatchableError
+  {.raises: [CatchableError].} = # TODO: remove CatchableError
 
   var server = TlsHttpServer(
     headersTimeout: headersTimeout,
