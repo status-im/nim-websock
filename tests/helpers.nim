@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push raises: [].}
 
 import std/[strutils, random]
 import pkg/[
@@ -64,12 +64,14 @@ proc createServer*(
         flags = flags)
 
     when defined accepts:
-      proc accepts() {.async, raises: [].} =
+      proc accepts() {.async: (raises: []).} =
         try:
           let req = await server.accept()
           await req.handler()
         except TransportOsError as exc:
           error "Transport error", exc = exc.msg
+        except CatchableError as exc:
+          error "Unknown error", exc = exc.msg
 
       asyncSpawn accepts()
     else:

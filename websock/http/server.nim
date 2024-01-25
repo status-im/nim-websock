@@ -25,7 +25,7 @@ logScope:
 
 type
   HttpAsyncCallback* = proc (request: HttpRequest):
-    Future[void] {.closure, gcsafe, raises: [Defect].}
+    Future[void] {.closure, gcsafe, raises: [].}
 
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback

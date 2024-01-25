@@ -14,7 +14,7 @@ import pkg/asynctest/unittest2
 import ../../ws/ws
 
 type
-  ExtHandler = proc(ext: Ext, frame: Frame): Future[Frame] {.raises: [Defect].}
+  ExtHandler = proc(ext: Ext, frame: Frame): Future[Frame] {.raises: [].}
 
   HelperExtension = ref object of Ext
     handler*: ExtHandler

@@ -58,7 +58,7 @@ when isMainModule:
         HttpServer.create(initTAddress("127.0.0.1:8888"), flags = socketFlags)
 
     when defined accepts:
-      proc accepts() {.async, raises: [Defect].} =
+      proc accepts() {.async, raises: [].} =
         while true:
           try:
             let req = await server.accept()
