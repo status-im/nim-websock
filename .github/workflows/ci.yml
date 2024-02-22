@@ -34,11 +34,11 @@ jobs:
         include:
           - target:
               os: linux
-            builder: ubuntu-20.04
+            builder: ubuntu-latest
             shell: bash
           - target:
               os: macos
-            builder: macos-12
+            builder: macos-latest
             shell: bash
           - target:
               os: windows
@@ -51,7 +51,7 @@ jobs:
 
     name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
     runs-on: ${{ matrix.builder }}
-    continue-on-error: ${{ matrix.branch == 'version-1-6' || matrix.branch == 'devel' }}
+    continue-on-error: ${{ matrix.branch == 'devel' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -164,6 +164,7 @@ jobs:
           nimble --version
           nimble install -y --depsOnly
           nimble test
+          env NIMFLAGS="--mm:refc" nimble test
 
   autobahn-test:
     if: github.event_name == 'push' # || github.event_name == 'pull_request'
