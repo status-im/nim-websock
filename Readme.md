@@ -2,7 +2,7 @@
 
 # Websocket for Nim
 
-![Github action](https://github.com/status-im/nim-websock/workflows/CI/badge.svg)
+[![GH Action](https://github.com/status-im/nim-websock/actions/workflows/ci.yml/badge.svg)](https://github.com/status-im/nim-websock/actions/workflows/ci.yml)
 
 This is an implementation of [Websocket](https://tools.ietf.org/html/rfc6455) protocol for
 [Nim](https://nim-lang.org/) and [chronos](https://github.com/status-im/nim-chronos/).
