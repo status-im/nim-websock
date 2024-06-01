@@ -65,11 +65,15 @@ proc closeWait*(stream: AsyncStream) {.async.} =
   await allFutures(
     stream.reader.closeStream(),
     stream.writer.closeStream(),
+    stream.reader.rsource.closeStream(),
+    stream.writer.wsource.closeStream(),
     stream.reader.tsource.closeTransp())
 
 proc close*(stream: AsyncStream) =
   stream.reader.close()
   stream.writer.close()
+  stream.reader.rsource.close()
+  stream.writer.wsource.close()
   stream.reader.tsource.close()
 
 proc sendResponse*(
