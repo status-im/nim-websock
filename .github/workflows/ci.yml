@@ -16,21 +16,19 @@ jobs:
   build:
     strategy:
       fail-fast: false
-      max-parallel: 20
       matrix:
         target:
-          # Unit tests
           - os: linux
             cpu: amd64
           - os: linux
             cpu: i386
           - os: macos
             cpu: amd64
+          - os: macos
+            cpu: arm64
           - os: windows
             cpu: amd64
-          #- os: windows
-            #cpu: i386
-        branch: [version-1-6, version-2-0, devel]
+        branch: [version-2-0, version-2-2, devel]
         include:
           - target:
               os: linux
@@ -38,11 +36,17 @@ jobs:
             shell: bash
           - target:
               os: macos
+              cpu: amd64
+            builder: macos-13
+            shell: bash
+          - target:
+              os: macos
+              cpu: arm64
             builder: macos-latest
             shell: bash
           - target:
               os: windows
-            builder: windows-2019
+            builder: windows-latest
             shell: msys2 {0}
 
     defaults:
@@ -127,6 +131,8 @@ jobs:
         run: |
           if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
             PLATFORM=x64
+          elif [[ '${{ matrix.target.cpu }}' == 'arm64' ]]; then
+            PLATFORM=arm64
           else
             PLATFORM=x86
           fi
@@ -263,7 +269,7 @@ jobs:
           kill $server
 
       - name: Upload Autobahn result
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: autobahn-report
           path: ./autobahn/reports
@@ -280,13 +286,13 @@ jobs:
 
     steps:
       - name: Download Autobahn reports
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: autobahn-report
           path: ./autobahn_reports
 
       - name: Deploy autobahn report.
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./autobahn_reports

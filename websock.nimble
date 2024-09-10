@@ -29,7 +29,7 @@ task test, "run tests":
     nimFlags = envNimFlags &
       " --verbosity:0 --hints:off --hint:Name:on " &
       "--styleCheck:usages --styleCheck:error" &
-      " -d:chronosStrictException"
+      " -d:chronosStrictException --mm:refc"
 
   # dont't need to run it, only want to test if it is compileable
   exec "nim c -c " & nimFlags & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json --styleCheck:usages --styleCheck:hint ./tests/all_tests"
