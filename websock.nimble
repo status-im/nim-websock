@@ -8,14 +8,14 @@
 ## those terms.
 
 packageName = "websock"
-version     = "0.1.0"
+version     = "0.2.0"
 author      = "Status Research & Development GmbH"
 description = "WS protocol implementation"
 license     = "MIT"
 skipDirs    = @["examples", "tests"]
 
 requires "nim >= 1.6.0"
-requires "chronos#head"
+requires "chronos ^= 4.0.3"
 requires "httputils >= 0.2.0"
 requires "chronicles >= 0.10.2"
 requires "stew >= 0.1.0"
