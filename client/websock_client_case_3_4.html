@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="http://autobahn.ws/testsuite" title="Autobahn WebSocket Testsuite"><img src="http://autobahn.ws/static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="http://autobahn.ws"           title="Autobahn WebSocket">          <img src="http://autobahn.ws/static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock-client - <span style="font-size: 1.3em;"><b>Case 3.4</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2024-04-24T05:20:14.213Z</a></p>
+      <p class="case case_ok">websock-client - <span style="font-size: 1.3em;"><b>Case 3.4</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2024-11-28T05:32:27.183Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send small text message, then send again with <b>RSV = 4</b>, then send Ping. Octets are sent in octet-wise chops.</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>Echo for first message is received, but then connection is failed immediately, since RSV must be 0, when no extension defining RSV meaning has been negotiated. The Pong is not received.</p>
 
@@ -215,19 +215,19 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <br/><hr/>
       <h2>Opening Handshake</h2>
       <pre class="http_dump">GET /runCase?case=31&agent=websock-client HTTP/1.1
-Sec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15
+Connection: Upgrade
 Upgrade: websocket
 Host: 127.0.0.1:9001
-Connection: Upgrade
+Sec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15
+Cache-Control: no-cache
 Sec-Websocket-Version: 13
-Sec-Websocket-Key: ZVg4FiNuxqu1n7zGwLxAQg==
-Cache-Control: no-cache</pre>
+Sec-Websocket-Key: 1d867qMkUPnVaCwUJfOinA==</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
 Server: AutobahnTestSuite/0.8.2-0.10.9
 X-Powered-By: AutobahnPython/0.10.9
 Upgrade: WebSocket
 Connection: Upgrade
-Sec-WebSocket-Accept: IbZ2fmW374zA4G96D+yEdlSucPI=</pre>
+Sec-WebSocket-Accept: Lo0yy6GRMGKI6zdsEBlPa6NBsZA=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -257,9 +257,9 @@ Sec-WebSocket-Accept: IbZ2fmW374zA4G96D+yEdlSucPI=</pre>
       <h3>Octets Transmitted by Chop Size</h3>
       <table>
          <tr class="stats_header"><td>Chop Size</td><td>Count</td><td>Octets</td></tr>
-         <tr class="stats_row"><td>1</td><td>18</td><td>18</td></tr>
+         <tr class="stats_row"><td>1</td><td>19</td><td>19</td></tr>
          <tr class="stats_row"><td>206</td><td>1</td><td>206</td></tr>
-         <tr class="stats_total"><td>Total</td><td>19</td><td>224</td></tr>
+         <tr class="stats_total"><td>Total</td><td>20</td><td>225</td></tr>
       </table>
       <h3>Frames Received by Opcode</h3>
       <table>
@@ -278,7 +278,7 @@ Sec-WebSocket-Accept: IbZ2fmW374zA4G96D+yEdlSucPI=</pre>
       <h2>Wire Log</h2>
       <div id="wirelog">
          <pre class="wirelog_rx_octets">000 RX OCTETS: 474554202f72756e436173653f636173653d3331266167656e743d776562736f636b2d636c69656e7420485454502f312e31</pre>
-         <pre class="wirelog_rx_octets">               0d0a5365632d576562736f636b65 ...</pre>
+         <pre class="wirelog_rx_octets">               0d0a436f6e6e656374696f6e3a20 ...</pre>
          <pre class="wirelog_tx_octets">001 TX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e</pre>
          <pre class="wirelog_tx_octets">               5465737453756974652f302e382e ...</pre>
          <pre class="wirelog_tx_frame_sync">002 TX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=13, MASK=None, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=1, SYNC=False</pre>
@@ -303,12 +303,13 @@ Sec-WebSocket-Accept: IbZ2fmW374zA4G96D+yEdlSucPI=</pre>
          <pre class="wirelog_tx_octets_sync">019 TX OCTETS: 64</pre>
          <pre class="wirelog_tx_octets_sync">020 TX OCTETS: 21</pre>
          <pre class="wirelog_tx_octets_sync">021 TX OCTETS: c1</pre>
-         <pre class="wirelog_rx_octets">022 RX OCTETS: 818d38bbfbe270de978e5797db9557c9978619</pre>
-         <pre class="wirelog_rx_frame">023 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=13, MASKED=True, MASK=3338626266626532</pre>
+         <pre class="wirelog_tx_octets_sync">022 TX OCTETS: 0d</pre>
+         <pre class="wirelog_rx_octets">023 RX OCTETS: 818d23ef217d6b8a4d114cc3010a4c9d4d1902</pre>
+         <pre class="wirelog_rx_frame">024 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=13, MASKED=True, MASK=3233656632313764</pre>
          <pre class="wirelog_rx_frame">               Hello, world!</pre>
-         <pre class="wirelog_tx_octets_sync">024 TX OCTETS: 0d</pre>
          <pre class="wirelog_tx_octets_sync">025 TX OCTETS: 48</pre>
-         <pre class="wirelog_tcp_closed_by_peer">026 TCP DROPPED BY PEER</pre>
+         <pre class="wirelog_tx_octets_sync">026 TX OCTETS: 65</pre>
+         <pre class="wirelog_tcp_closed_by_peer">027 TCP DROPPED BY PEER</pre>
       </div>
       <br/><hr/>
    </body>
