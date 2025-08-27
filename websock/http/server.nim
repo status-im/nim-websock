@@ -16,7 +16,8 @@ import pkg/[
   httputils]
 
 when isLogFormatUsed(json):
-  import json_serialization/std/net
+  import json_serialization/std/net as jsnet
+  export jsnet
 
 import ./common
 
