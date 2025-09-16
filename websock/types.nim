@@ -15,7 +15,7 @@ import pkg/[chronos,
             chronos/apps/http/httptable,
             bearssl/rand,
             httputils,
-            stew/results]
+            results]
 
 export deques, rand
 

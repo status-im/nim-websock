@@ -8,7 +8,7 @@
 ## those terms.
 
 import
-  pkg/[stew/results,
+  pkg/[results,
     stew/byteutils,
     chronos,
     chronicles],

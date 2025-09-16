@@ -21,6 +21,7 @@ requires "chronicles >= 0.10.2"
 requires "stew >= 0.1.0"
 requires "nimcrypto"
 requires "bearssl"
+requires "results"
 requires "zlib"
 
 task test, "run tests":
