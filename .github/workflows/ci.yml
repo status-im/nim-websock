@@ -19,6 +19,12 @@ jobs:
       test-command: |
         nim --version
         nimble --version
+        
+        nim --version | grep -q "1.6"
+        if [ $? -eq 0 ]; then
+          nimble install chronicles@0.10.3
+        fi
+        
         nimble install -y --depsOnly
         nimble test
         env NIMFLAGS="--mm:refc" nimble test
@@ -144,7 +150,7 @@ jobs:
   deploy-test:
     # temporary disabled
     if: false
-    name: "Deplay Autobahn results"
+    name: "Deploy Autobahn results"
     needs: merge-autobahn-artifact
     runs-on: ubuntu-latest
 
