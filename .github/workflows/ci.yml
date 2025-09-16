@@ -14,156 +14,15 @@ on:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - os: linux
-            cpu: amd64
-          - os: linux
-            cpu: i386
-          - os: macos
-            cpu: arm64
-          - os: windows
-            cpu: amd64
-        branch: [version-2-0, version-2-2, devel]
-        include:
-          - target:
-              os: linux
-            builder: ubuntu-latest
-            shell: bash
-          - target:
-              os: macos
-              cpu: arm64
-            builder: macos-latest
-            shell: bash
-          - target:
-              os: windows
-            builder: windows-latest
-            shell: msys2 {0}
-
-    defaults:
-      run:
-        shell: ${{ matrix.shell }}
-
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
-    runs-on: ${{ matrix.builder }}
-    continue-on-error: ${{ matrix.branch == 'devel' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Install build dependencies (Linux i386)
-        if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
-            --no-install-recommends -yq gcc-multilib g++-multilib \
-            libssl-dev:i386
-          mkdir -p external/bin
-          cat << EOF > external/bin/gcc
-          #!/bin/bash
-          exec $(which gcc) -m32 "\$@"
-          EOF
-          cat << EOF > external/bin/g++
-          #!/bin/bash
-          exec $(which g++) -m32 "\$@"
-          EOF
-          chmod 755 external/bin/gcc external/bin/g++
-          echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
-
-      - name: MSYS2 (Windows i386)
-        if: runner.os == 'Windows' && matrix.target.cpu == 'i386'
-        uses: msys2/setup-msys2@v2
-        with:
-          path-type: inherit
-          msystem: MINGW32
-          install: >-
-            base-devel
-            git
-            mingw-w64-i686-toolchain
-
-      - name: MSYS2 (Windows amd64)
-        if: runner.os == 'Windows' && matrix.target.cpu == 'amd64'
-        uses: msys2/setup-msys2@v2
-        with:
-          path-type: inherit
-          install: >-
-            base-devel
-            git
-            mingw-w64-x86_64-toolchain
-
-      - name: Restore Nim DLLs dependencies (Windows) from cache
-        if: runner.os == 'Windows'
-        id: windows-dlls-cache
-        uses: actions/cache@v4
-        with:
-          path: external/dlls-${{ matrix.target.cpu }}
-          key: 'dlls-${{ matrix.target.cpu }}'
-
-      - name: Install DLLs dependencies (Windows)
-        if: >
-          steps.windows-dlls-cache.outputs.cache-hit != 'true' &&
-          runner.os == 'Windows'
-        run: |
-          DLLPATH=external/dlls-${{ matrix.target.cpu }}
-          mkdir -p external
-          curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
-          7z x -y external/windeps.zip -o"$DLLPATH"
-
-      - name: Path to cached dependencies (Windows)
-        if: >
-          runner.os == 'Windows'
-        run: |
-          echo '${{ github.workspace }}'"/external/dlls-${{ matrix.target.cpu }}" >> $GITHUB_PATH
-
-      - name: Derive environment variables
-        run: |
-          if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
-            PLATFORM=x64
-          elif [[ '${{ matrix.target.cpu }}' == 'arm64' ]]; then
-            PLATFORM=arm64
-          else
-            PLATFORM=x86
-          fi
-          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
-
-          ncpu=
-          MAKE_CMD="make"
-          case '${{ runner.os }}' in
-          'Linux')
-            ncpu=$(nproc)
-            ;;
-          'macOS')
-            ncpu=$(sysctl -n hw.ncpu)
-            ;;
-          'Windows')
-            ncpu=$NUMBER_OF_PROCESSORS
-            MAKE_CMD="mingw32-make"
-            ;;
-          esac
-          [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
-          echo "ncpu=$ncpu" >> $GITHUB_ENV
-          echo "MAKE_CMD=${MAKE_CMD}" >> $GITHUB_ENV
-
-      - name: Build Nim and Nimble
-        run: |
-          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-          env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ matrix.branch }} \
-            QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
-            bash build_nim.sh nim csources dist/nimble NimBinaries
-          echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
-
-      - name: Run tests
-        run: |
-          nim --version
-          nimble --version
-          nimble install -y --depsOnly
-          nimble test
-          env NIMFLAGS="--mm:refc" nimble test
+    uses: status-im/nimbus-common-workflow/.github/workflows/common.yml@main
+    with:
+      nim-versions: '["version-2-0", "version-2-2", "devel"]'
+      test-command: |
+        nim --version
+        nimble --version
+        nimble install -y --depsOnly
+        nimble test
+        env NIMFLAGS="--mm:refc" nimble test
 
   autobahn-test:
     if: github.event_name == 'push' # || github.event_name == 'pull_request'
@@ -175,7 +34,7 @@ jobs:
       max-parallel: 20
       matrix:
         websock: [ws, wsc, wss, wssc]
-        branch: [version-1-6, version-2-0, devel]
+        branch: [version-2-0, version-2-2, devel]
 
     defaults:
       run:
@@ -184,31 +43,46 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get latest nimbus-build-system commit hash
+        id: versions
+        run: |
+          nbsHash=$(git ls-remote "https://github.com/status-im/nimbus-build-system" "${2:-HEAD}" | cut -f 1 )
+          echo "nimbus_build_system=$nbsHash" >> $GITHUB_OUTPUT
+
+      - name: Restore prebuilt Nim from cache
+        uses: actions/cache@v4
         with:
-          submodules: true
+          path: NimBinCache
+          key: 'nim-${{ matrix.branch }}-${{ steps.versions.outputs.nimbus_build_system }}'
 
       - name: Build Nim and Nimble
         run: |
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
           env MAKE="make -j$(nproc)" NIM_COMMIT=${{ matrix.branch }} \
             QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
-            bash build_nim.sh nim csources dist/nimble NimBinaries
+            bash build_nim.sh nim csources dist/nimble NimBinCache
           echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
+
+      - name: Get docker image cache key
+        id: cache_key
+        run: |
+          dockerHash=$(docker buildx imagetools inspect crossbario/autobahn-testsuite | grep "Digest" | cut -d':' -f 3)
+          echo "cache_key=$dockerHash" >> $GITHUB_OUTPUT
+
+      - name: Cache Docker images
+        uses: ScribeMD/docker-cache@0.5.0
+        with:
+          key: docker-${{ runner.os }}-${{ steps.cache_key.outputs.cache_key }}
 
       - name: Setup Python version
         uses: actions/setup-python@v5
         with:
-          python-version: pypy-2.7
+          python-version: pypy-3.10
 
-      - name: Setup Autobahn.
+      - name: Setup dependencies
         run: |
-          sudo apt-get install -y python2.7-dev
-          pip install virtualenv
           pip install markdown2
-          virtualenv --python=/usr/bin/python2.7 autobahn
-          source autobahn/bin/activate
-          pip install autobahntestsuite txaio==2.1.0 autobahn[twisted,accelerate]==0.10.9 jinja2==2.6 markupsafe==0.19 Werkzeug==0.9.6 klein==0.2.3 pyopenssl service_identity==14.0.0 unittest2==1.1.0 wsaccel==0.6.2
-          pip freeze
           nimble install -y --depsOnly
 
       - name: Generate index.html
@@ -219,47 +93,9 @@ jobs:
           sed -i "s/COMMIT_SHA/$GITHUB_SHA/g" autobahn/index.md
           markdown2 autobahn/index.md > autobahn/reports/index.html
 
-      - name: Run Autobahn test suite.
+      - name: Run Autobahn test suite
         run: |
-          source autobahn/bin/activate
-          case '${{ matrix.websock }}' in
-            ws)
-              nim c -d:release examples/server.nim
-              examples/server &
-              server=$!
-
-              cd autobahn
-              wstest --mode fuzzingclient --spec fuzzingclient.json
-            ;;
-            wsc)
-              nim c -d:tls -d:release -o:examples/tls_server examples/server.nim
-              examples/tls_server &
-              server=$!
-
-              cd autobahn
-              wstest --mode fuzzingclient --spec fuzzingclient_tls.json
-            ;;
-            wss)
-              cd autobahn
-              wstest --webport=0 --mode fuzzingserver --spec fuzzingserver.json &
-              server=$!
-
-              cd ..
-              nim c -d:release examples/autobahn_client
-              examples/autobahn_client
-            ;;
-            wssc)
-              cd autobahn
-              wstest --webport=0 --mode fuzzingserver --spec fuzzingserver_tls.json &
-              server=$!
-
-              cd ..
-              nim c -d:tls -d:release -o:examples/autobahn_tlsclient examples/autobahn_client
-              examples/autobahn_tlsclient
-            ;;
-          esac
-
-          kill $server
+          bash scripts/${{ matrix.websock }}.sh
 
       - name: Upload Autobahn result
         uses: actions/upload-artifact@v4
@@ -281,7 +117,7 @@ jobs:
           pattern: autobahn-artifact-*
 
   deploy-test:
-    name: "Deplay Autobahn results"
+    name: "Deploy Autobahn results"
     needs: merge-autobahn-artifact
     runs-on: ubuntu-latest
 
@@ -296,7 +132,7 @@ jobs:
           name: autobahn-report
           path: ./autobahn_reports
 
-      - name: Deploy autobahn report.
+      - name: Deploy autobahn report
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
