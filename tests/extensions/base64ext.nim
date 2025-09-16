@@ -8,10 +8,10 @@
 ## those terms.
 
 import
-  pkg/[stew/results,
-    stew/base64,
+  pkg/[stew/base64,
     chronos,
-    chronicles],
+    chronicles,
+    results],
   ../../websock/types,
   ../../websock/frame
 

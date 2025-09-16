@@ -9,7 +9,7 @@
 
 import
   std/[strutils],
-  pkg/[stew/results,
+  pkg/[results,
     chronos,
     chronicles,
     zlib],

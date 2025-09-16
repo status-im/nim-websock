@@ -12,9 +12,9 @@
 import pkg/[
   chronos,
   chronicles,
+  results,
   stew/byteutils,
-  stew/endians2,
-  stew/results]
+  stew/endians2]
 
 import ./types
 
