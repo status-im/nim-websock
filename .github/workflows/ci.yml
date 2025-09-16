@@ -35,7 +35,7 @@ jobs:
       max-parallel: 20
       matrix:
         websock: [ws, wsc, wss, wssc]
-        branch: [version-1-6, version-2-0, devel]
+        branch: [version-2-0, version-2-2, devel]
 
     defaults:
       run:
@@ -44,8 +44,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Build Nim and Nimble
         run: |
@@ -62,10 +60,10 @@ jobs:
 
       - name: Setup Autobahn.
         run: |
-          sudo apt-get install -y python2.7-dev
+          sudo apt-get install -y python3-dev
           pip install virtualenv
           pip install markdown2
-          virtualenv --python=/usr/bin/python2.7 autobahn
+          virtualenv --python=/usr/bin/python3 autobahn
           source autobahn/bin/activate
           pip install autobahntestsuite txaio==2.1.0 autobahn[twisted,accelerate]==0.10.9 jinja2==2.6 markupsafe==0.19 Werkzeug==0.9.6 klein==0.2.3 pyopenssl service_identity==14.0.0 unittest2==1.1.0 wsaccel==0.6.2
           pip freeze
