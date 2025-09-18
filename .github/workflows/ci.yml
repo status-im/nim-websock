@@ -25,8 +25,6 @@ jobs:
         env NIMFLAGS="--mm:refc" nimble test
 
   autobahn-test:
-    # temporary disabled
-    if: false # github.event_name == 'push' # || github.event_name == 'pull_request'
     name: "Autobahn test suite"
     runs-on: ubuntu-latest
 
@@ -45,29 +43,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Get latest nimbus-build-system commit hash
+        id: versions
+        run: |
+          nbsHash=$(git ls-remote "https://github.com/status-im/nimbus-build-system" "${2:-HEAD}" | cut -f 1 )
+          echo "nimbus_build_system=$nbsHash" >> $GITHUB_OUTPUT
+
+      - name: Restore prebuilt Nim from cache
+        uses: actions/cache@v4
+        with:
+          path: NimBinCache
+          key: 'nim-${{ matrix.branch }}-${{ steps.versions.outputs.nimbus_build_system }}'
+
       - name: Build Nim and Nimble
         run: |
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
           env MAKE="make -j$(nproc)" NIM_COMMIT=${{ matrix.branch }} \
             QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
-            bash build_nim.sh nim csources dist/nimble NimBinaries
+            bash build_nim.sh nim csources dist/nimble NimBinCache
           echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
+
+      - name: Get docker image cache key
+        id: cache_key
+        run: |
+          dockerHash=$(docker buildx imagetools inspect crossbario/autobahn-testsuite | grep "Digest" | cut -d':' -f 3)
+          echo "cache_key=$dockerHash" >> $GITHUB_OUTPUT
+
+      - name: Cache Docker images
+        uses: ScribeMD/docker-cache@0.5.0
+        with:
+          key: docker-${{ runner.os }}-${{ steps.cache_key.outputs.cache_key }}
 
       - name: Setup Python version
         uses: actions/setup-python@v5
         with:
-          python-version: pypy-2.7
+          python-version: pypy-3.10
 
-      - name: Setup Autobahn.
+      - name: Setup dependencies
         run: |
-          sudo apt-get install -y python3-dev
-          pip install virtualenv
-          pip install markdown2
-          virtualenv --python=/usr/bin/python3 autobahn
-          source autobahn/bin/activate
-          pip install autobahntestsuite txaio==2.1.0 autobahn[twisted,accelerate]==0.10.9 jinja2==2.6 markupsafe==0.19 Werkzeug==0.9.6 klein==0.2.3 pyopenssl service_identity==14.0.0 unittest2==1.1.0 wsaccel==0.6.2
-          pip freeze
-          nimble install -y --depsOnly
+         pip install markdown2
+         nimble install -y --depsOnly
 
       - name: Generate index.html
         if: matrix.websock == 'ws'
@@ -77,47 +92,9 @@ jobs:
           sed -i "s/COMMIT_SHA/$GITHUB_SHA/g" autobahn/index.md
           markdown2 autobahn/index.md > autobahn/reports/index.html
 
-      - name: Run Autobahn test suite.
+      - name: Run Autobahn test suite
         run: |
-          source autobahn/bin/activate
-          case '${{ matrix.websock }}' in
-            ws)
-              nim c -d:release examples/server.nim
-              examples/server &
-              server=$!
-
-              cd autobahn
-              wstest --mode fuzzingclient --spec fuzzingclient.json
-            ;;
-            wsc)
-              nim c -d:tls -d:release -o:examples/tls_server examples/server.nim
-              examples/tls_server &
-              server=$!
-
-              cd autobahn
-              wstest --mode fuzzingclient --spec fuzzingclient_tls.json
-            ;;
-            wss)
-              cd autobahn
-              wstest --webport=0 --mode fuzzingserver --spec fuzzingserver.json &
-              server=$!
-
-              cd ..
-              nim c -d:release examples/autobahn_client
-              examples/autobahn_client
-            ;;
-            wssc)
-              cd autobahn
-              wstest --webport=0 --mode fuzzingserver --spec fuzzingserver_tls.json &
-              server=$!
-
-              cd ..
-              nim c -d:tls -d:release -o:examples/autobahn_tlsclient examples/autobahn_client
-              examples/autobahn_tlsclient
-            ;;
-          esac
-
-          kill $server
+          bash scripts/${{ matrix.websock }}.sh
 
       - name: Upload Autobahn result
         uses: actions/upload-artifact@v4
@@ -129,8 +106,6 @@ jobs:
   # Applying Merging multiple artifacts:
   # https://github.com/actions/upload-artifact/blob/main/docs/MIGRATION.md#merging-multiple-artifacts
   merge-autobahn-artifact:
-    # temporary disabled
-    if: false
     runs-on: ubuntu-latest
     needs: autobahn-test
     steps:
@@ -141,8 +116,6 @@ jobs:
           pattern: autobahn-artifact-*
 
   deploy-test:
-    # temporary disabled
-    if: false
     name: "Deploy Autobahn results"
     needs: merge-autobahn-artifact
     runs-on: ubuntu-latest
@@ -158,7 +131,7 @@ jobs:
           name: autobahn-report
           path: ./autobahn_reports
 
-      - name: Deploy autobahn report.
+      - name: Deploy autobahn report
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
