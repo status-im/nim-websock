@@ -81,6 +81,10 @@ jobs:
         if: steps.cache-docker-image.outputs.cache-hit != 'true'
         run: docker pull crossbario/autobahn-testsuite:latest
 
+      - name: Setup dependencies
+        run: |
+         nimble install -y --depsOnly
+
       - name: Generate index.html
         # Run this step only once for all matrix combinations
         if: matrix.websock == 'ws' && matrix.branch == 'devel'
@@ -137,7 +141,6 @@ jobs:
       - name: Setup dependencies
         run: |
          pip install markdown2
-         nimble install -y --depsOnly
 
       - name: Setup dependencies
         run: |
