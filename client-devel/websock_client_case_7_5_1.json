@@ -1,0 +1,99 @@
+{
+   "agent": "websock-client",
+   "behavior": "OK",
+   "behaviorClose": "OK",
+   "case": 222,
+   "closedByMe": true,
+   "createStats": true,
+   "createWirelog": true,
+   "description": "Send a close frame with invalid UTF8 payload",
+   "droppedByMe": false,
+   "duration": 1,
+   "expectation": "Clean close with protocol error or invalid utf8 code or dropped TCP.",
+   "expected": {
+      "OK": []
+   },
+   "expectedClose": {
+      "closeCode": [
+         1002,
+         1007
+      ],
+      "closedByMe": true,
+      "requireClean": false
+   },
+   "failedByMe": false,
+   "httpRequest": "GET /runCase?case=222&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: I3xbleOqVSFkknpv+KCM5Q==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: c3PslXUgAABn84EbNzgZf3JKgbY=\r\n\r\n",
+   "id": "7.5.1",
+   "isServer": true,
+   "localCloseCode": 1000,
+   "localCloseReason": "cebae1bdb9cf83cebcceb5eda080656469746564",
+   "received": [],
+   "remoteCloseCode": null,
+   "remoteCloseReason": null,
+   "reportCompressionRatio": false,
+   "reportTime": false,
+   "result": "Actual events match at least one expected.",
+   "resultClose": "Connection was properly closed",
+   "rxFrameStats": {},
+   "rxOctetStats": {
+      "288": 1
+   },
+   "started": "2025-09-19T04:38:45.828Z",
+   "trafficStats": null,
+   "txFrameStats": {
+      "8": 1
+   },
+   "txOctetStats": {
+      "24": 1,
+      "206": 1
+   },
+   "wasClean": false,
+   "wasCloseHandshakeTimeout": false,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
+   "wasOpenHandshakeTimeout": false,
+   "wasServerConnectionDropTimeout": false,
+   "wirelog": [
+      [
+         "RO",
+         [
+            288,
+            "474554202f72756e436173653f636173653d323232266167656e743d776562736f636b2d636c69656e7420485454502f312e310d0a436f6e6e656374696f6e3a ..."
+         ]
+      ],
+      [
+         "TO",
+         [
+            206,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f302e382e ..."
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            22,
+            "0x03e8cebae1bdb9cf83cebcceb5eda080656469746564"
+         ],
+         8,
+         true,
+         0,
+         null,
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            24,
+            "881603e8cebae1bdb9cf83cebcceb5eda080656469746564"
+         ],
+         false
+      ],
+      [
+         "KL",
+         1
+      ]
+   ]
+}
