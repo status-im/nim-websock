@@ -8,22 +8,32 @@
 
 # prevent issue https://github.com/status-im/nimbus-eth1/issues/3661
 
+
 set -e
+
+# script arguments
+[[ $# -ne 1 ]] && { echo "Usage: $0 NIM_VERSION"; }
+NIM_VERSION="$1"
 
 cd "$(dirname "${BASH_SOURCE[0]}")"/..
 
 REPO_DIR="${PWD}"
 
-mkdir -p reports
+nim c -d:tls -d:release -o:examples/tls_server examples/server.nim
+examples/tls_server &
+server=$!
 
-docker run -d \
+mkdir -p autobahn/reports
+
+docker run \
   -v ${REPO_DIR}/autobahn:/config \
-  -v ${REPO_DIR}/reports:/reports \
+  -v ${REPO_DIR}/autobahn/reports:/reports \
   --network=host \
-  --name fuzzingserver \
-  crossbario/autobahn-testsuite wstest --webport=0 --mode fuzzingserver --spec /config/fuzzingserver.json
+  --name fuzzingclient_tls \
+  crossbario/autobahn-testsuite wstest --mode fuzzingclient --spec /config/fuzzingclient_tls.json
 
-nim c -d:release examples/autobahn_client
-examples/autobahn_client
+kill $server
 
-docker kill fuzzingserver
+mv autobahn/reports/server_tls autobahn/reports/server_tls-${NIM_VERSION}
+
+echo "* [Nim-${NIM_VERSION} wss server summary report](server_tls-${NIM_VERSION}/index.html)" > "autobahn/reports/server_tls-${NIM_VERSION}.txt"

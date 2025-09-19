@@ -10,21 +10,28 @@
 
 set -e
 
+# script arguments
+[[ $# -ne 1 ]] && { echo "Usage: $0 NIM_VERSION"; }
+NIM_VERSION="$1"
+
 cd "$(dirname "${BASH_SOURCE[0]}")"/..
 
 REPO_DIR="${PWD}"
 
-nim c -d:tls -d:release -o:examples/tls_server examples/server.nim
-examples/tls_server &
-server=$!
+mkdir -p autobahn/reports
 
-mkdir -p reports
-
-docker run \
+docker run -d \
   -v ${REPO_DIR}/autobahn:/config \
-  -v ${REPO_DIR}/reports:/reports \
+  -v ${REPO_DIR}/autobahn/reports:/reports \
   --network=host \
-  --name fuzzingclient_tls \
-  crossbario/autobahn-testsuite wstest --mode fuzzingclient --spec /config/fuzzingclient_tls.json
+  --name fuzzingserver \
+  crossbario/autobahn-testsuite wstest --webport=0 --mode fuzzingserver --spec /config/fuzzingserver.json
 
-kill $server
+nim c -d:release examples/autobahn_client
+examples/autobahn_client
+
+docker kill fuzzingserver
+
+mv autobahn/reports/client autobahn/reports/client-${NIM_VERSION}
+
+echo "* [Nim-${NIM_VERSION} ws client summary report](client-${NIM_VERSION}/index.html)" > "autobahn/reports/client-${NIM_VERSION}.txt"
