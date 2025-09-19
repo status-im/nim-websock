@@ -1,4 +1,8 @@
 name: CI
+permissions:
+  contents: read
+  pull-requests: write
+
 on:
   push:
     branches:
@@ -69,10 +73,16 @@ jobs:
           dockerHash=$(docker buildx imagetools inspect crossbario/autobahn-testsuite | grep "Digest" | cut -d':' -f 3)
           echo "cache_key=$dockerHash" >> $GITHUB_OUTPUT
 
-      - name: Cache Docker images
-        uses: ScribeMD/docker-cache@0.5.0
+      - name: Cache Docker image
+        id: cache-docker-image
+        uses: actions/cache@v4
         with:
-          key: docker-${{ runner.os }}-${{ steps.cache_key.outputs.cache_key }}
+          path: /var/lib/docker # Or the specific path where your image is stored
+          key: ${{ runner.os }}-docker-image-${{ steps.cache_key.outputs.cache_key }}
+
+      - name: Pull Docker image if not cached
+        if: steps.cache-docker-image.outputs.cache-hit != 'true'
+        run: docker pull crossbario/autobahn-testsuite:latest
 
       - name: Setup Python version
         uses: actions/setup-python@v5
@@ -136,3 +146,9 @@ jobs:
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./autobahn_reports
+
+      - name: Delete artefacts
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          failOnError: false
+          name: autobahn-report
