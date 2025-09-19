@@ -121,6 +121,8 @@ jobs:
     name: "Deploy Autobahn results"
     needs: merge-autobahn-artifact
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     defaults:
       run:
@@ -144,8 +146,8 @@ jobs:
 
       - name: Setup dependencies
         run: |
-         cat autobahn/reports/*.txt >> autobahn/reports/index.md
-         markdown2 autobahn/reports/index.md > autobahn/reports/index.html
+         cat autobahn_reports/*.txt >> autobahn_reports/index.md
+         markdown2 autobahn_reports/index.md > autobahn_reports/index.html
 
       - name: Deploy autobahn report
         uses: peaceiris/actions-gh-pages@v4
