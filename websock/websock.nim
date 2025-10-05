@@ -229,9 +229,15 @@ proc connect*(
   if uri.port.len <= 0:
     uri.port = if secure: "443" else: "80"
 
+  let pathQuery =
+    if uri.query.len == 0:
+      uri.path
+    else:
+      uri.path & "?" & uri.query
+
   return WebSocket.connect(
     host = uri.hostname & ":" & uri.port,
-    path = uri.path,
+    path = pathQuery,
     hostName = uri.hostname,
     protocols = protocols,
     factories = factories,
