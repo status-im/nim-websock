@@ -13,7 +13,8 @@ import
   chronicles,
   ../websock/[websock, extensions/compression/deflate]
 
-import ../tests/keys
+when defined tls:
+  import ../tests/keys
 
 proc handle(request: HttpRequest) {.async.} =
   trace "Handling request:", uri = request.uri.path

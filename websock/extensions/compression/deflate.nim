@@ -219,7 +219,7 @@ proc decompress(zs: var ZStream, limit: int, data: openArray[byte]): seq[byte] =
   zs.next_in   = cast[ptr uint8](data[0].unsafeAddr)
   zs.avail_in  = data.len.cuint
 
-  result = newSeqUninit[byte](min(data.len * 2, limit))
+  result = newSeqUninit[byte](min(max(data.len * 2, 65636), limit))
 
   var added = 0
   while true:
