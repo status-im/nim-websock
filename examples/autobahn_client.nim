@@ -9,8 +9,10 @@
 
 import
   std/[strutils],
-  pkg/[chronos, chronicles, stew/byteutils],
-  ../websock/[websock, types, frame, extensions/compression/deflate]
+  chronos,
+  chronicles,
+  stew/byteutils,
+  ../websock/[websock, types, extensions/compression/deflate]
 
 const
   clientFlags = {NoVerifyHost, NoVerifyServerName}

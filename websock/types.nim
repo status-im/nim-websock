@@ -7,21 +7,21 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push gcsafe, raises: [].}
+{.push raises: [], gcsafe.}
 
-import std/deques
-import pkg/[chronos,
-            chronos/streams/tlsstream,
-            chronos/apps/http/httptable,
-            bearssl/rand,
-            httputils,
-            results]
+import
+  std/deques,
+  chronos,
+  chronos/streams/tlsstream,
+  chronos/apps/http/httptable,
+  bearssl/rand,
+  httputils,
+  results
 
 export deques, rand
 
 const
   SHA1DigestSize* = 20
-  WSHeaderSize* = 12
   WSDefaultVersion* = 13
   WSDefaultFrameSize* = 1 shl 20 # 1mb
   WSMaxMessageSize* = 20 shl 20  # 20mb
@@ -43,8 +43,6 @@ type
     Close = 0x8  ## Denotes a connection close.
     Ping = 0x9   ## Denotes a ping.
     Pong = 0xa   ## Denotes a pong.
-    # B-F are reserved for further control frames.
-    Reserved = 0xf
 
   HeaderFlag* {.pure, size: sizeof(uint8).} = enum
     rsv3
@@ -54,7 +52,7 @@ type
 
   HeaderFlags* = set[HeaderFlag]
 
-  MaskKey* = array[4, char]
+  MaskKey* = array[4, byte]
   WebSecKey* = array[16, byte]
 
   Frame* = ref object
@@ -96,6 +94,8 @@ type
     onPong*: ControlCb
     onClose*: CloseCb
 
+  WSSendFuture* = Future[void].Raising([CancelledError, AsyncStreamError, WebSocketError])
+
   WSSession* = ref object of WebSocket
     stream*: AsyncStream
     frame*: Frame
@@ -108,8 +108,7 @@ type
     # negotiated that can interpret the interleaving.
     # See RFC 6455 Section 5.4 Fragmentation
     sendLoop*: Future[void]
-    sendQueue*: Deque[
-      tuple[data: seq[byte], opcode: Opcode, fut: Future[void]]]
+    sendQueue*: Deque[tuple[data: seq[byte], opcode: Opcode, fut: WSSendFuture]]
 
   Ext* = ref object of RootObj
     name*: string
@@ -142,18 +141,17 @@ type
   # 3. server reply with response header
   # 4. client verify response header from server
   Hook* = ref object of RootObj
-    append*: proc(ctx: Hook,
-                  headers: var HttpTable): Result[void, string]
-                  {.gcsafe, raises: [].}
-    verify*: proc(ctx: Hook,
-                  headers: HttpTable): Future[Result[void, string]]
-                  {.gcsafe, async: (raises: []).}
+    append*: proc(ctx: Hook, headers: var HttpTable): Result[void, string] {.
+      gcsafe, raises: []
+    .}
+    verify*: proc(ctx: Hook, headers: HttpTable): Future[Result[void, string]] {.
+      async: (raises: [])
+    .}
 
   WebSocketError* = object of CatchableError
   WSMalformedHeaderError* = object of WebSocketError
   WSFailedUpgradeError* = object of WebSocketError
   WSVersionError* = object of WebSocketError
-  WSProtoMismatchError* = object of WebSocketError
   WSMaskMismatchError* = object of WebSocketError
   WSHandshakeError* = object of WebSocketError
   WSOpcodeMismatchError* = object of WebSocketError
@@ -161,9 +159,7 @@ type
   WSWrongUriSchemeError* = object of WebSocketError
   WSMaxMessageSizeError* = object of WebSocketError
   WSClosedError* = object of WebSocketError
-  WSSendError* = object of WebSocketError
   WSPayloadTooLarge* = object of WebSocketError
-  WSReservedOpcodeError* = object of WebSocketError
   WSFragmentedControlFrameError* = object of WebSocketError
   WSInvalidCloseCodeError* = object of WebSocketError
   WSPayloadLengthError* = object of WebSocketError
@@ -191,6 +187,10 @@ const
   StatusLibsCodes* = (StatusCodes(3000)..StatusCodes(3999))       # 3000-3999 reserved for libs
   StatusAppsCodes* = (StatusCodes(4000)..StatusCodes(4999))       # 4000-4999 reserved for apps
 
+const
+  ControlOpcodes* = {Opcode.Close, Opcode.Ping, Opcode.Pong}
+  MessageOpcodes* = {Opcode.Cont, Opcode.Text, Opcode.Binary}
+
 proc `<=`*(a, b: StatusCodes): bool = a.uint16 <= b.uint16
 proc `>=`*(a, b: StatusCodes): bool = a.uint16 >= b.uint16
 proc `<`*(a, b: StatusCodes): bool = a.uint16 < b.uint16
@@ -205,14 +205,20 @@ proc `$`*(a: StatusCodes): string = $(a.int)
 proc `name=`*(self: Ext, name: string) =
   raiseAssert "Can't change extensions name!"
 
-method decode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
+method decode*(
+    self: Ext, frame: Frame
+): Future[Frame] {.
+    base, async: (raises: [CancelledError, AsyncStreamError, WebSocketError])
+.} =
   raiseAssert "Not implemented!"
 
-method encode*(self: Ext, frame: Frame): Future[Frame] {.base, async.} =
+method encode*(
+    self: Ext, frame: Frame
+): Future[Frame] {.base, async: (raises: [CancelledError, WebSocketError]).} =
   raiseAssert "Not implemented!"
 
 method toHttpOptions*(self: Ext): string {.base, gcsafe.} =
   raiseAssert "Not implemented!"
 
-func random*(T: typedesc[MaskKey|WebSecKey], rng: var HmacDrbgContext): T =
+func random*(T: typedesc[MaskKey | WebSecKey], rng: var HmacDrbgContext): T =
   rng.generate(result)

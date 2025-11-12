@@ -7,13 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import
-  pkg/[results,
-    stew/byteutils,
-    chronos,
-    chronicles],
-  ../../websock/types,
-  ../../websock/frame
+import results, stew/byteutils, chronos, chronicles, ../../websock/[frame, types]
 
 type
   HexExt = ref object of Ext
@@ -22,7 +16,9 @@ type
 const
   extID = "hex"
 
-method decode(ext: HexExt, frame: Frame): Future[Frame] {.async.} =
+method decode(
+    ext: HexExt, frame: Frame
+): Future[Frame] {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   if frame.opcode notin {Opcode.Text, Opcode.Binary, Opcode.Cont}:
     return frame
 
@@ -45,7 +41,11 @@ method decode(ext: HexExt, frame: Frame): Future[Frame] {.async.} =
       if data.len > ext.session.frameSize:
         raise newException(WSPayloadTooLarge, "payload exceeds allowed max frame size")
 
-    frame.data = hexToSeqByte(cast[string](data))
+    frame.data = try:
+      hexToSeqByte(cast[string](data))
+    except ValueError:
+      raise newException(WSExtError, "invalid data")
+
     trace "HexExt decode", input=frame.length, output=frame.data.len
 
     frame.length = frame.data.len.uint64
@@ -55,7 +55,9 @@ method decode(ext: HexExt, frame: Frame): Future[Frame] {.async.} =
 
   return frame
 
-method encode(ext: HexExt, frame: Frame): Future[Frame] {.async.} =
+method encode(
+    ext: HexExt, frame: Frame
+): Future[Frame] {.async: (raises: [CancelledError, WebSocketError]).} =
   if frame.opcode notin {Opcode.Text, Opcode.Binary, Opcode.Cont}:
     return frame
 

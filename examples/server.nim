@@ -7,12 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/uri
-import pkg/[chronos,
-             chronicles,
-             httputils]
+import
+  std/uri,
+  chronos,
+  chronicles,
+  ../websock/[websock, extensions/compression/deflate]
 
-import ../websock/[websock, extensions/compression/deflate]
 import ../tests/keys
 
 proc handle(request: HttpRequest) {.async.} =

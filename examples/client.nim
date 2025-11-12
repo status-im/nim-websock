@@ -7,10 +7,10 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/[
+import
   chronos,
   chronicles,
-  stew/byteutils]
+  stew/byteutils
 
 import ../websock/websock
 

@@ -7,14 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/[
+import
   httputils,
   chronos/unittest2/asynctests,
-  ]
-
-import ../websock/websock
-
-import ./helpers
+ ../websock/websock,
+  ./helpers
 
 let address = initTAddress("127.0.0.1:8888")
 

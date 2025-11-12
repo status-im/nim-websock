@@ -7,18 +7,16 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push gcsafe, raises: [].}
+{.push raises: [], gcsafe.}
 
-import std/[uri]
-import pkg/[
+import
+  std/[uri],
   chronos,
   httputils,
   stew/byteutils,
-  chronicles]
-
-import pkg/[
+  chronicles,
   chronos/apps/http/httptable,
-  chronos/streams/tlsstream]
+  chronos/streams/tlsstream
 
 export httputils, httptable, tlsstream, uri
 
@@ -29,6 +27,7 @@ const
   MaxHttpHeadersSize* = 8192       # maximum size of HTTP headers in octets
   MaxHttpRequestSize* = 128 * 1024 # maximum size of HTTP body in octets
   HttpHeadersTimeout* = 120.seconds # timeout for receiving headers (120 sec)
+  HttpErrorTimeout* = 2.seconds # How long we wait for error sending to complete
   HeaderSep* = @[byte('\c'), byte('\L'), byte('\c'), byte('\L')]
   CRLF* = "\r\n"
 
@@ -53,37 +52,59 @@ type
   HttpError* = object of CatchableError
   HttpHeaderError* = HttpError
 
-proc closeTransp*(transp: StreamTransport) {.async.} =
+when not declared(newSeqUninit): # nim 2.2+
+  template newSeqUninit[T: byte](len: int): seq[byte] =
+    newSeqUninitialized[byte](len)
+
+proc add(v: var seq[byte], data: string) =
+  v.add data.toOpenArrayByte(0, data.high())
+
+proc closeTransp*(transp: StreamTransport) {.async, deprecated.} =
   if not transp.closed():
     await transp.closeWait()
 
-proc closeStream*(stream: AsyncStreamRW) {.async.} =
+proc closeStream*(stream: AsyncStreamRW) {.async, deprecated.} =
   if not stream.closed():
     await stream.closeWait()
 
-proc closeWait*(stream: AsyncStream) {.async.} =
-  await allFutures(
-    stream.reader.closeStream(),
-    stream.writer.closeStream(),
-    stream.reader.tsource.closeTransp())
+proc closeWait*(stream: AsyncStream) {.async: (raises: []).} =
+  await noCancel allFutures(stream.reader.closeWait(), stream.writer.closeWait())
+  await stream.reader.tsource.closeWait()
 
 proc close*(stream: AsyncStream) =
   stream.reader.close()
   stream.writer.close()
   stream.reader.tsource.close()
 
+proc readHttpHeader*(
+    stream: AsyncStreamReader
+): Future[seq[byte]] {.async: (raises: [CancelledError, AsyncStreamError]).} =
+  var buffer = newSeqUninit[byte](MaxHttpHeadersSize)
+  let hlen = await stream.readUntil(addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
+  buffer.setLen(hlen)
+  buffer
+
+func toHttpTable*(header: HttpRequestHeader | HttpResponseHeader): HttpTable =
+  var res = HttpTable.init()
+  for key, value in header.headers():
+    res.add(key, value)
+  res
+
 proc sendResponse*(
-  request: HttpRequest,
-  code: HttpCode,
-  headers: HttpTables = HttpTable.init(),
-  data: seq[byte] = @[],
-  version = HttpVersion11,
-  content = "") {.async.} =
+    request: HttpRequest,
+    code: HttpCode,
+    headers: HttpTables = HttpTable.init(),
+    data: openArray[byte] = @[],
+    version = HttpVersion11,
+    content = "",
+) {.async: (raises: [CancelledError, AsyncStreamError], raw: true).} =
   ## Send response
   ##
 
   var headers = headers
-  var response: string = $version
+  var response = newSeqOfCap[byte](1024 + data.len)
+
+  response.add($version)
   response.add(" ")
   response.add($code)
   response.add(CRLF)
@@ -105,33 +126,42 @@ proc sendResponse*(
     response.add(CRLF)
 
   response.add(CRLF)
-  await request.stream.writer.write(
-    response.toBytes() & data)
+  response.add(data)
+
+  request.stream.writer.write(response)
 
 proc sendResponse*(
-  request: HttpRequest,
-  code: HttpCode,
-  headers: HttpTables = HttpTable.init(),
-  data: string,
-  version = HttpVersion11,
-  content = ""): Future[void] =
-  request.sendResponse(code, headers, data.toBytes(), version, content)
+    request: HttpRequest,
+    code: HttpCode,
+    headers: HttpTables = HttpTable.init(),
+    data: string,
+    version = HttpVersion11,
+    content = "",
+): Future[void] {.async: (raises: [CancelledError, AsyncStreamError], raw: true).} =
+  request.sendResponse(
+    code, headers, data.toOpenArrayByte(0, data.high()), version, content
+  )
 
 proc sendError*(
-  stream: AsyncStreamWriter,
-  code: HttpCode,
-  version = HttpVersion11) {.async.} =
-  let content = $code
-  var response: string = $version
+    stream: AsyncStreamWriter, code: HttpCode, version = HttpVersion11
+) {.async: (raises: [CancelledError]).} =
+  var response = newSeqOfCap[byte](1024)
+  response.add($version)
   response.add(" ")
-  response.add(content & CRLF)
+  response.add($code)
   response.add(CRLF)
+  response.add(CRLF)
+  response.add($code)
 
-  await stream.write(
-    response.toBytes() & content.toBytes())
+  try:
+    # When sending errors, don't waste too much time on it..
+    discard await stream.write(response).withTimeout(HttpErrorTimeout)
+  except AsyncStreamError as exc:
+    # Ignore errors while sending error responses to not swallow the original
+    # error that caused us to want to send an error
+    discard
 
 proc sendError*(
-  request: HttpRequest,
-  code: HttpCode,
-  version = HttpVersion11): Future[void] =
+    request: HttpRequest, code: HttpCode, version = HttpVersion11
+): Future[void] {.async: (raises: [CancelledError], raw: true).} =
   request.stream.writer.sendError(code, version)

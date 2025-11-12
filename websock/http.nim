@@ -7,12 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/uri
-import pkg/[
+import
+  std/uri,
   chronos/apps/http/httptable,
   chronos/streams/tlsstream,
-  httputils]
-
-import ./http/client, ./http/server, ./http/common
+  httputils,
+  ./http/[client, common, server]
 
 export uri, httputils, client, server, httptable, tlsstream, common

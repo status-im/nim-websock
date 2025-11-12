@@ -7,13 +7,15 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push gcsafe, raises: [].}
+{.push raises: [], gcsafe.}
 
-import std/strformat
-import pkg/[chronos, chronicles, stew/byteutils, stew/endians2]
-import ./types, ./frame, ./utf8dfa, ./http
-
-import pkg/chronos/streams/asyncstream
+import
+  std/strformat,
+  chronos,
+  chronicles,
+  stew/byteutils,
+  stew/endians2,
+  ./[frame, types, utf8dfa, http]
 
 logScope:
   topics = "websock ws-session"
@@ -27,43 +29,41 @@ proc prepareCloseBody(code: StatusCodes, reason: string): seq[byte] =
   if ord(code) > 999:
     result = @(ord(code).uint16.toBytesBE()) & result
 
-proc writeMessage(ws: WSSession,
-  data: seq[byte] = @[],
-  opcode: Opcode,
-  maskKey: MaskKey,
-  extensions: seq[Ext]) {.async.} =
-
-  if opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}:
-    warn "Attempting to send a data frame with an invalid opcode!"
-    raise newException(WSInvalidOpcodeError,
-      &"Attempting to send a data frame with an invalid opcode {opcode}!")
-
+proc writeMessage(
+    ws: WSSession,
+    data: seq[byte],
+    opcode: Opcode,
+    maskKey: MaskKey,
+    extensions: seq[Ext],
+) {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   let maxSize = ws.frameSize
-  var i = 0
+  var sent = 0
   while ws.readyState notin {ReadyState.Closing, ReadyState.Closed}:
-    let canSend = min(data.len - i, maxSize)
-    let frame = Frame(
-        fin: if (canSend + i >= data.len): true else: false,
+    let
+      canSend = min(data.len - sent, maxSize)
+      # fragments have to be `Continuation` frames
+      opcode = if sent > 0: Opcode.Cont else: opcode
+      frame = Frame(
+        fin: if (canSend + sent >= data.len): true else: false,
         rsv1: false,
         rsv2: false,
         rsv3: false,
-        opcode: if i > 0: Opcode.Cont else: opcode, # fragments have to be `Continuation` frames
+        opcode: opcode,
         mask: ws.masked,
-        data: data[i ..< canSend + i],
-        maskKey: maskKey)
+        data: data[sent ..< canSend + sent],
+        maskKey: maskKey,
+      )
+      encoded = await frame.encode(extensions)
 
-    let encoded = await frame.encode(extensions)
     await ws.stream.writer.write(encoded)
 
-    i += canSend
-    if i >= data.len:
+    sent += canSend
+    if sent >= data.len:
       break
 
 proc writeControl(
-  ws: WSSession,
-  data: seq[byte] = @[],
-  opcode: Opcode,
-  maskKey: MaskKey) {.async.} =
+    ws: WSSession, data: seq[byte], opcode: Opcode, maskKey: MaskKey
+) {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   ## Send a frame applying the supplied
   ## extensions
   ##
@@ -73,12 +73,8 @@ proc writeControl(
     dataSize = data.len
     masked = ws.masked
 
-  if opcode in {Opcode.Text, Opcode.Cont, Opcode.Binary}:
-    warn "Attempting to send a control frame with an invalid opcode!"
-    raise newException(WSInvalidOpcodeError,
-      &"Attempting to send a control frame with an invalid opcode {opcode}!")
-
-  let frame = Frame(
+  let
+    frame = Frame(
       fin: true,
       rsv1: false,
       rsv2: false,
@@ -86,21 +82,16 @@ proc writeControl(
       opcode: opcode,
       mask: ws.masked,
       data: data,
-      maskKey: maskKey)
-
-  let encoded = await frame.encode()
+      maskKey: maskKey,
+    )
+    encoded = await frame.encode()
   await ws.stream.writer.write(encoded)
 
   trace "Wrote control frame"
 
-func isControl(opcode: Opcode): bool =
-  opcode notin {Opcode.Text, Opcode.Cont, Opcode.Binary}
-
-proc nonCancellableSend(
-  ws: WSSession,
-  data: seq[byte] = @[],
-  opcode: Opcode): Future[void]
-  {.async.} =
+proc doSend(
+    ws: WSSession, data: seq[byte], opcode: Opcode
+): Future[void] {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   ## Send a frame
   ##
 
@@ -124,54 +115,42 @@ proc nonCancellableSend(
     else:
       default(MaskKey)
 
-  if opcode.isControl:
-    await ws.writeControl(data, opcode, maskKey)
-  else:
-    await ws.writeMessage(data, opcode, maskKey, ws.extensions)
+  let writeFut =
+    case opcode
+    of ControlOpcodes:
+      ws.writeControl(data, opcode, maskKey)
+    of MessageOpcodes:
+      ws.writeMessage(data, opcode, maskKey, ws.extensions)
+  await writeFut
 
-proc doSend(
-  ws: WSSession,
-  data: seq[byte] = @[],
-  opcode: Opcode
-  ): Future[void] =
-  let
-    retFut = newFuture[void]("doSend")
-    sendFut = ws.nonCancellableSend(data, opcode)
-
-  proc handleSend {.async.} =
-    try:
-      await sendFut
-      retFut.complete()
-    except CatchableError as exc:
-      retFut.fail(exc)
-
-  asyncSpawn handleSend()
-  retFut
-
-proc sendLoop(ws: WSSession) {.gcsafe, async.} =
+proc sendLoop(ws: WSSession) {.async: (raises: []).} =
   while ws.sendQueue.len > 0:
     let task = ws.sendQueue.popFirst()
     if task.fut.cancelled:
       continue
 
     try:
-      await ws.doSend(task.data, task.opcode)
+      await noCancel ws.doSend(task.data, task.opcode)
       task.fut.complete()
-    except CatchableError as exc:
+    except AsyncStreamError as exc:
+      task.fut.fail(exc)
+    except WebSocketError as exc:
       task.fut.fail(exc)
 
 proc send*(
-  ws: WSSession,
-  data: seq[byte] = @[],
-  opcode: Opcode): Future[void] =
-  if opcode.isControl:
+    ws: WSSession, data: seq[byte] = @[], opcode: Opcode
+): Future[void] {.
+    async: (raises: [CancelledError, AsyncStreamError, WebSocketError], raw: true)
+.} =
+
+  if opcode in ControlOpcodes:
     # Control frames (see Section 5.5) MAY be injected in the middle of
     # a fragmented message.  Control frames themselves MUST NOT be
     # fragmented.
     # See RFC 6455 Section 5.4 Fragmentation
     return ws.doSend(data, opcode)
 
-  let fut = newFuture[void]("send")
+  let fut = WSSendFuture.init("send")
 
   ws.sendQueue.addLast (data: data, opcode: opcode, fut: fut)
 
@@ -181,14 +160,15 @@ proc send*(
   fut
 
 proc send*(
-  ws: WSSession,
-  data: string): Future[void] =
+    ws: WSSession, data: string
+): Future[void] {.
+    async: (raises: [CancelledError, AsyncStreamError, WebSocketError], raw: true)
+.} =
   send(ws, data.toBytes(), Opcode.Text)
 
-proc handleClose*(
-  ws: WSSession,
-  frame: Frame,
-  payload: seq[byte] = @[]) {.async.} =
+proc handleClose(
+    ws: WSSession, frame: Frame, payload: seq[byte]
+) {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   ## Handle close sequence
   ##
 
@@ -215,11 +195,12 @@ proc handleClose*(
     raise newException(WSPayloadLengthError,
       "Invalid close frame with payload length 1!")
   else:
-    try:
-      code = StatusCodes(uint16.fromBytesBE(payload[0..<2]))
-    except RangeDefect:
-      raise newException(WSInvalidCloseCodeError,
-        "Status code out of range!")
+    let code = block:
+      let v = uint16.fromBytesBE(payload.toOpenArray(0, 1))
+      if v > StatusCodes.high().uint16:
+        raise newException(WSInvalidCloseCodeError,
+          "Status code out of range!")
+      cast[StatusCodes](v)
 
     if code in StatusNotUsed or
       code in StatusReservedProtocol:
@@ -233,7 +214,7 @@ proc handleClose*(
         &"Can't use reserved status code: {code}")
 
     # remaining payload bytes are reason for closing
-    reason = string.fromBytes(payload[2..payload.high])
+    reason = string.fromBytes(payload.toOpenArray(0, payload.high))
 
     if not ws.binary and validateUTF8(reason) == false:
       raise newException(WSInvalidUTF8,
@@ -241,11 +222,7 @@ proc handleClose*(
 
   trace "Handling close message", code = ord(code), reason
   if not isNil(ws.onClose):
-    try:
-      (code, reason) = ws.onClose(code, reason)
-    except CatchableError as exc:
-      used(exc)
-      trace "Exception in Close callback, this is most likely a bug", exc = exc.msg
+    (code, reason) = ws.onClose(code, reason)
   else:
     code = StatusFulfilled
     reason = ""
@@ -270,7 +247,9 @@ proc handleClose*(
   await sleepAsync(10.millis)
   await ws.stream.closeWait()
 
-proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
+proc handleControl(
+    ws: WSSession, frame: Frame
+) {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   ## Handle control frames
   ##
 
@@ -293,48 +272,37 @@ proc handleControl*(ws: WSSession, frame: Frame) {.async.} =
 
   var payload = newSeq[byte](frame.length.int)
   if frame.length > 0:
-    payload.setLen(frame.length.int)
     # Read control frame payload.
-    await ws.stream.reader.readExactly(addr payload[0], frame.length.int)
+    await ws.stream.reader.readExactly(addr payload[0], payload.len)
+
     if frame.mask:
-      mask(
-        payload.toOpenArray(0, payload.high),
-        frame.maskKey)
+      mask(payload.toOpenArray(0, payload.high), frame.maskKey)
 
   # Process control frame payload.
   case frame.opcode:
   of Opcode.Ping:
     if not isNil(ws.onPing):
-      try:
-        ws.onPing(payload)
-      except CatchableError as exc:
-        used(exc)
-        trace "Exception in Ping callback, this is most likely a bug", exc = exc.msg
+      ws.onPing(payload)
 
     # send pong to remote
     await ws.send(payload, Opcode.Pong)
   of Opcode.Pong:
     if not isNil(ws.onPong):
-      try:
-        ws.onPong(payload)
-      except CatchableError as exc:
-        used(exc)
-        trace "Exception in Pong callback, this is most likely a bug", exc = exc.msg
+      ws.onPong(payload)
   of Opcode.Close:
     await ws.handleClose(frame, payload)
   else:
     raise newException(WSInvalidOpcodeError, "Invalid control opcode!")
 
-{.warning[HoleEnumConv]:off.}
-
-proc readFrame*(ws: WSSession, extensions: seq[Ext] = @[]): Future[Frame] {.async.} =
+proc readFrame*(
+    ws: WSSession, extensions: seq[Ext] = @[]
+): Future[Frame] {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   ## Gets a frame from the WebSocket.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
   ##
 
   while ws.readyState != ReadyState.Closed:
-    let frame = await Frame.decode(
-      ws.stream.reader, ws.masked, extensions)
+    let frame = await Frame.decode(ws.stream.reader, ws.masked, extensions)
 
     logScope:
       opcode = frame.opcode
@@ -350,18 +318,18 @@ proc readFrame*(ws: WSSession, extensions: seq[Ext] = @[]): Future[Frame] {.asyn
       continue
 
     return frame
-
-{.warning[HoleEnumConv]:on.}
+  nil
 
 proc ping*(
-  ws: WSSession,
-  data: seq[byte] = @[]): Future[void] =
+    ws: WSSession, data: seq[byte] = @[]
+) {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError], raw: true).} =
   ws.send(data, opcode = Opcode.Ping)
 
 proc recv*(
-  ws: WSSession,
-  data: pointer | ptr byte | ref seq[byte], # nim bug: pointer doesn't match ptr byte?
-  size: int): Future[int] {.async.} =
+    ws: WSSession,
+    data: pointer | ptr byte | ref seq[byte],
+    size: int,
+): Future[int] {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   ## Attempts to read up to ``size`` bytes
   ##
   ## If ``size`` is less than the data in
@@ -413,14 +381,16 @@ proc recv*(
         ws.binary = ws.frame.opcode == Opcode.Binary # set binary flag
         trace "Setting binary flag"
 
-      let len = min(ws.frame.remainder.int, size - consumed)
-      if len > 0:
+      while ws.frame.remainder > 0 and consumed < size:
+        let len = min(ws.frame.remainder.int, size - consumed)
         trace "Reading bytes from frame stream", len
-        when data is ref seq[byte]:
-          data[].setLen(consumed + len)
-          let read = await ws.frame.read(ws.stream.reader, addr data[][consumed], len)
-        else:
-          let read = await ws.frame.read(ws.stream.reader, addr pbuffer[consumed], len)
+        let pbuf =
+          when data is ref seq[byte]:
+            data[].setLen(consumed + len)
+            addr data[][consumed]
+          else:
+            addr pbuffer[consumed]
+        let read = await ws.frame.read(ws.stream.reader, pbuf, len)
         if read <= 0:
           trace "Didn't read any bytes, stopping"
           raise newException(WSClosedError, "WebSocket is closed!")
@@ -440,23 +410,33 @@ proc recv*(
 
         # read next frame
         ws.frame = await ws.readFrame(ws.extensions)
-  except CatchableError as exc:
+  except CancelledError as exc:
+    # TODO should all these exceptions be handled the same??
     trace "Exception reading frames", exc = exc.msg
     ws.readyState = ReadyState.Closed
     await ws.stream.closeWait()
 
     raise exc
-  finally:
-    if not isNil(ws.frame) and
-      (ws.frame.fin and ws.frame.remainder <= 0):
-      trace "Last frame in message and no more bytes left to read, reseting current frame"
-      ws.frame = nil
+  except AsyncStreamError as exc:
+    trace "Exception reading frames", exc = exc.msg
+    ws.readyState = ReadyState.Closed
+    await ws.stream.closeWait()
+
+    raise exc
+  except WebSocketError as exc:
+    trace "Exception reading frames", exc = exc.msg
+    ws.readyState = ReadyState.Closed
+    await ws.stream.closeWait()
+
+    raise exc
 
   return consumed
 
 proc recvMsg*(
-  ws: WSSession,
-  size = WSMaxMessageSize): Future[seq[byte]] {.async.} =
+    ws: WSSession, size = WSMaxMessageSize
+): Future[seq[byte]] {.
+    async: (raises: [CancelledError, AsyncStreamError, WebSocketError])
+.} =
   ## Attempt to read a full message up to max `size`
   ## bytes in `frameSize` chunks.
   ##
@@ -468,41 +448,25 @@ proc recvMsg*(
   ##
   ## In all other cases it awaits a full message.
   ##
-  try:
-    var res: seq[byte]
-    while ws.readyState != ReadyState.Closed:
-      var buf = new(seq[byte])
-      let read {.used.} = await ws.recv(buf, min(size, ws.frameSize))
+  var buf = new(seq[byte])
 
-      if res.len + buf[].len > size:
-        raise newException(WSMaxMessageSizeError, "Max message size exceeded")
+  # Read up to `size` bytes or until `fin`, whichever comes first
+  discard await ws.recv(buf, size - buf[].len)
 
-      trace "Read message", size = read
-      res.add(buf[])
+  if ws.readyState == ReadyState.Closed:
+    raise newException(WSClosedError, "WebSocket is closed!")
 
-      # no more frames
-      if isNil(ws.frame):
-        break
-
-      # read the entire message, exit
-      if ws.frame.fin and ws.frame.remainder <= 0:
-        trace "Read full message, breaking!"
-        break
-
-    if ws.readyState == ReadyState.Closed:
-      # avoid reporting incomplete message
-      raise newException(WSClosedError, "WebSocket is closed!")
-
-    if not ws.binary and validateUTF8(res.toOpenArray(0, res.high)) == false:
-      raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
-
-    return res
-  except CatchableError as exc:
-    trace "Exception reading message", exc = exc.msg
-    ws.readyState = ReadyState.Closed
+  if not isNil(ws.frame):
+    # If `ws.frame` is not nil, it means we reached `size` bytes without
+    # receiving a `fin`
     await ws.stream.closeWait()
+    raise newException(WSMaxMessageSizeError, "Max message size exceeded")
 
-    raise exc
+  if not ws.binary and not validateUTF8(buf[].toOpenArray(0, buf[].high)):
+    await ws.stream.closeWait()
+    raise newException(WSInvalidUTF8, "Invalid UTF8 sequence detected")
+
+  return move(buf[])
 
 proc recv*(
   ws: WSSession,
@@ -511,9 +475,8 @@ proc recv*(
   ws.recvMsg(size)
 
 proc close*(
-  ws: WSSession,
-  code = StatusFulfilled,
-  reason: string = "") {.async.} =
+    ws: WSSession, code = StatusFulfilled, reason: string = ""
+) {.async: (raises: [CancelledError]).} =
   ## Close the Socket, sends close packet.
   ##
 

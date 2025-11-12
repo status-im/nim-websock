@@ -7,10 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[os, strutils]
-import pkg/[chronos/unittest2/asynctests, stew/io2]
-import ../../websock/websock
-import ../../websock/extensions/compression/deflate
+import
+  std/[os, strutils],
+  chronos/unittest2/asynctests,
+  stew/io2,
+  ../../websock/websock,
+  ../../websock/extensions/compression/deflate
 
 const
   dataFolder = currentSourcePath.rsplit(os.DirSep, 1)[0] / "data"

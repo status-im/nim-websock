@@ -9,7 +9,7 @@
 
 import
   std/strutils,
-  pkg/httputils,
+  httputils,
   ../types
 
 type

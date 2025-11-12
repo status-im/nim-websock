@@ -7,8 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/[chronos/unittest2/asynctests, stew/byteutils]
-import ./base64ext, ./hexext
+import chronos/unittest2/asynctests, stew/byteutils, ./[base64ext, hexext]
 import ../../websock/websock, ../helpers
 
 suite "multiple extensions flow":

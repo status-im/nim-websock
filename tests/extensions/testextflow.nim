@@ -7,9 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/strutils
-import pkg/[chronos, stew/byteutils]
-import pkg/asynctest/unittest2
+import std/strutils, chronos, stew/byteutils, asynctest/unittest
 
 import ../../ws/ws
 
@@ -28,13 +26,13 @@ proc new*(
     name: "HelperExtension")
 
 method decode*(
-  self: HelperExtension,
-  frame: Frame): Future[Frame] {.async.} =
+    self: HelperExtension, frame: Frame
+): Future[Frame] {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   return await self.handler(self, frame)
 
 method encode*(
-  self: HelperExtension,
-  frame: Frame): Future[Frame] {.async.} =
+    self: HelperExtension, frame: Frame
+): Future[Frame] {.async: (raises: [CancelledError, WebSocketError]).} =
   return await self.handler(self, frame)
 
 const TestString = "Hello"

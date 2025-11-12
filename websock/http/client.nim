@@ -7,16 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push gcsafe, raises: [].}
+{.push raises: [], gcsafe.}
 
-import std/[uri, strutils]
-import pkg/[
-  chronos,
-  chronicles,
-  httputils,
-  stew/byteutils]
-
-import ./common
+import std/[uri, strutils], chronos, chronicles, httputils, stew/byteutils, ./common
 
 logScope:
   topics = "websock http-client"
@@ -36,29 +29,11 @@ type
     minVersion*: TLSVersion
     maxVersion*: TLSVersion
 
-proc close*(client: HttpClient): Future[void] =
+proc closeWait*(client: HttpClient): Future[void] {.async: (raises: [], raw: true).} =
   client.stream.closeWait()
 
-proc readResponse(stream: AsyncStreamReader): Future[HttpResponseHeader] {.async.} =
-  var buffer = newSeq[byte](MaxHttpHeadersSize)
-  try:
-    let
-      hlenfut = stream.readUntil(
-        addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
-      ores = await withTimeout(hlenfut, HttpHeadersTimeout)
-
-    if not ores:
-      raise newException(HttpError,
-        "Timeout expired while receiving headers")
-
-    let hlen = hlenfut.read()
-    buffer.setLen(hlen)
-
-    return buffer.parseResponse()
-  except CatchableError as exc:
-    trace "Exception reading headers", exc = exc.msg
-    buffer.setLen(0)
-    raise exc
+proc close*(client: HttpClient): Future[void] {.deprecated: "closeWait".} =
+  client.closeWait()
 
 proc generateHeaders(
   requestUrl: Uri,
@@ -85,11 +60,13 @@ proc generateHeaders(
   return headersData
 
 proc request*(
-  client: HttpClient,
-  url: string | Uri,
-  httpMethod = MethodGet,
-  headers: HttpTables,
-  body: seq[byte] = @[]): Future[HttpResponse] {.async.} =
+    client: HttpClient,
+    url: string | Uri,
+    httpMethod = MethodGet,
+    headers: HttpTables,
+): Future[HttpResponse] {.
+    async: (raises: [CancelledError, AsyncStreamError, HttpError])
+.} =
   ## Helper that actually makes the request.
   ## Does not handle redirects.
   ##
@@ -104,30 +81,31 @@ proc request*(
       url
 
   let headerString = generateHeaders(requestUrl, httpMethod, client.version, headers)
-
   await client.stream.writer.write(headerString)
-  let response = await client.stream.reader.readResponse()
-  let headers =
-    block:
-      var res = HttpTable.init()
-      for key, value in response.headers():
-        res.add(key, value)
-      res
+
+  let
+    header =
+      try:
+        await client.stream.reader.readHttpHeader().wait(HttpHeadersTimeout)
+      except AsyncTimeoutError:
+        raise newException(HttpError, "Timeout expired while receiving headers")
+    response = header.parseResponse()
 
   return HttpResponse(
-    headers: headers,
+    headers: response.toHttpTable(),
     stream: client.stream,
     code: response.code,
     reason: response.reason())
 
 proc connect*(
-  T: typedesc[HttpClient | TlsHttpClient],
-  address: TransportAddress,
-  version = HttpVersion11,
-  tlsFlags: set[TLSFlags] = {},
-  tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12,
-  hostName = ""): Future[T] {.async.} =
+    T: typedesc[HttpClient | TlsHttpClient],
+    address: TransportAddress,
+    version = HttpVersion11,
+    tlsFlags: set[TLSFlags] = {},
+    tlsMinVersion = TLSVersion.TLS12,
+    tlsMaxVersion = TLSVersion.TLS12,
+    hostName = "",
+): Future[T] {.async: (raises: [CancelledError, AsyncStreamError, TransportError]).} =
 
   let transp = await connect(address)
   let client = T(
@@ -163,25 +141,23 @@ proc connect*(
   return client
 
 proc connect*(
-  T: typedesc[HttpClient | TlsHttpClient],
-  host: string,
-  version = HttpVersion11,
-  tlsFlags: set[TLSFlags] = {},
-  tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12,
-  hostName = ""): Future[T]
-  {.async: (raises: [CatchableError, HttpError]).} =
-
+    T: typedesc[HttpClient | TlsHttpClient],
+    host: string,
+    version = HttpVersion11,
+    tlsFlags: set[TLSFlags] = {},
+    tlsMinVersion = TLSVersion.TLS12,
+    tlsMaxVersion = TLSVersion.TLS12,
+    hostName = "",
+): Future[T] {.
+    async: (raises: [CancelledError, AsyncStreamError, HttpError, TransportError])
+.} =
   let wantedHostName = if hostName.len > 0:
       hostName
     else:
       host.split(":")[0]
 
-  template used(x: typed) =
-    # silence unused warning
-    discard
-    
   let addrs = resolveTAddress(host)
+  var lastException: ref TransportError
   for a in addrs:
     try:
       let conn = await T.connect(
@@ -194,8 +170,11 @@ proc connect*(
 
       return conn
     except TransportError as exc:
-      used(exc)
       trace "Error connecting to address", address = $a, exc = exc.msg
+      lastException = exc
+
+  if lastException != nil:
+    raise lastException
 
   raise newException(HttpError,
     "Unable to connect to host on any address!")
