@@ -1,14 +1,14 @@
 {
    "agent": "websock-secure-client",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 49,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "Send text Message fragmented into 2 fragments, octets are sent in octet-wise chops.",
-   "droppedByMe": true,
-   "duration": 5,
+   "droppedByMe": false,
+   "duration": 4,
    "expectation": "Message is processed and echo'ed back to us.",
    "expected": {
       "OK": [
@@ -27,8 +27,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=49&agent=websock-secure-client HTTP/1.1\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nConnection: Upgrade\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: bemW14VQxHl6azA4LzHh7Q==\r\nCache-Control: no-cache\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s7JxY58iQn/Nbz4mr6fF7vMBhYU=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=49&agent=websock-secure-client HTTP/1.1\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nConnection: Upgrade\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: 31kWVhZ3w+J8e6UnneKPyw==\r\nCache-Control: no-cache\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: OG4AKt+ie87HpiiYhVT12uV0/10=\r\n\r\n",
    "id": "5.5",
    "isServer": true,
    "localCloseCode": 1000,
@@ -40,22 +40,20 @@
          false
       ]
    ],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events match at least one expected.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "1": 1,
-      "8": 1
+      "1": 1
    },
    "rxOctetStats": {
-      "8": 1,
       "24": 1,
       "294": 1
    },
-   "started": "2025-10-03T19:13:03.250Z",
+   "started": "2025-11-12T13:23:54.871Z",
    "trafficStats": null,
    "txFrameStats": {
       "0": 1,
@@ -65,11 +63,11 @@
    "txOctetStats": {
       "1": 22,
       "4": 1,
-      "206": 1
+      "208": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
@@ -83,8 +81,8 @@
       [
          "TO",
          [
-            206,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f302e382e ..."
+            208,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f32352e31 ..."
          ],
          false
       ],
@@ -300,7 +298,7 @@
          "RO",
          [
             24,
-            "81925d45f34d3b37922a30209d396c23812c3a2896232977"
+            "81927fa3f08119d191e612c69ef54ec582e018ce95ef0b91"
          ]
       ],
       [
@@ -313,7 +311,7 @@
          true,
          0,
          true,
-         "5d45f34d"
+         "7fa3f081"
       ],
       [
          "TF",
@@ -336,25 +334,6 @@
             "880203e8"
          ],
          false
-      ],
-      [
-         "RO",
-         [
-            8,
-            "8882c3493c4dc0a1"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         true,
-         "c3493c4d"
       ]
    ]
 }

@@ -1,14 +1,14 @@
 {
    "agent": "websock-secure-client",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 505,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "Send 1000 compressed messages each of payload size 8192, auto-fragment to 0 octets. Use permessage-deflate client offers (requestNoContextTakeover, requestMaxWindowBits): [(True, 9), (True, 0), (False, 0)]",
-   "droppedByMe": true,
-   "duration": 856,
+   "droppedByMe": false,
+   "duration": 960,
    "expectation": "Receive echo'ed messages (with payload as sent). Timeout case after 480 secs.",
    "expected": {},
    "expectedClose": {
@@ -19,25 +19,23 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=505&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: T/3yOuPAxVmjBpnEWAVLbQ==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: 8wvfaQWoPQRi1pRLOCiP2xXLeGA=\r\nSec-WebSocket-Extensions: permessage-deflate; client_no_context_takeover; client_max_window_bits=9\r\n\r\n",
+   "httpRequest": "GET /runCase?case=505&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: Q2L/cxvz7UJ6vmV6nmNnvg==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: wfsTYIZrG8hrE3G57XThGWUGFmk=\r\nSec-WebSocket-Extensions: permessage-deflate; client_no_context_takeover; client_max_window_bits=9\r\n\r\n",
    "id": "13.7.6",
    "isServer": true,
    "localCloseCode": 1000,
    "localCloseReason": null,
    "received": [],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": true,
    "reportTime": true,
    "result": "Ok, received all echo'ed messages in time.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "1": 1000,
-      "8": 1
+      "1": 1000
    },
    "rxOctetStats": {
-      "8": 1,
       "295": 1,
       "391": 1,
       "392": 2,
@@ -215,7 +213,7 @@
       "601": 1,
       "602": 1
    },
-   "started": "2025-10-03T19:43:26.021Z",
+   "started": "2025-11-12T13:41:15.664Z",
    "trafficStats": {
       "incomingCompressionRatio": 0.0558089599609375,
       "incomingOctetsAppLevel": 8192000,
@@ -232,7 +230,7 @@
       "outgoingWebSocketMessages": 1000,
       "outgoingWebSocketOverhead": 0.010832065079046995,
       "preopenIncomingOctetsWireLevel": 295,
-      "preopenOutgoingOctetsWireLevel": 306
+      "preopenOutgoingOctetsWireLevel": 308
    },
    "txFrameStats": {
       "1": 1000,
@@ -245,9 +243,9 @@
       "303": 2,
       "304": 5,
       "305": 6,
-      "306": 12,
+      "306": 11,
       "307": 10,
-      "308": 3,
+      "308": 4,
       "309": 1,
       "310": 5,
       "311": 1,
@@ -422,9 +420,9 @@
       "492": 1,
       "493": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
@@ -438,8 +436,8 @@
       [
          "TO",
          [
-            306,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f302e382e ..."
+            308,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f32352e31 ..."
          ],
          false
       ],
@@ -476,25 +474,6 @@
             "880203e8"
          ],
          false
-      ],
-      [
-         "RO",
-         [
-            8,
-            "888208cae6a60b22"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         true,
-         "08cae6a6"
       ]
    ]
 }

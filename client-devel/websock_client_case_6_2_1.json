@@ -1,13 +1,13 @@
 {
    "agent": "websock-client",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 68,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "Send a valid UTF-8 text message in one fragment.<br><br>MESSAGE:<br>Hello-\u00b5@\u00df\u00f6\u00e4\u00fc\u00e0\u00e1-UTF-8!!<br>48656c6c6f2dc2b540c39fc3b6c3a4c3bcc3a0c3a12d5554462d382121",
-   "droppedByMe": true,
+   "droppedByMe": false,
    "duration": 1,
    "expectation": "The message is echo'ed back to us.",
    "expected": {
@@ -27,8 +27,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=68&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: T+GknUKGym7/NBhSt4oicw==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: IMwYeXABk6eCjRQMBUKNNcpWc3g=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=68&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: BGnIG75kLlXunxmnc8TGlw==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: aSbyglLYoNpyie2ceFqQ9jE7DIA=\r\n\r\n",
    "id": "6.2.1",
    "isServer": true,
    "localCloseCode": 1000,
@@ -40,22 +40,20 @@
          false
       ]
    ],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events match at least one expected.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "1": 1,
-      "8": 1
+      "1": 1
    },
    "rxOctetStats": {
-      "8": 1,
       "35": 1,
       "287": 1
    },
-   "started": "2025-10-03T19:12:05.248Z",
+   "started": "2025-11-12T13:22:46.574Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 1,
@@ -64,11 +62,11 @@
    "txOctetStats": {
       "4": 1,
       "31": 1,
-      "206": 1
+      "208": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
@@ -82,8 +80,8 @@
       [
          "TO",
          [
-            206,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f302e382e ..."
+            208,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f32352e31 ..."
          ],
          false
       ],
@@ -117,7 +115,7 @@
          "RO",
          [
             35,
-            "819d7ee1c3983684aff411cc012d3e225c5bc822675bc222635bdfcc96cc38ccfbb95f"
+            "819d5308fde01b6d918c3c253f5513cb6223e5cb5923efcb5d23f225a8b41525c5c172"
          ]
       ],
       [
@@ -130,7 +128,7 @@
          true,
          0,
          true,
-         "7ee1c398"
+         "5308fde0"
       ],
       [
          "TF",
@@ -153,25 +151,6 @@
             "880203e8"
          ],
          false
-      ],
-      [
-         "RO",
-         [
-            8,
-            "8882dbbddb01d855"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         true,
-         "dbbddb01"
       ]
    ]
 }

@@ -1,14 +1,14 @@
 {
    "agent": "websock secure server",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 25,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "Send unsolicited pong with payload. Send ping with payload. Verify pong for ping is received.",
    "droppedByMe": false,
-   "duration": 12,
+   "duration": 1,
    "expectation": "Nothing in reply to own Pong, but Pong with payload echo'ed in reply to Ping. Clean close with normal code.",
    "expected": {
       "OK": [
@@ -26,8 +26,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/0.8.2-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: aQXLXxf0ifJoMkAvAAjPZg==\r\nSec-WebSocket-Version: 13\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Fri, 03 Oct 2025 19:13:07 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: /I/KemPTs7QWI0LQgM6jXmu4Z+8=\r\n\r\n",
+   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: 9+gQkjQ4nJo1TYf5mxicKQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Wed, 12 Nov 2025 13:23:43 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: TWuaB8oH7BIqggxJtnUiPMIxjfc=\r\n\r\n",
    "id": "2.9",
    "isServer": false,
    "localCloseCode": 1000,
@@ -38,22 +38,20 @@
          "ping payload"
       ]
    ],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events match at least one expected.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "8": 1,
       "10": 1
    },
    "rxOctetStats": {
-      "4": 1,
       "14": 1,
       "166": 1
    },
-   "started": "2025-10-03T19:13:07.353Z",
+   "started": "2025-11-12T13:23:43.481Z",
    "trafficStats": null,
    "txFrameStats": {
       "8": 1,
@@ -64,19 +62,19 @@
       "8": 1,
       "18": 1,
       "30": 1,
-      "243": 1
+      "245": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
       [
          "TO",
          [
-            243,
-            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f302e382e322d302e31302e390d0a48 ..."
+            245,
+            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d ..."
          ],
          false
       ],
@@ -84,7 +82,7 @@
          "RO",
          [
             166,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204672692c203033204f637420323032352031393a31333a30 ..."
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205765642c203132204e6f7620323032352031333a32333a34 ..."
          ]
       ],
       [
@@ -96,7 +94,7 @@
          10,
          true,
          0,
-         "bb8c78f3",
+         "075df782",
          null,
          null,
          false
@@ -105,7 +103,7 @@
          "TO",
          [
             30,
-            "8a98bb8c78f3cee20b9cd7e51b9acfe91cd3cbe316949bfc198ad7e31997"
+            "8a98075df782723384ed6b3494eb733893a2773299e5272d96fb6b3296e6"
          ],
          false
       ],
@@ -118,7 +116,7 @@
          9,
          true,
          0,
-         "964bb898",
+         "cf8bd2b9",
          null,
          null,
          false
@@ -127,7 +125,7 @@
          "TO",
          [
             18,
-            "898c964bb898e622d6ffb63bd9e1fa24d9fc"
+            "898ccf8bd2b9bfe2bcdeeffbb3c0a3e4b3dd"
          ],
          false
       ],
@@ -163,7 +161,7 @@
          8,
          true,
          0,
-         "e12604a5",
+         "747a98be",
          null,
          null,
          false
@@ -172,28 +170,9 @@
          "TO",
          [
             8,
-            "8882e12604a5e2ce"
+            "8882747a98be7792"
          ],
          false
-      ],
-      [
-         "RO",
-         [
-            4,
-            "880203e8"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         false,
-         null
       ]
    ]
 }

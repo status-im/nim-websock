@@ -1,14 +1,14 @@
 {
    "agent": "websock secure server",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 210,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "Send a message followed by a close frame",
    "droppedByMe": false,
-   "duration": 13,
+   "duration": 1,
    "expectation": "Echoed message followed by clean close with normal code.",
    "expected": {
       "OK": [
@@ -27,8 +27,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/0.8.2-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: Jhc3EBv+1V/vjl0/0i9vgA==\r\nSec-WebSocket-Version: 13\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Fri, 03 Oct 2025 19:12:43 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: eLgXsiBGGNEcoJpb2HUKa8K8tO0=\r\n\r\n",
+   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: bPGOgq1tu0mylYHlZPIuCA==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Wed, 12 Nov 2025 13:22:17 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: 8lJsTj0mhx+ju7sBqfuu/8kwJkg=\r\n\r\n",
    "id": "7.1.1",
    "isServer": false,
    "localCloseCode": 1000,
@@ -40,22 +40,20 @@
          false
       ]
    ],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events match at least one expected.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "1": 1,
-      "8": 1
+      "1": 1
    },
    "rxOctetStats": {
-      "4": 1,
       "14": 1,
       "166": 1
    },
-   "started": "2025-10-03T19:12:43.277Z",
+   "started": "2025-11-12T13:22:17.486Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 1,
@@ -64,19 +62,19 @@
    "txOctetStats": {
       "8": 1,
       "18": 1,
-      "243": 1
+      "245": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
       [
          "TO",
          [
-            243,
-            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f302e382e322d302e31302e390d0a48 ..."
+            245,
+            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d ..."
          ],
          false
       ],
@@ -84,7 +82,7 @@
          "RO",
          [
             166,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204672692c203033204f637420323032352031393a31323a34 ..."
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205765642c203132204e6f7620323032352031333a32323a31 ..."
          ]
       ],
       [
@@ -96,7 +94,7 @@
          1,
          true,
          0,
-         "bed6cdd3",
+         "7a4e771e",
          null,
          null,
          false
@@ -105,7 +103,7 @@
          "TO",
          [
             18,
-            "818cbed6cdd3f6b3a1bfd1f69abcccbaa9f2"
+            "818c7a4e771e322b1b72156e20710822133f"
          ],
          false
       ],
@@ -141,7 +139,7 @@
          8,
          true,
          0,
-         "e76c2232",
+         "18e5e433",
          null,
          null,
          false
@@ -150,28 +148,9 @@
          "TO",
          [
             8,
-            "8882e76c2232e484"
+            "888218e5e4331b0d"
          ],
          false
-      ],
-      [
-         "RO",
-         [
-            4,
-            "880203e8"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         false,
-         null
       ]
    ]
 }

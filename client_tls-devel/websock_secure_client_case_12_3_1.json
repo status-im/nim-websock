@@ -1,14 +1,14 @@
 {
    "agent": "websock-secure-client",
-   "behavior": "OK",
-   "behaviorClose": "OK",
+   "behavior": "FAILED",
+   "behaviorClose": "FAILED",
    "case": 338,
-   "closedByMe": true,
+   "closedByMe": false,
    "createStats": true,
-   "createWirelog": true,
+   "createWirelog": false,
    "description": "Send 1000 compressed messages each of payload size 16, auto-fragment to 0 octets. Use default permessage-deflate offer.",
-   "droppedByMe": true,
-   "duration": 218,
+   "droppedByMe": false,
+   "duration": 13,
    "expectation": "Receive echo'ed messages (with payload as sent). Timeout case after 60 secs.",
    "expected": {},
    "expectedClose": {
@@ -19,73 +19,49 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=338&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: YLs1dmF228x5K8TYdqihjQ==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: bFE7WqiYHn4Q1BJQEy8v4gJDF7Y=\r\nSec-WebSocket-Extensions: permessage-deflate\r\n\r\n",
+   "httpRequest": "GET /runCase?case=338&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: HTiZe2BFxVpRG2AI+5mA9A==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ZLZfQ9Qfma57Vp7KzdAmRspSy0k=\r\nSec-WebSocket-Extensions: permessage-deflate\r\n\r\n",
    "id": "12.3.1",
    "isServer": true,
-   "localCloseCode": 1000,
+   "localCloseCode": null,
    "localCloseReason": null,
    "received": [],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": true,
    "reportTime": true,
-   "result": "Ok, received all echo'ed messages in time.",
-   "resultClose": "Connection was properly closed",
+   "result": "Case did not finish within 60 seconds.",
+   "resultClose": "The connection was failed by the wrong endpoint",
    "rxFrameStats": {
-      "2": 1000,
-      "8": 1
+      "2": 60
    },
    "rxOctetStats": {
-      "8": 1,
-      "22": 1000,
+      "22": 60,
       "295": 1
    },
-   "started": "2025-10-03T19:22:47.706Z",
-   "trafficStats": {
-      "incomingCompressionRatio": 1.0,
-      "incomingOctetsAppLevel": 16000,
-      "incomingOctetsWebSocketLevel": 16000,
-      "incomingOctetsWireLevel": 22000,
-      "incomingWebSocketFrames": 1000,
-      "incomingWebSocketMessages": 1000,
-      "incomingWebSocketOverhead": 0.375,
-      "outgoingCompressionRatio": 0.7274375,
-      "outgoingOctetsAppLevel": 16000,
-      "outgoingOctetsWebSocketLevel": 11639,
-      "outgoingOctetsWireLevel": 13639,
-      "outgoingWebSocketFrames": 1000,
-      "outgoingWebSocketMessages": 1000,
-      "outgoingWebSocketOverhead": 0.17183606839075521,
-      "preopenIncomingOctetsWireLevel": 295,
-      "preopenOutgoingOctetsWireLevel": 252
-   },
+   "started": "2025-11-12T13:29:14.832Z",
+   "trafficStats": null,
    "txFrameStats": {
-      "2": 1000,
-      "8": 1
+      "2": 61
    },
    "txOctetStats": {
-      "4": 1,
       "6": 1,
-      "7": 14,
-      "8": 7,
-      "9": 23,
-      "10": 33,
-      "11": 75,
-      "12": 144,
-      "13": 174,
-      "14": 178,
-      "15": 156,
-      "16": 104,
-      "17": 43,
-      "18": 26,
-      "19": 8,
-      "20": 14,
-      "252": 1
+      "7": 2,
+      "10": 3,
+      "12": 4,
+      "13": 3,
+      "14": 4,
+      "15": 3,
+      "16": 3,
+      "17": 8,
+      "18": 12,
+      "19": 6,
+      "20": 12,
+      "254": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
@@ -99,8 +75,8 @@
       [
          "TO",
          [
-            252,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f302e382e ..."
+            254,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f32352e31 ..."
          ],
          false
       ],
@@ -111,51 +87,6 @@
       [
          "TI",
          60
-      ],
-      [
-         "WLM",
-         true
-      ],
-      [
-         "TF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         null,
-         null,
-         null,
-         false
-      ],
-      [
-         "TO",
-         [
-            4,
-            "880203e8"
-         ],
-         false
-      ],
-      [
-         "RO",
-         [
-            8,
-            "8882dbef9650d807"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         true,
-         "dbef9650"
       ]
    ]
 }

@@ -8,8 +8,8 @@
    "createWirelog": true,
    "description": "Send 256K message followed by close then a ping",
    "droppedByMe": false,
-   "duration": 24,
-   "expectation": "Case outcome depends on implementation defined close behavior. Message and close frame are sent back to back. If the close frame is processed before the text message write is complete (as can happen in asynchronous processing models) the close frame is processed first and the text message may not be received or may only be partially recieved.",
+   "duration": 23,
+   "expectation": "Case outcome depends on implementation defined close behavior. Message and close frame are sent back to back. If the close frame is processed before the text message write is complete (as can happen in asynchronous processing models) the close frame is processed first and the text message may not be received or may only be partially received.",
    "expected": {
       "NON-STRICT": [],
       "OK": [
@@ -28,8 +28,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /ws HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/0.8.2-0.10.9\r\nHost: 127.0.0.1:8888\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: lnwSbPsvq9eSDc7XE3go0A==\r\nSec-WebSocket-Version: 13\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Fri, 03 Oct 2025 19:12:25 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: aWf7dezzDXQF9cB+9L6tRAcvZqc=\r\n\r\n",
+   "httpRequest": "GET /ws HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8888\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: 40PYlyE0vi/Ji3A1ow//WQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Wed, 12 Nov 2025 13:22:53 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: KO23+Wg0sgNEKxEFFVt8+PL8UAs=\r\n\r\n",
    "id": "7.1.6",
    "isServer": false,
    "localCloseCode": 1000,
@@ -46,22 +46,21 @@
          false
       ]
    ],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events differ from any expected.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "1": 2,
-      "8": 1
+      "1": 2
    },
    "rxOctetStats": {
-      "28": 1,
+      "24": 1,
       "166": 1,
       "65536": 4
    },
-   "started": "2025-10-03T19:12:25.482Z",
+   "started": "2025-11-12T13:22:53.061Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 2,
@@ -72,20 +71,20 @@
       "6": 1,
       "8": 1,
       "18": 1,
-      "242": 1,
+      "244": 1,
       "262158": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
       [
          "TO",
          [
-            242,
-            "474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f302e382e322d302e31302e390d0a486f ..."
+            244,
+            "474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d0a ..."
          ],
          false
       ],
@@ -93,7 +92,7 @@
          "RO",
          [
             166,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204672692c203033204f637420323032352031393a31323a32 ..."
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205765642c203132204e6f7620323032352031333a32323a35 ..."
          ]
       ],
       [
@@ -105,7 +104,7 @@
          1,
          true,
          0,
-         "26b29e15",
+         "46d3fddc",
          262144,
          null,
          false
@@ -114,7 +113,7 @@
          "TO",
          [
             262158,
-            "81ff000000000004000026b29e1564f3ed711194f47d1481dc5455d6a9334cdaac2664f3ed711194f47d1481dc5455d6a9334cdaac2664f3ed711194f47d1481 ..."
+            "81ff000000000004000046d3fddc04928eb871f597b474e0bf9d35b7cafa2cbbcfef04928eb871f597b474e0bf9d35b7cafa2cbbcfef04928eb871f597b474e0 ..."
          ],
          false
       ],
@@ -127,7 +126,7 @@
          1,
          true,
          0,
-         "9f62cd30",
+         "60068a34",
          null,
          null,
          false
@@ -136,7 +135,7 @@
          "TO",
          [
             18,
-            "818c9f62cd30d707a15cf0429a5fed0ea911"
+            "818c60068a342863e6580f26dd5b126aee15"
          ],
          false
       ],
@@ -149,7 +148,7 @@
          8,
          true,
          0,
-         "3f47c7a2",
+         "31475a2c",
          null,
          null,
          false
@@ -158,7 +157,7 @@
          "TO",
          [
             8,
-            "88823f47c7a23caf"
+            "888231475a2c32af"
          ],
          false
       ],
@@ -171,7 +170,7 @@
          9,
          true,
          0,
-         "4d0f41bb",
+         "e727fff3",
          null,
          null,
          false
@@ -180,7 +179,7 @@
          "TO",
          [
             6,
-            "89804d0f41bb"
+            "8980e727fff3"
          ],
          false
       ],
@@ -219,8 +218,8 @@
       [
          "RO",
          [
-            28,
-            "37266a68323342417364810c48656c6c6f20576f726c6421880203e8"
+            24,
+            "37266a68323342417364810c48656c6c6f20576f726c6421"
          ]
       ],
       [
@@ -242,18 +241,6 @@
             "Hello World!"
          ],
          1,
-         true,
-         0,
-         false,
-         null
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
          true,
          0,
          false,

@@ -1,14 +1,14 @@
 {
    "agent": "websock server",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 214,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "Send message fragment1 followed by close then fragment",
    "droppedByMe": false,
-   "duration": 11,
+   "duration": 1,
    "expectation": "Clean close with normal code.",
    "expected": {
       "OK": []
@@ -21,27 +21,24 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /ws HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/0.8.2-0.10.9\r\nHost: 127.0.0.1:8888\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: WCiaYnciGLKVposL4HXk3Q==\r\nSec-WebSocket-Version: 13\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Fri, 03 Oct 2025 19:12:25 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: o/g4xZxwgjSv2E4q2q+e3Kcie/A=\r\n\r\n",
+   "httpRequest": "GET /ws HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8888\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: 36FIlOYGwHUPm319p5IkDg==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Wed, 12 Nov 2025 13:22:53 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: vsE1wJ4EtiDjbqjDXGmVYL4NBmA=\r\n\r\n",
    "id": "7.1.5",
    "isServer": false,
    "localCloseCode": 1000,
    "localCloseReason": null,
    "received": [],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events match at least one expected.",
-   "resultClose": "Connection was properly closed",
-   "rxFrameStats": {
-      "8": 1
-   },
+   "resultClose": "The spec requires the connection to be failed cleanly here",
+   "rxFrameStats": {},
    "rxOctetStats": {
-      "4": 1,
       "166": 1
    },
-   "started": "2025-10-03T19:12:25.470Z",
+   "started": "2025-11-12T13:22:53.059Z",
    "trafficStats": null,
    "txFrameStats": {
       "0": 1,
@@ -51,19 +48,19 @@
    "txOctetStats": {
       "8": 1,
       "15": 2,
-      "242": 1
+      "244": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
       [
          "TO",
          [
-            242,
-            "474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f302e382e322d302e31302e390d0a486f ..."
+            244,
+            "474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d0a ..."
          ],
          false
       ],
@@ -71,7 +68,7 @@
          "RO",
          [
             166,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204672692c203033204f637420323032352031393a31323a32 ..."
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205765642c203132204e6f7620323032352031333a32323a35 ..."
          ]
       ],
       [
@@ -83,7 +80,7 @@
          1,
          false,
          0,
-         "f95e0a00",
+         "c2c8f4a7",
          null,
          null,
          false
@@ -92,7 +89,7 @@
          "TO",
          [
             15,
-            "0189f95e0a009f2c6b67943b6474c8"
+            "0189c2c8f4a7a4ba95c0afad9ad3f3"
          ],
          false
       ],
@@ -105,7 +102,7 @@
          8,
          true,
          0,
-         "fe4b8f8b",
+         "770223b5",
          null,
          null,
          false
@@ -114,7 +111,7 @@
          "TO",
          [
             8,
-            "8882fe4b8f8bfda3"
+            "8882770223b574ea"
          ],
          false
       ],
@@ -127,7 +124,7 @@
          0,
          true,
          0,
-         "f71c62fd",
+         "4db24d69",
          null,
          null,
          false
@@ -136,32 +133,13 @@
          "TO",
          [
             15,
-            "8089f71c62fd916e039a9a790c89c5"
+            "80894db24d692bc02c0e20d7231d7f"
          ],
          false
       ],
       [
          "KL",
          1
-      ],
-      [
-         "RO",
-         [
-            4,
-            "880203e8"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         false,
-         null
       ]
    ]
 }

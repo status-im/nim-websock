@@ -1,14 +1,14 @@
 {
    "agent": "websock secure server",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 309,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "Send 1000 compressed messages each of payload size 32768, auto-fragment to 0 octets. Use default permessage-deflate offer.",
    "droppedByMe": false,
-   "duration": 1402,
+   "duration": 1147,
    "expectation": "Receive echo'ed messages (with payload as sent). Timeout case after 480 secs.",
    "expected": {},
    "expectedClose": {
@@ -19,25 +19,23 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/0.8.2-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: 88L6BRY0ORr7+55yHHcrrQ==\r\nSec-WebSocket-Extensions: permessage-deflate; client_no_context_takeover; client_max_window_bits\r\nSec-WebSocket-Version: 13\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Fri, 03 Oct 2025 19:13:20 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Extensions: permessage-deflate; client_no_context_takeover\r\nSec-Websocket-Accept: e+oxxtHPh+xVKyaQrFHNlZHmzlI=\r\n\r\n",
+   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: fje5JaJk2lvxIM1vOJBG4w==\r\nSec-WebSocket-Extensions: permessage-deflate; client_no_context_takeover; client_max_window_bits\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Wed, 12 Nov 2025 13:22:45 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Extensions: permessage-deflate; client_no_context_takeover\r\nSec-Websocket-Accept: ihy8pR3uBDRiGR616C/+8iEs/w4=\r\n\r\n",
    "id": "12.1.8",
    "isServer": false,
    "localCloseCode": 1000,
    "localCloseReason": null,
    "received": [],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": true,
    "reportTime": true,
    "result": "Ok, received all echo'ed messages in time.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "1": 1000,
-      "8": 1
+      "1": 1000
    },
    "rxOctetStats": {
-      "4": 1,
       "240": 1,
       "1236": 1,
       "1239": 2,
@@ -400,7 +398,7 @@
       "1661": 1,
       "1664": 2
    },
-   "started": "2025-10-03T19:13:20.676Z",
+   "started": "2025-11-12T13:22:45.582Z",
    "trafficStats": {
       "incomingCompressionRatio": 0.043666534423828125,
       "incomingOctetsAppLevel": 32768000,
@@ -417,7 +415,7 @@
       "outgoingWebSocketMessages": 1000,
       "outgoingWebSocketOverhead": 0.005168870220652609,
       "preopenIncomingOctetsWireLevel": 240,
-      "preopenOutgoingOctetsWireLevel": 341
+      "preopenOutgoingOctetsWireLevel": 343
    },
    "txFrameStats": {
       "1": 1000,
@@ -425,7 +423,7 @@
    },
    "txOctetStats": {
       "8": 1,
-      "341": 1,
+      "343": 1,
       "1346": 1,
       "1350": 2,
       "1352": 1,
@@ -796,17 +794,17 @@
       "1786": 1,
       "1787": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
       [
          "TO",
          [
-            341,
-            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f302e382e322d302e31302e390d0a48 ..."
+            343,
+            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d ..."
          ],
          false
       ],
@@ -814,7 +812,7 @@
          "RO",
          [
             240,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204672692c203033204f637420323032352031393a31333a32 ..."
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205765642c203132204e6f7620323032352031333a32323a34 ..."
          ]
       ],
       [
@@ -838,7 +836,7 @@
          8,
          true,
          0,
-         "81353479",
+         "537e4ac5",
          null,
          null,
          false
@@ -847,28 +845,9 @@
          "TO",
          [
             8,
-            "88828135347982dd"
+            "8882537e4ac55096"
          ],
          false
-      ],
-      [
-         "RO",
-         [
-            4,
-            "880203e8"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         false,
-         null
       ]
    ]
 }

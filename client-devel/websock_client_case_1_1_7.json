@@ -1,14 +1,14 @@
 {
    "agent": "websock-client",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 7,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "Send text message message with payload of length 65536.",
-   "droppedByMe": true,
-   "duration": 4,
+   "droppedByMe": false,
+   "duration": 3,
    "expectation": "Receive echo'ed text message (with payload as sent). Clean close with normal code.",
    "expected": {
       "OK": [
@@ -27,8 +27,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=7&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: aLISGCGIyIe3k7raMqKvxw==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: 7OGNtyZl6A8gwnCup3G9sRPrrpI=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=7&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: oBDWNftayV6dSZOdP+b1eQ==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: DdCzSqdNPF/Dj4k1NFF+Zb6L9Ms=\r\n\r\n",
    "id": "1.1.7",
    "isServer": true,
    "localCloseCode": 1000,
@@ -40,23 +40,21 @@
          false
       ]
    ],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events match at least one expected.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "1": 1,
-      "8": 1
+      "1": 1
    },
    "rxOctetStats": {
-      "8": 1,
       "14": 1,
       "286": 1,
       "65536": 1
    },
-   "started": "2025-10-03T19:12:02.640Z",
+   "started": "2025-11-12T13:22:44.211Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 1,
@@ -64,12 +62,12 @@
    },
    "txOctetStats": {
       "4": 1,
-      "206": 1,
+      "208": 1,
       "65546": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
@@ -83,8 +81,8 @@
       [
          "TO",
          [
-            206,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f302e382e ..."
+            208,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f32352e31 ..."
          ],
          false
       ],
@@ -118,14 +116,14 @@
          "RO",
          [
             65536,
-            "81ff0000000000010000f731f060dd1bda4add1bda4add1bda4add1bda4add1bda4add1bda4add1bda4add1bda4add1bda4add1bda4add1bda4add1bda4add1b ..."
+            "81ff000000000001000080a5d49caa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8ffeb6aa8f ..."
          ]
       ],
       [
          "RO",
          [
             14,
-            "da4add1bda4add1bda4add1bda4a"
+            "feb6aa8ffeb6aa8ffeb6aa8ffeb6"
          ]
       ],
       [
@@ -138,7 +136,7 @@
          true,
          0,
          true,
-         "f731f060"
+         "80a5d49c"
       ],
       [
          "TF",
@@ -161,25 +159,6 @@
             "880203e8"
          ],
          false
-      ],
-      [
-         "RO",
-         [
-            8,
-            "8882bd52d232beba"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         true,
-         "bd52d232"
       ]
    ]
 }

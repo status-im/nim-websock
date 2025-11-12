@@ -7,9 +7,9 @@
    "createStats": true,
    "createWirelog": true,
    "description": "Send 256K message followed by close then a ping",
-   "droppedByMe": true,
-   "duration": 14,
-   "expectation": "Case outcome depends on implementation defined close behavior. Message and close frame are sent back to back. If the close frame is processed before the text message write is complete (as can happen in asynchronous processing models) the close frame is processed first and the text message may not be received or may only be partially recieved.",
+   "droppedByMe": false,
+   "duration": 15,
+   "expectation": "Case outcome depends on implementation defined close behavior. Message and close frame are sent back to back. If the close frame is processed before the text message write is complete (as can happen in asynchronous processing models) the close frame is processed first and the text message may not be received or may only be partially received.",
    "expected": {
       "NON-STRICT": [],
       "OK": [
@@ -28,8 +28,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=215&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: ZKoLKkYE/o8VpnUGnhppCg==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: zUNrsk+jYG/FlVV+5dyDcWL7aZM=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=215&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: U/cqqXpjwVbr6P3Vu7fMgg==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: IIIEHIw7/61LI8+wDzy6zcM3fiY=\r\n\r\n",
    "id": "7.1.6",
    "isServer": true,
    "localCloseCode": 1000,
@@ -46,22 +46,21 @@
          false
       ]
    ],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events differ from any expected.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
-      "1": 2,
-      "8": 1
+      "1": 2
    },
    "rxOctetStats": {
-      "40": 1,
+      "32": 1,
       "288": 1,
       "65536": 4
    },
-   "started": "2025-10-03T19:12:14.288Z",
+   "started": "2025-11-12T13:22:54.834Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 2,
@@ -72,12 +71,12 @@
       "2": 1,
       "4": 1,
       "14": 1,
-      "206": 1,
+      "208": 1,
       "262154": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
@@ -91,8 +90,8 @@
       [
          "TO",
          [
-            206,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f302e382e ..."
+            208,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f32352e31 ..."
          ],
          false
       ],
@@ -192,35 +191,35 @@
          "RO",
          [
             65536,
-            "81ff0000000000040000026e0e97402f7df3354864ff305d4cd6710a39b168063ca4402f7df3354864ff305d4cd6710a39b168063ca4402f7df3354864ff305d ..."
+            "81ff0000000000040000769c86f434ddf59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041baec9c44af ..."
          ]
       ],
       [
          "RO",
          [
             65536,
-            "7df3354864ff305d4cd6710a39b168063ca4402f7df3354864ff305d4cd6710a39b168063ca4402f7df3354864ff305d4cd6710a39b168063ca4402f7df33548 ..."
+            "f59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041ba ..."
          ]
       ],
       [
          "RO",
          [
             65536,
-            "3ca4402f7df3354864ff305d4cd6710a39b168063ca4402f7df3354864ff305d4cd6710a39b168063ca4402f7df3354864ff305d4cd6710a39b168063ca4402f ..."
+            "b4c734ddf59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041baec9c44afc4b505f8b1d21cf4b4c734dd ..."
          ]
       ],
       [
          "RO",
          [
             65536,
-            "39b168063ca4402f7df3354864ff305d4cd6710a39b168063ca4402f7df3354864ff305d4cd6710a39b168063ca4402f7df3354864ff305d4cd6710a39b16806 ..."
+            "b1d21cf4b4c734ddf59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041baec9c44afc4b505f8b1d21cf4b4c734ddf59041baec9c44afc4b505f8b1d21cf4 ..."
          ]
       ],
       [
          "RO",
          [
-            40,
-            "4cd6710a39b168063ca4402f7df3818c9607bc9dde62d0f1f927ebf2e46bd8bc8882130d002b10e5"
+            32,
+            "c4b505f8b1d21cf4b4c734ddf590818c8cdd9c8ec4b8f0e2e3fdcbe1feb1f8af"
          ]
       ],
       [
@@ -233,7 +232,7 @@
          true,
          0,
          true,
-         "026e0e97"
+         "769c86f4"
       ],
       [
          "RF",
@@ -245,19 +244,7 @@
          true,
          0,
          true,
-         "9607bc9d"
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         true,
-         "130d002b"
+         "8cdd9c8e"
       ]
    ]
 }

@@ -1,13 +1,13 @@
 {
    "agent": "websock-secure-client",
    "behavior": "OK",
-   "behaviorClose": "OK",
+   "behaviorClose": "UNCLEAN",
    "case": 63,
    "closedByMe": true,
    "createStats": true,
    "createWirelog": true,
    "description": "A fragmented text message is sent in multiple frames. After\n   sending the first 2 frames of the text message, a Ping is sent. Then we wait 1s,\n   then we send 2 more text fragments, another Ping and then the final text fragment.\n   Everything is legal.",
-   "droppedByMe": true,
+   "droppedByMe": false,
    "duration": 1003,
    "expectation": "The peer immediately answers the first Ping before\n   it has received the last text message fragment. The peer pong's back the Ping's\n   payload exactly, and echo's the payload of the fragmented message back to us.",
    "expected": {
@@ -35,8 +35,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=63&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: Ab1CYYTrVN2nX9ZvhaxhrA==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/0.8.2-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: 051ypq699bXyn6zxC4w80dseDpc=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=63&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: gA1kr4P4CYCVXgjD0e+ZxQ==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: c1rsDbCb1brIq3KeFAoMvkjBdBo=\r\n\r\n",
    "id": "5.19",
    "isServer": true,
    "localCloseCode": 1000,
@@ -56,24 +56,22 @@
          false
       ]
    ],
-   "remoteCloseCode": 1000,
+   "remoteCloseCode": null,
    "remoteCloseReason": null,
    "reportCompressionRatio": false,
    "reportTime": false,
    "result": "Actual events match at least one expected.",
-   "resultClose": "Connection was properly closed",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
    "rxFrameStats": {
       "1": 1,
-      "8": 1,
       "10": 2
    },
    "rxOctetStats": {
-      "8": 1,
       "15": 2,
       "51": 1,
       "294": 1
    },
-   "started": "2025-10-03T19:12:47.007Z",
+   "started": "2025-11-12T13:22:16.741Z",
    "trafficStats": null,
    "txFrameStats": {
       "0": 4,
@@ -84,11 +82,11 @@
    "txOctetStats": {
       "4": 1,
       "11": 7,
-      "206": 1
+      "208": 1
    },
-   "wasClean": true,
+   "wasClean": false,
    "wasCloseHandshakeTimeout": false,
-   "wasNotCleanReason": null,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
    "wasOpenHandshakeTimeout": false,
    "wasServerConnectionDropTimeout": false,
    "wirelog": [
@@ -102,8 +100,8 @@
       [
          "TO",
          [
-            206,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f302e382e ..."
+            208,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f32352e31 ..."
          ],
          false
       ],
@@ -182,7 +180,7 @@
          "RO",
          [
             15,
-            "8a89a8a6730fd8c91d68c5c3533e89"
+            "8a897a45a4d70a2acab0172084e65b"
          ]
       ],
       [
@@ -195,7 +193,7 @@
          true,
          0,
          true,
-         "a8a6730f"
+         "7a45a4d7"
       ],
       [
          "CTE",
@@ -297,7 +295,7 @@
          "RO",
          [
             15,
-            "8a892e8c5e025ee3306543e97e300f"
+            "8a8944a9fd0c34c6936b29ccdd3e65"
          ]
       ],
       [
@@ -310,13 +308,13 @@
          true,
          0,
          true,
-         "2e8c5e02"
+         "44a9fd0c"
       ],
       [
          "RO",
          [
             51,
-            "81ad66f69e4a0084ff2d0b93f03e5790ec2b019bfb2412c4f8380791f32f0882ad2c1497f9270398ea7e0084ff2d0b93f03e53"
+            "81addc3fa623ba4dc744b15ac857ed59d442bb52c34da80dc051bd58cb46b24b9545ae5ec14eb951d217ba4dc744b15ac857e9"
          ]
       ],
       [
@@ -329,7 +327,7 @@
          true,
          0,
          true,
-         "66f69e4a"
+         "dc3fa623"
       ],
       [
          "TF",
@@ -352,25 +350,6 @@
             "880203e8"
          ],
          false
-      ],
-      [
-         "RO",
-         [
-            8,
-            "8882864f38ff85a7"
-         ]
-      ],
-      [
-         "RF",
-         [
-            2,
-            "0x03e8"
-         ],
-         8,
-         true,
-         0,
-         true,
-         "864f38ff"
       ]
    ]
 }
