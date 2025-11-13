@@ -9,7 +9,7 @@
 # prevent issue https://github.com/status-im/nimbus-eth1/issues/3661
 
 set -e
-trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+trap "trap - SIGTERM && pkill -P $$" SIGINT SIGTERM EXIT
 
 # script arguments
 [[ $# -ne 1 ]] && { echo "Usage: $0 NIM_VERSION"; }
