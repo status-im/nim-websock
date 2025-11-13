@@ -9,6 +9,7 @@
 # prevent issue https://github.com/status-im/nimbus-eth1/issues/3661
 
 set -e
+trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 # script arguments
 [[ $# -ne 1 ]] && { echo "Usage: $0 NIM_VERSION"; }
@@ -17,21 +18,25 @@ NIM_VERSION="$1"
 cd "$(dirname "${BASH_SOURCE[0]}")"/..
 
 REPO_DIR="${PWD}"
+CFG="client"
+REPORT_DIR="autobahn/reports/$CFG-$NIM_VERSION"
+mkdir -p autobahn/reports/$CFG
 
-mkdir -p autobahn/reports
-
-docker run -d \
+docker run -d --rm \
   -v ${REPO_DIR}/autobahn:/config \
   -v ${REPO_DIR}/autobahn/reports:/reports \
   --network=host \
   --name fuzzingserver \
   crossbario/autobahn-testsuite wstest --webport=0 --mode fuzzingserver --spec /config/fuzzingserver.json
 
+trap "docker kill fuzzingserver" SIGINT SIGTERM EXIT
+
 nim c -d:release examples/autobahn_client
 examples/autobahn_client
 
-docker kill fuzzingserver
+mv autobahn/reports/$CFG $REPORT_DIR
 
-mv autobahn/reports/client autobahn/reports/client-${NIM_VERSION}
+echo "* [Nim-${NIM_VERSION} $CFG summary report]($CFG-${NIM_VERSION}/index.html)" > "$REPORT_DIR.txt"
 
-echo "* [Nim-${NIM_VERSION} ws client summary report](client-${NIM_VERSION}/index.html)" > "autobahn/reports/client-${NIM_VERSION}.txt"
+# squash to single line and look for errors
+cat $REPORT_DIR/index.json | tr '\n' '!' | sed "s|\},\!|\n|g" | tr '!' ' ' | tr -s ' ' | grep -v -e '"behavior": "OK"' -e '"behavior": "NON-STRICT"' -e '"behavior": "INFORMATIONAL"' -e '"behavior": "OK"' && quit 1
