@@ -49,7 +49,7 @@ proc mask*(
   ##
 
   for i in 0 ..< data.len:
-    data[i] = (data[i] or maskKey[(offset + i) mod 4])
+    data[i] = (data[i] xor maskKey[(offset + i) mod 4])
 
 template remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
