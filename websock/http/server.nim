@@ -146,7 +146,17 @@ proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
       raise (ref HttpError)(msg: error)
 
   trace "Got new request", isTls = server.secure
-  await stream.readHttpRequest(server.headersTimeout)
+  try:
+    await stream.readHttpRequest(server.headersTimeout)
+  except CancelledError as exc:
+    await stream.closeWait()
+    raise exc
+  except AsyncStreamError as exc:
+    await stream.closeWait()
+    raise exc
+  except HttpError as exc:
+    await stream.closeWait()
+    raise exc
 
 proc create*(
     _: typedesc[HttpServer],
