@@ -8,7 +8,7 @@
    "createWirelog": true,
    "description": "Send small text message, then send frame with reserved control <b>Opcode = 15</b> and non-empty payload, then send Ping.",
    "droppedByMe": false,
-   "duration": 14,
+   "duration": 2,
    "expectation": "Echo for first message is received, but then connection is failed immediately, since reserved opcode frame is used. A Pong is not received.",
    "expected": {
       "NON-STRICT": [],
@@ -28,8 +28,8 @@
       "requireClean": false
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=44&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: f6yAd8q/1s6DNSfSKMxjjQ==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: GU4FxaOYBIxjSFqhdcH/SQzLCU8=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=44&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: TwrF3QapMb9u6KPJGnwtwA==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s41ZGFI189pYT5MvkTQgTj6wlWI=\r\n\r\n",
    "id": "4.2.5",
    "isServer": true,
    "localCloseCode": null,
@@ -54,7 +54,7 @@
       "19": 1,
       "294": 1
    },
-   "started": "2025-11-14T17:12:00.823Z",
+   "started": "2025-11-15T09:30:21.294Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 1,
@@ -62,7 +62,7 @@
       "15": 1
    },
    "txOctetStats": {
-      "1": 19,
+      "1": 18,
       "208": 1
    },
    "wasClean": false,
@@ -261,10 +261,18 @@
          true
       ],
       [
+         "TO",
+         [
+            1,
+            "0d"
+         ],
+         true
+      ],
+      [
          "RO",
          [
             19,
-            "818d6cd855c624bd39aa03f475b103aa39a24d"
+            "818dbb72c8a5f317a4c9d45ee8d2d400a4c19a"
          ]
       ],
       [
@@ -277,29 +285,13 @@
          true,
          0,
          true,
-         "6cd855c6"
-      ],
-      [
-         "TO",
-         [
-            1,
-            "0d"
-         ],
-         true
+         "bb72c8a5"
       ],
       [
          "TO",
          [
             1,
             "48"
-         ],
-         true
-      ],
-      [
-         "TO",
-         [
-            1,
-            "65"
          ],
          true
       ]
