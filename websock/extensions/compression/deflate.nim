@@ -56,7 +56,7 @@ when not declared(setLenUninit):
     copyMem(addr tmp[0], addr src[0], src.len)
     src = move(tmp)
 
-proc destroyExt(ext: DeflateExt) =
+proc destroyExt(ext: DeflateExt) {.nimcall.} =
   if ext.compCtxState != ContextState.Invalid:
     # zlib.deflateEnd somehow return DATA_ERROR
     # when compression succeed some cases.

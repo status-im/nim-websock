@@ -156,7 +156,7 @@ proc sendError*(
   try:
     # When sending errors, don't waste too much time on it..
     discard await stream.write(response).withTimeout(HttpErrorTimeout)
-  except AsyncStreamError as exc:
+  except AsyncStreamError:
     # Ignore errors while sending error responses to not swallow the original
     # error that caused us to want to send an error
     discard

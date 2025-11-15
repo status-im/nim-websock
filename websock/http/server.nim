@@ -9,7 +9,7 @@
 
 {.push raises: [], gcsafe.}
 
-import std/uri, chronos, chronicles, httputils, ./common
+import chronos, chronicles, httputils, ./common
 
 when isLogFormatUsed(json):
   import json_serialization/std/net as jsnet
