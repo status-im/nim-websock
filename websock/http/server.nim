@@ -9,7 +9,7 @@
 
 {.push raises: [], gcsafe.}
 
-import chronos, chronicles, httputils, ./common
+import chronos, chronicles, httputils, results, ./common
 
 when isLogFormatUsed(json):
   import json_serialization/std/net as jsnet
@@ -18,13 +18,19 @@ when isLogFormatUsed(json):
 logScope:
   topics = "websock http-server"
 
+const DefaultMaxConcurrentHandshakes = 100
+
 type
   HttpAsyncCallback* = proc(request: HttpRequest) {.async.}
+
+  HandshakeResult* = Result[HttpRequest, ref CatchableError]
 
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
     handshakeTimeout*: Duration
     headersTimeout*: Duration
+    maxConcurrentHandshakes*: int
+    handshakeResults*: AsyncQueue[HandshakeResult]
     case secure*: bool
     of true:
       tlsFlags*: set[TLSFlags]
@@ -36,6 +42,8 @@ type
       discard
 
   TlsHttpServer* {.deprecated.} = HttpServer
+
+  AcceptDispatcherFinishedError = object of CatchableError
 
 template used(x: typed) =
   # silence unused warning
@@ -138,25 +146,89 @@ proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
       HttpError, "Callback already registered - cannot mix callback and accepts styles!"
     )
 
-  trace "Awaiting new request"
-  let
-    transp = await StreamServer(server).accept()
-    stream = server.openAsyncStream(transp).valueOr:
-      await transp.closeWait()
-      raise (ref HttpError)(msg: error)
+  if server.closed:
+    if server.handshakeResults.isNil or server.handshakeResults.len == 0:
+      raise newException(TransportUseClosedError, "Server is closed")
 
-  trace "Got new request", isTls = server.secure
-  try:
-    await stream.readHttpRequest(server.headersTimeout)
-  except CancelledError as exc:
-    await stream.closeWait()
-    raise exc
-  except AsyncStreamError as exc:
-    await stream.closeWait()
-    raise exc
-  except HttpError as exc:
-    await stream.closeWait()
-    raise exc
+  if server.handshakeResults.isNil:
+    server.handshakeResults = newAsyncQueue[HandshakeResult]()
+
+    let dispatcher = proc() {.async: (raises: []).} =
+      trace "Starting background accept dispatcher"
+      var activeHandshakes = 0
+      let slotAvailable = newAsyncEvent()
+      slotAvailable.fire()
+      while not server.closed:
+        try:
+          if server.maxConcurrentHandshakes > 0 and
+              activeHandshakes >= server.maxConcurrentHandshakes:
+            slotAvailable.clear()
+            await slotAvailable.wait()
+
+          let transp = await StreamServer(server).accept()
+
+          inc(activeHandshakes)
+
+          let worker = proc(tsp: StreamTransport) {.async: (raises: []).} =
+            defer:
+              dec(activeHandshakes)
+              slotAvailable.fire()
+
+            let stream = server.openAsyncStream(tsp).valueOr:
+              trace "Closed accepted socket (stream creation failed)", error = error
+              await tsp.closeWait()
+              try:
+                server.handshakeResults.addLastNoWait(
+                  HandshakeResult.err(newException(HttpError, error))
+                )
+              except AsyncQueueFullError:
+                discard
+              return
+
+            try:
+              let req = await stream.readHttpRequest(server.headersTimeout)
+              try:
+                server.handshakeResults.addLastNoWait(HandshakeResult.ok(req))
+              except AsyncQueueFullError:
+                discard
+            except CatchableError as exc:
+              trace "Closed accepted stream (request parsing failed)", exc = exc.msg
+              await stream.closeWait()
+              try:
+                server.handshakeResults.addLastNoWait(HandshakeResult.err(exc))
+              except AsyncQueueFullError:
+                discard
+
+          asyncSpawn worker(transp)
+        except CatchableError as exc:
+          if server.closed:
+            return
+          trace "Socket accept failed", exc = exc.msg
+          try:
+            await sleepAsync(100.milliseconds) # for temp failures such as FD exhaustion
+          except CancelledError:
+            continue
+      try:
+        server.handshakeResults.addLastNoWait(
+          HandshakeResult.err(
+            newException(AcceptDispatcherFinishedError, "Server is closed")
+          )
+        )
+      except AsyncQueueFullError:
+        error "server closed but accept dispatcher cannot wake up pending accept()s"
+
+    asyncSpawn dispatcher()
+
+  let res = await server.handshakeResults.popFirst()
+
+  if res.isErr:
+    let err = res.error
+    if err of AcceptDispatcherFinishedError:
+      server.handshakeResults.addLastNoWait(res)
+      raise newException(TransportUseClosedError, "Server is closed")
+    raise err
+
+  return res.value
 
 proc create*(
     _: typedesc[HttpServer],
@@ -165,7 +237,13 @@ proc create*(
     flags: set[ServerFlags] = {},
     headersTimeout = HttpHeadersTimeout,
     handshakeTimeout = 0.seconds,
+    maxConcurrentHandshakes = DefaultMaxConcurrentHandshakes,
 ): HttpServer {.raises: [TransportOsError].} =
+  # Workaround for clients that set handshakeTimeout instead of headersTimeout
+  var headersTimeout = headersTimeout
+  if handshakeTimeout > 0.seconds and handshakeTimeout < headersTimeout:
+    headersTimeout = handshakeTimeout
+
   ## Make a new HTTP Server
   ##
 
@@ -178,12 +256,7 @@ proc create*(
   var server = HttpServer(
     handler: handler,
     headersTimeout: headersTimeout,
-    handshakeTimeout:
-      if handshakeTimeout == 0.seconds:
-        # default to headersTimeout * 1.05
-        headersTimeout + (headersTimeout div 20)
-      else:
-        handshakeTimeout,
+    maxConcurrentHandshakes: maxConcurrentHandshakes,
   )
 
   server = HttpServer(
@@ -206,10 +279,18 @@ proc create*(
     tlsMaxVersion = TLSVersion.TLS12,
     headersTimeout = HttpHeadersTimeout,
     handshakeTimeout = 0.seconds,
+    maxConcurrentHandshakes = DefaultMaxConcurrentHandshakes,
 ): HttpServer {.raises: [TransportOsError].} =
   # TODO handshakeTimeout is unused, remove eventually
+
+  # Workaround for clients that set handshakeTimeout instead of headersTimeout
+  var headersTimeout = headersTimeout
+  if handshakeTimeout > 0.seconds and handshakeTimeout < headersTimeout:
+    headersTimeout = handshakeTimeout
+
   var server = HttpServer(
     headersTimeout: headersTimeout,
+    maxConcurrentHandshakes: maxConcurrentHandshakes,
     secure: true,
     handler: handler,
     tlsPrivateKey: tlsPrivateKey,
