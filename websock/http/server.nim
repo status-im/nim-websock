@@ -29,8 +29,9 @@ type
     handler*: HttpAsyncCallback
     handshakeTimeout*: Duration
     headersTimeout*: Duration
-    maxConcurrentHandshakes*: int
-    handshakeResults*: AsyncQueue[HandshakeResult]
+    maxConcurrentHandshakes: int
+    handshakeResults: AsyncQueue[HandshakeResult]
+    handshakeDispatcher: Future[void]
     case secure*: bool
     of true:
       tlsFlags*: set[TLSFlags]
@@ -147,12 +148,9 @@ proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
     )
 
   if server.closed:
-    if server.handshakeResults.isNil or server.handshakeResults.len == 0:
-      raise newException(TransportUseClosedError, "Server is closed")
+    raise newException(TransportUseClosedError, "Server is closed")
 
-  if server.handshakeResults.isNil:
-    server.handshakeResults = newAsyncQueue[HandshakeResult]()
-
+  if isNil(server.handshakeDispatcher):
     let dispatcher = proc() {.async: (raises: []).} =
       trace "Starting background accept dispatcher"
       var activeHandshakes = 0
@@ -217,7 +215,7 @@ proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
       except AsyncQueueFullError:
         error "server closed but accept dispatcher cannot wake up pending accept()s"
 
-    asyncSpawn dispatcher()
+    server.handshakeDispatcher = dispatcher()
 
   let res = await server.handshakeResults.popFirst()
 
@@ -239,11 +237,6 @@ proc create*(
     handshakeTimeout = 0.seconds,
     maxConcurrentHandshakes = DefaultMaxConcurrentHandshakes,
 ): HttpServer {.raises: [TransportOsError].} =
-  # Workaround for clients that set handshakeTimeout instead of headersTimeout
-  var headersTimeout = headersTimeout
-  if handshakeTimeout > 0.seconds and handshakeTimeout < headersTimeout:
-    headersTimeout = handshakeTimeout
-
   ## Make a new HTTP Server
   ##
 
@@ -254,9 +247,15 @@ proc create*(
       address
 
   var server = HttpServer(
-    handler: handler,
-    headersTimeout: headersTimeout,
+    # Workaround for clients that set handshakeTimeout instead of headersTimeout
+    headersTimeout:
+      if handshakeTimeout > 0.seconds:
+        min(handshakeTimeout, headersTimeout)
+      else:
+        headersTimeout,
     maxConcurrentHandshakes: maxConcurrentHandshakes,
+    handler: handler,
+    handshakeResults: newAsyncQueue[HandshakeResult](),
   )
 
   server = HttpServer(
@@ -282,14 +281,13 @@ proc create*(
     maxConcurrentHandshakes = DefaultMaxConcurrentHandshakes,
 ): HttpServer {.raises: [TransportOsError].} =
   # TODO handshakeTimeout is unused, remove eventually
-
-  # Workaround for clients that set handshakeTimeout instead of headersTimeout
-  var headersTimeout = headersTimeout
-  if handshakeTimeout > 0.seconds and handshakeTimeout < headersTimeout:
-    headersTimeout = handshakeTimeout
-
   var server = HttpServer(
-    headersTimeout: headersTimeout,
+    # Workaround for clients that set handshakeTimeout instead of headersTimeout
+    headersTimeout:
+      if handshakeTimeout > 0.seconds:
+        min(handshakeTimeout, headersTimeout)
+      else:
+        headersTimeout,
     maxConcurrentHandshakes: maxConcurrentHandshakes,
     secure: true,
     handler: handler,
@@ -297,6 +295,7 @@ proc create*(
     tlsCertificate: tlsCertificate,
     minVersion: tlsMinVersion,
     maxVersion: tlsMaxVersion,
+    handshakeResults: newAsyncQueue[HandshakeResult](),
   )
 
   let localAddress =
