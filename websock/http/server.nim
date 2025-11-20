@@ -23,7 +23,6 @@ type
 
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
-    handshakeTimeout*: Duration
     headersTimeout*: Duration
     case secure*: bool
     of true:
@@ -164,7 +163,6 @@ proc create*(
     handler: HttpAsyncCallback = nil,
     flags: set[ServerFlags] = {},
     headersTimeout = HttpHeadersTimeout,
-    handshakeTimeout = 0.seconds,
 ): HttpServer {.raises: [TransportOsError].} =
   ## Make a new HTTP Server
   ##
@@ -175,16 +173,7 @@ proc create*(
     else:
       address
 
-  var server = HttpServer(
-    handler: handler,
-    headersTimeout: headersTimeout,
-    handshakeTimeout:
-      if handshakeTimeout == 0.seconds:
-        # default to headersTimeout * 1.05
-        headersTimeout + (headersTimeout div 20)
-      else:
-        handshakeTimeout,
-  )
+  var server = HttpServer(handler: handler, headersTimeout: headersTimeout)
 
   server = HttpServer(
     createStreamServer(localAddress, handleConnCb, flags, child = StreamServer(server))
@@ -192,7 +181,25 @@ proc create*(
 
   trace "Created HTTP Server", host = $server.localAddress()
 
-  return server
+  server
+
+proc create*(
+    _: typedesc[HttpServer],
+    address: TransportAddress | string,
+    handler: HttpAsyncCallback = nil,
+    flags: set[ServerFlags] = {},
+    headersTimeout = HttpHeadersTimeout,
+    handshakeTimeout: Duration,
+): HttpServer {.
+    raises: [TransportOsError],
+    deprecated: "Use headersTimeout instead of handshakeTimeout"
+.} =
+  let headersTimeout =
+    if handshakeTimeout > 0.seconds:
+      min(handshakeTimeout, headersTimeout)
+    else:
+      headersTimeout
+  HttpServer.create(address, handler, flags, headersTimeout)
 
 proc create*(
     _: typedesc[HttpServer],
@@ -205,9 +212,7 @@ proc create*(
     tlsMinVersion = TLSVersion.TLS12,
     tlsMaxVersion = TLSVersion.TLS12,
     headersTimeout = HttpHeadersTimeout,
-    handshakeTimeout = 0.seconds,
 ): HttpServer {.raises: [TransportOsError].} =
-  # TODO handshakeTimeout is unused, remove eventually
   var server = HttpServer(
     headersTimeout: headersTimeout,
     secure: true,
@@ -225,11 +230,42 @@ proc create*(
       address
 
   server = HttpServer(
-    createStreamServer(
-      localAddress, handleConnCb, flags, child = StreamServer(server)
-    )
+    createStreamServer(localAddress, handleConnCb, flags, child = StreamServer(server))
   )
 
   trace "Created TLS HTTP Server", host = $server.localAddress()
 
-  return server
+  server
+
+proc create*(
+    _: typedesc[HttpServer],
+    address: TransportAddress | string,
+    tlsPrivateKey: TLSPrivateKey,
+    tlsCertificate: TLSCertificate,
+    handler: HttpAsyncCallback = nil,
+    flags: set[ServerFlags] = {},
+    tlsFlags: set[TLSFlags] = {},
+    tlsMinVersion = TLSVersion.TLS12,
+    tlsMaxVersion = TLSVersion.TLS12,
+    headersTimeout = HttpHeadersTimeout,
+    handshakeTimeout: Duration,
+): HttpServer {.
+    raises: [TransportOsError],
+    deprecated: "Use headersTimeout instead of handshakeTimeout"
+.} =
+  let headersTimeout =
+    if handshakeTimeout > 0.seconds:
+      min(handshakeTimeout, headersTimeout)
+    else:
+      headersTimeout
+
+  HttpServer.create(
+    address, tlsPrivateKey, tlsCertificate, handler, flags, tlsFlags, tlsMinVersion,
+    tlsMaxVersion, headersTimeout,
+  )
+
+proc handshakeTimeout*(s: HttpServer): Duration {.deprecated: "headersTimeout".} =
+  s.headersTimeout
+
+proc `handshakeTimeout=`*(s: HttpServer, v: Duration) {.deprecated: "headersTimeout".} =
+  s.headersTimeout = v
