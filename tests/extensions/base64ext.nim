@@ -8,12 +8,11 @@
 ## those terms.
 
 import
-  pkg/[stew/base64,
-    chronos,
-    chronicles,
-    results],
-  ../../websock/types,
-  ../../websock/frame
+  stew/base64,
+  chronos,
+  chronicles,
+  results,
+  ../../websock/[frame, types]
 
 type
   Base64Ext = ref object of Ext
@@ -23,7 +22,9 @@ type
 const
   extID = "base64"
 
-method decode(ext: Base64Ext, frame: Frame): Future[Frame] {.async.} =
+method decode(
+    ext: Base64Ext, frame: Frame
+): Future[Frame] {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   if frame.opcode notin {Opcode.Text, Opcode.Binary, Opcode.Cont}:
     return frame
 
@@ -48,10 +49,13 @@ method decode(ext: Base64Ext, frame: Frame): Future[Frame] {.async.} =
 
     # bug in Base64.Decode when accepts seq[byte]
     let instr = cast[string](data)
-    if ext.padding:
-      frame.data = Base64Pad.decode(instr)
-    else:
-      frame.data = Base64.decode(instr)
+    try:
+      if ext.padding:
+        frame.data = Base64Pad.decode(instr)
+      else:
+        frame.data = Base64.decode(instr)
+    except Base64Error:
+      raise newException(WSExtError, "invalid data")
 
     trace "Base64Ext decode", input=frame.length, output=frame.data.len
 
@@ -62,7 +66,9 @@ method decode(ext: Base64Ext, frame: Frame): Future[Frame] {.async.} =
 
   return frame
 
-method encode(ext: Base64Ext, frame: Frame): Future[Frame] {.async.} =
+method encode(
+    ext: Base64Ext, frame: Frame
+): Future[Frame] {.async: (raises: [CancelledError, WebSocketError]).} =
   if frame.opcode notin {Opcode.Text, Opcode.Binary, Opcode.Cont}:
     return frame
 

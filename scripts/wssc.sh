@@ -9,6 +9,7 @@
 # prevent issue https://github.com/status-im/nimbus-eth1/issues/3661
 
 set -e
+trap "trap - SIGTERM && pkill -P $$" SIGINT SIGTERM EXIT
 
 # script arguments
 [[ $# -ne 1 ]] && { echo "Usage: $0 NIM_VERSION"; }
@@ -17,21 +18,25 @@ NIM_VERSION="$1"
 cd "$(dirname "${BASH_SOURCE[0]}")"/..
 
 REPO_DIR="${PWD}"
+CFG="client_tls"
+REPORT_DIR="autobahn/reports/$CFG-$NIM_VERSION"
+mkdir -p autobahn/reports/$CFG
 
-mkdir -p autobahn/reports
-
-docker run -d \
+docker run -d --rm \
   -v ${REPO_DIR}/autobahn:/config \
   -v ${REPO_DIR}/autobahn/reports:/reports \
   --network=host \
   --name fuzzingserver_tls \
   crossbario/autobahn-testsuite wstest --webport=0 --mode fuzzingserver --spec /config/fuzzingserver_tls.json
 
+trap "docker kill fuzzingserver_tls" SIGINT SIGTERM EXIT
+
 nim c -d:tls -d:release -o:examples/autobahn_tlsclient examples/autobahn_client
 examples/autobahn_tlsclient
 
-docker kill fuzzingserver_tls
+mv autobahn/reports/$CFG $REPORT_DIR
 
-mv autobahn/reports/client_tls autobahn/reports/client_tls-${NIM_VERSION}
+echo "* [Nim-${NIM_VERSION} $CFG summary report]($CFG-${NIM_VERSION}/index.html)" > "$REPORT_DIR.txt"
 
-echo "* [Nim-${NIM_VERSION} wss client summary report](client_tls-${NIM_VERSION}/index.html)" > "autobahn/reports/client_tls-${NIM_VERSION}.txt"
+# squash to single line and look for errors
+(cat $REPORT_DIR/index.json | tr '\n' '!' | sed "s|\},\!|\n|g" | tr '!' ' ' | tr -s ' ' | grep -v -e '"behavior": "OK"' -e '"behavior": "NON-STRICT"' -e '"behavior": "INFORMATIONAL"' && exit 1) || true

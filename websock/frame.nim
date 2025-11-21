@@ -7,16 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push gcsafe, raises: [].}
+{.push raises: [], gcsafe.}
 
-import pkg/[
+import
   chronos,
   chronicles,
   results,
-  stew/byteutils,
-  stew/endians2]
-
-import ./types
+  stew/[byteutils, endians2, objects],
+  ./types
 
 logScope:
   topics = "websock ws-frame"
@@ -51,16 +49,14 @@ proc mask*(
   ##
 
   for i in 0 ..< data.len:
-    data[i] = (data[i].uint8 xor maskKey[(offset + i) mod 4].uint8)
+    data[i] = (data[i] xor maskKey[(offset + i) mod 4])
 
 template remainder*(frame: Frame): uint64 =
   frame.length - frame.consumed
 
 proc read*(
-  frame: Frame,
-  reader: AsyncStreamReader,
-  pbytes: pointer,
-  nbytes: int): Future[int] {.async.} =
+    frame: Frame, reader: AsyncStreamReader, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, AsyncStreamError]).} =
 
   # read data from buffered payload if available
   # e.g. data processed by extensions
@@ -70,7 +66,10 @@ proc read*(
     copyMem(pbytes, addr frame.data[frame.offset], readLen)
     frame.offset += readLen
 
-  var pbuf = cast[ptr UncheckedArray[byte]](pbytes)
+    if frame.offset == frame.data.len:
+      frame.data.reset()
+
+  let pbuf = cast[ptr UncheckedArray[byte]](pbytes)
   if readLen < nbytes:
     let len  = min(nbytes - readLen, frame.remainder.int - readLen)
     readLen += await reader.readOnce(addr pbuf[readLen], len)
@@ -86,15 +85,17 @@ proc read*(
   return readLen
 
 proc encode*(
-  frame: Frame,
-  extensions: seq[Ext] = @[]): Future[seq[byte]] {.async.} =
+    frame: Frame, extensions: seq[Ext] = @[]
+): Future[seq[byte]] {.
+    async: (raises: [CancelledError, AsyncStreamError, WebSocketError])
+.} =
   ## Encodes a frame into a string buffer.
   ## See https://tools.ietf.org/html/rfc6455#section-5.2
 
   var f = frame
   if extensions.len > 0:
-    for e in extensions:
-      f = await e.encode(f)
+    for ext in extensions:
+      f = await ext.encode(f)
 
   var ret: seq[byte]
   var b0 = (f.opcode.uint8 and 0x0f) # 0th byte: opcodes and flags.
@@ -152,58 +153,49 @@ proc encode*(
   return ret
 
 proc decode*(
-  _: typedesc[Frame],
-  reader: AsyncStreamReader,
-  masked: bool,
-  extensions: seq[Ext] = @[]): Future[Frame] {.async.} =
+    _: typedesc[Frame],
+    reader: AsyncStreamReader,
+    masked: bool,
+    extensions: seq[Ext] = @[],
+): Future[Frame] {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   ## Read and Decode incoming header
   ##
 
-  var header = newSeq[byte](2)
+  var header {.noinit.}: array[2, byte]
   trace "Reading new frame"
   await reader.readExactly(addr header[0], 2)
-  if header.len != 2:
-    trace "Invalid websocket header length"
-    raise newException(WSMalformedHeaderError,
-      "Invalid websocket header length")
 
-  let b0 = header[0].uint8
-  let b1 = header[1].uint8
+  let b0 = header[0]
+  let b1 = header[1]
 
   var frame = Frame()
   # Read the flags and fin from the header.
 
-  var hf = cast[HeaderFlags](b0 shr 4)
+  let hf = cast[HeaderFlags](b0 shr 4)
   frame.fin = HeaderFlag.fin in hf
   frame.rsv1 = HeaderFlag.rsv1 in hf
   frame.rsv2 = HeaderFlag.rsv2 in hf
   frame.rsv3 = HeaderFlag.rsv3 in hf
 
-  let opcode = (b0 and 0x0f)
-  if opcode > ord(Opcode.Pong):
+  if not checkedEnumAssign(frame.opcode, b0 and 0x0f):
     raise newException(WSOpcodeMismatchError, "Wrong opcode!")
 
-  frame.opcode = (opcode).Opcode
-
   # Payload length can be 7 bits, 7+16 bits, or 7+64 bits.
-  var finalLen: uint64 = 0
-
-  let headerLen = uint(b1 and 0x7f)
-  if headerLen == 0x7e:
-    # Length must be 7+16 bits.
-    var length = newSeq[byte](2)
-    await reader.readExactly(addr length[0], 2)
-    finalLen = uint16.fromBytesBE(length)
-  elif headerLen == 0x7f:
-    # Length must be 7+64 bits.
-    var length = newSeq[byte](8)
-    await reader.readExactly(addr length[0], 8)
-    finalLen = uint64.fromBytesBE(length)
-  else:
-    # Length must be 7 bits.
-    finalLen = headerLen
-
-  frame.length = finalLen
+  let headerLen = b1 and 0x7f
+  frame.length =
+    if headerLen == 0x7e:
+      # Length must be 7+16 bits.
+      var length {.noinit.}: array[2, byte]
+      await reader.readExactly(addr length[0], length.len)
+      uint64(uint16.fromBytesBE(length))
+    elif headerLen == 0x7f:
+      # Length must be 7+64 bits.
+      var length {.noinit.}: array[8, byte]
+      await reader.readExactly(addr length[0], length.len)
+      uint64.fromBytesBE(length)
+    else:
+      # Length must be 7 bits.
+      uint64(headerLen)
 
   if frame.length > WSMaxMessageSize:
     raise newException(WSPayloadLengthError, "Frame too big: " & $frame.length)
@@ -213,15 +205,11 @@ proc decode*(
   if masked == frame.mask:
     # Server sends unmasked but accepts only masked.
     # Client sends masked but accepts only unmasked.
-    raise newException(WSMaskMismatchError,
-      "Socket mask mismatch")
+    raise newException(WSMaskMismatchError, "Socket mask mismatch")
 
-  var maskKey = newSeq[byte](4)
   if frame.mask:
     # Read the mask.
-    await reader.readExactly(addr maskKey[0], 4)
-    for i in 0..<maskKey.len:
-      frame.maskKey[i] = cast[char](maskKey[i])
+    await reader.readExactly(addr frame.maskKey[0], 4)
 
   if extensions.len > 0:
     for i in countdown(extensions.high, extensions.low):

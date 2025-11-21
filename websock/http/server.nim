@@ -7,32 +7,24 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push gcsafe, raises: [].}
+{.push raises: [], gcsafe.}
 
-import std/uri
-import pkg/[
-  chronos,
-  chronicles,
-  httputils]
+import chronos, chronicles, httputils, ./common
 
 when isLogFormatUsed(json):
   import json_serialization/std/net as jsnet
   export jsnet
 
-import ./common
-
 logScope:
   topics = "websock http-server"
 
 type
-  HttpAsyncCallback* = proc (request: HttpRequest):
-    Future[void] {.closure, gcsafe, raises: [].}
+  HttpAsyncCallback* = proc(request: HttpRequest) {.async.}
 
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
-    handshakeTimeout*: Duration
     headersTimeout*: Duration
-    case secure*: bool:
+    case secure*: bool
     of true:
       tlsFlags*: set[TLSFlags]
       tlsPrivateKey*: TLSPrivateKey
@@ -42,208 +34,193 @@ type
     else:
       discard
 
-  TlsHttpServer* = HttpServer
+  TlsHttpServer* {.deprecated.} = HttpServer
 
 template used(x: typed) =
   # silence unused warning
   discard
 
-proc validateRequest(
-  stream: AsyncStreamWriter,
-  header: HttpRequestHeader): Future[ReqStatus] {.async.} =
-  ## Validate Request
-  ##
-
-  if header.meth notin {MethodGet}:
-    trace "GET method is only allowed", address = stream.tsource.remoteAddress()
-    await stream.sendError(Http405, version = header.version)
-    return ReqStatus.Error
-
-  var hlen = header.contentLength()
-  if hlen < 0 or hlen > MaxHttpRequestSize:
-    trace "Invalid header length", address = stream.tsource.remoteAddress()
-    await stream.sendError(Http413, version = header.version)
-    return ReqStatus.Error
-
-  return ReqStatus.Success
-
-proc parseRequest(
-  server: HttpServer,
-  stream: AsyncStream): Future[HttpRequest] {.async.} =
+proc readHttpRequest(
+    stream: AsyncStream, headersTimeout: Duration
+): Future[HttpRequest] {.
+    async: (raises: [CancelledError, AsyncStreamError, HttpError])
+.} =
   ## Process transport data to the HTTP server
   ##
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    let remoteAddr =
+      stream.reader.tsource.remoteAddress2().valueOr(default(TransportAddress))
 
-  var buffer = newSeq[byte](MaxHttpHeadersSize)
-  let remoteAddr {.used.} = stream.reader.tsource.remoteAddress()
-  trace "Received connection", address = $remoteAddr
-  try:
-    let hlenfut = stream.reader.readUntil(
-      addr buffer[0], MaxHttpHeadersSize, sep = HeaderSep)
-    let ores = await withTimeout(hlenfut, server.headersTimeout)
-    if not ores:
-      # Timeout
-      trace "Timeout expired while receiving headers", address = $remoteAddr
-      await stream.writer.sendError(Http408, version = HttpVersion11)
-      raise newException(HttpError, "Didn't read headers in time!")
+  trace "Received connection", remoteAddr
 
-    let hlen = hlenfut.read()
-    buffer.setLen(hlen)
-    let requestData = buffer.parseRequest()
-    if requestData.failed():
-      # Header could not be parsed
-      trace "Malformed header received", address = $remoteAddr
-      await stream.writer.sendError(Http400, version = HttpVersion11)
-      raise newException(HttpError, "Malformed header received")
+  let
+    requestData =
+      try:
+        await stream.reader.readHttpHeader().wait(headersTimeout)
+      except AsyncTimeoutError:
+        trace "Timeout expired while receiving headers", remoteAddr
+        await stream.writer.sendError(Http408, version = HttpVersion11)
+        raise newException(HttpError, "Didn't read headers in time!")
 
-    var vres = await stream.writer.validateRequest(requestData)
-    let hdrs =
-      block:
-        var res = HttpTable.init()
-        for key, value in requestData.headers():
-          res.add(key, value)
-        res
+    request = requestData.parseRequest()
 
-    if vres == ReqStatus.ErrorFailure:
-      trace "Remote peer disconnected", address = $remoteAddr
-      raise newException(HttpError, "Remote peer disconnected")
+  if request.failed():
+    # Header could not be parsed
+    trace "Malformed header received", remoteAddr
+    await stream.writer.sendError(Http400, version = HttpVersion11)
+    raise newException(HttpError, "Malformed header received")
 
-    trace "Received valid HTTP request", address = $remoteAddr
-    return HttpRequest(
-        headers: hdrs,
-        stream: stream,
-        uri: requestData.uri().parseUri())
-  except TransportLimitError:
-    # size of headers exceeds `MaxHttpHeadersSize`
-    trace "maximum size of headers limit reached", address = $remoteAddr
-    await stream.writer.sendError(Http413, version = HttpVersion11)
-  except TransportIncompleteError:
-    # remote peer disconnected
-    trace "Remote peer disconnected", address = $remoteAddr
-  except TransportOsError as exc:
-    used(exc)
-    trace "Problems with networking", address = $remoteAddr, error = exc.msg
+  if request.meth != MethodGet:
+    trace "GET method is only allowed", remoteAddr
+    await stream.writer.sendError(Http405, version = request.version)
+    raise newException(HttpError, $Http405)
+
+  let hlen = request.contentLength()
+  if hlen < 0 or hlen > MaxHttpRequestSize:
+    trace "Invalid header length", remoteAddr
+    await stream.writer.sendError(Http413, version = request.version)
+    raise newException(HttpError, $Http413)
+
+  trace "Received valid HTTP request", address = $remoteAddr
+  HttpRequest(
+    headers: request.toHttpTable(), stream: stream, uri: request.uri().parseUri()
+  )
+
+proc openAsyncStream(
+    server: HttpServer, transp: StreamTransport
+): Result[AsyncStream, string] =
+  if server.secure:
+    try:
+      let tlsStream = newTLSServerAsyncStream(
+        newAsyncStreamReader(transp),
+        newAsyncStreamWriter(transp),
+        server.tlsPrivateKey,
+        server.tlsCertificate,
+        minVersion = server.minVersion,
+        maxVersion = server.maxVersion,
+        flags = server.tlsFlags,
+      )
+
+      ok AsyncStream(reader: tlsStream.reader, writer: tlsStream.writer)
+    except CatchableError as exc:
+      err exc.msg
+  else:
+    ok AsyncStream(
+      reader: newAsyncStreamReader(transp), writer: newAsyncStreamWriter(transp)
+    )
 
 proc handleConnCb(
-  server: StreamServer,
-  transp: StreamTransport) {.gcsafe, async: (raises: []).} =
-  var stream: AsyncStream
+    server: StreamServer, transp: StreamTransport
+) {.async: (raises: []).} =
+  let
+    server = HttpServer(server)
+    stream = server.openAsyncStream(transp).valueOr:
+      debug "Failed to open streams", err = error
+      await transp.closeWait()
+      return
+
   try:
-    stream = AsyncStream(
-      reader: newAsyncStreamReader(transp),
-      writer: newAsyncStreamWriter(transp))
+    let request = await stream.readHttpRequest(server.headersTimeout)
 
-    let httpServer = HttpServer(server)
-    let request = await httpServer.parseRequest(stream)
-
-    await httpServer.handler(request)
+    await server.handler(request)
   except CatchableError as exc:
     used(exc)
     debug "Exception in HttpHandler", exc = exc.msg
   finally:
-    try:
-      await stream.closeWait()
-    except CatchableError as exc:
-      used(exc)
-      debug "Exception in HttpHandler closewait", exc = exc.msg
+    await stream.closeWait()
 
-proc handleTlsConnCb(
-  server: StreamServer,
-  transp: StreamTransport) {.gcsafe, async: (raises: []).} =
-
-  let tlsHttpServer = TlsHttpServer(server)
-  var tlsStream: TLSAsyncStream
-
-  try:
-    tlsStream = newTLSServerAsyncStream(
-      newAsyncStreamReader(transp),
-      newAsyncStreamWriter(transp),
-      tlsHttpServer.tlsPrivateKey,
-      tlsHttpServer.tlsCertificate,
-      minVersion = tlsHttpServer.minVersion,
-      maxVersion = tlsHttpServer.maxVersion,
-      flags = tlsHttpServer.tlsFlags)
-  except CatchableError as exc:
-    used(exc)
-    debug "Exception when initialize TLS stream", exc = exc.msg
-    return
-
-  let stream = AsyncStream(
-      reader: tlsStream.reader,
-      writer: tlsStream.writer)
-
-  try:
-    let httpServer = HttpServer(server)
-    let request = await httpServer.parseRequest(stream)
-
-    await httpServer.handler(request)
-  except CatchableError as exc:
-    used(exc)
-    debug "Exception in HttpsHandler", exc = exc.msg
-  finally:
-    try:
-      await stream.closeWait()
-    except CatchableError as exc:
-      used(exc)
-      debug "Exception in HttpsHandler closewait", exc = exc.msg
-
+# TODO async raises not implemented for accept because it breaks libp2p (1.13.0
+#      at the time of writing)
 proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
   if not isNil(server.handler):
-    raise newException(HttpError,
-      "Callback already registered - cannot mix callback and accepts styles!")
+    raise newException(
+      HttpError, "Callback already registered - cannot mix callback and accepts styles!"
+    )
 
   trace "Awaiting new request"
-  let transp = await StreamServer(server).accept()
-  let stream = if server.secure:
-    let tlsStream = newTLSServerAsyncStream(
-      newAsyncStreamReader(transp),
-      newAsyncStreamWriter(transp),
-      server.tlsPrivateKey,
-      server.tlsCertificate,
-      minVersion = server.minVersion,
-      maxVersion = server.maxVersion,
-      flags = server.tlsFlags)
-
-    AsyncStream(
-      reader: tlsStream.reader,
-      writer: tlsStream.writer)
-  else:
-    AsyncStream(
-      reader: newAsyncStreamReader(transp),
-      writer: newAsyncStreamWriter(transp))
+  let
+    transp = await StreamServer(server).accept()
+    stream = server.openAsyncStream(transp).valueOr:
+      await transp.closeWait()
+      raise (ref HttpError)(msg: error)
 
   trace "Got new request", isTls = server.secure
   try:
-    let
-      parseFut = server.parseRequest(stream)
-    if await withTimeout(parseFut, server.handshakeTimeout):
-      return parseFut.read()
-    raise newException(HttpError, "Timed out parsing request")
-  except CatchableError as exc:
-    # Can't hold up the accept loop
-    stream.close()
+    await stream.readHttpRequest(server.headersTimeout)
+  except CancelledError as exc:
+    await stream.closeWait()
+    raise exc
+  except AsyncStreamError as exc:
+    await stream.closeWait()
+    raise exc
+  except HttpError as exc:
+    await stream.closeWait()
     raise exc
 
-
 proc create*(
-  _: typedesc[HttpServer],
-  address: TransportAddress | string,
-  handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {},
-  headersTimeout = HttpHeadersTimeout,
-  handshakeTimeout = 0.seconds
-  ): HttpServer
-  {.raises: [CatchableError].} = # TODO: remove CatchableError
+    _: typedesc[HttpServer],
+    address: TransportAddress | string,
+    handler: HttpAsyncCallback = nil,
+    flags: set[ServerFlags] = {},
+    headersTimeout = HttpHeadersTimeout,
+): HttpServer {.raises: [TransportOsError].} =
   ## Make a new HTTP Server
   ##
 
+  let localAddress =
+    when address is string:
+      initTAddress(address)
+    else:
+      address
+
+  var server = HttpServer(handler: handler, headersTimeout: headersTimeout)
+
+  server = HttpServer(
+    createStreamServer(localAddress, handleConnCb, flags, child = StreamServer(server))
+  )
+
+  trace "Created HTTP Server", host = $server.localAddress()
+
+  server
+
+proc create*(
+    _: typedesc[HttpServer],
+    address: TransportAddress | string,
+    handler: HttpAsyncCallback = nil,
+    flags: set[ServerFlags] = {},
+    headersTimeout = HttpHeadersTimeout,
+    handshakeTimeout: Duration,
+): HttpServer {.
+    raises: [TransportOsError],
+    deprecated: "Use headersTimeout instead of handshakeTimeout"
+.} =
+  let headersTimeout =
+    if handshakeTimeout > 0.seconds:
+      min(handshakeTimeout, headersTimeout)
+    else:
+      headersTimeout
+  HttpServer.create(address, handler, flags, headersTimeout)
+
+proc create*(
+    _: typedesc[HttpServer],
+    address: TransportAddress | string,
+    tlsPrivateKey: TLSPrivateKey,
+    tlsCertificate: TLSCertificate,
+    handler: HttpAsyncCallback = nil,
+    flags: set[ServerFlags] = {},
+    tlsFlags: set[TLSFlags] = {},
+    tlsMinVersion = TLSVersion.TLS12,
+    tlsMaxVersion = TLSVersion.TLS12,
+    headersTimeout = HttpHeadersTimeout,
+): HttpServer {.raises: [TransportOsError].} =
   var server = HttpServer(
-    handler: handler,
     headersTimeout: headersTimeout,
-    handshakeTimeout:
-      if handshakeTimeout == 0.seconds:
-        # default to headersTimeout * 1.05
-        headersTimeout + (headersTimeout div 20)
-      else: handshakeTimeout,
+    secure: true,
+    handler: handler,
+    tlsPrivateKey: tlsPrivateKey,
+    tlsCertificate: tlsCertificate,
+    minVersion: tlsMinVersion,
+    maxVersion: tlsMaxVersion,
   )
 
   let localAddress =
@@ -253,58 +230,42 @@ proc create*(
       address
 
   server = HttpServer(
-    createStreamServer(
-      localAddress,
-      handleConnCb,
-      flags,
-      child = StreamServer(server)))
-
-  trace "Created HTTP Server", host = $server.localAddress()
-
-  return server
-
-proc create*(
-  _: typedesc[TlsHttpServer],
-  address: TransportAddress | string,
-  tlsPrivateKey: TLSPrivateKey,
-  tlsCertificate: TLSCertificate,
-  handler: HttpAsyncCallback = nil,
-  flags: set[ServerFlags] = {},
-  tlsFlags: set[TLSFlags] = {},
-  tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12,
-  headersTimeout = HttpHeadersTimeout,
-  handshakeTimeout = 0.seconds
-  ): TlsHttpServer
-  {.raises: [CatchableError].} = # TODO: remove CatchableError
-
-  var server = TlsHttpServer(
-    headersTimeout: headersTimeout,
-    handshakeTimeout:
-      if handshakeTimeout == 0.seconds:
-        # default to headersTimeout * 1.05
-        headersTimeout + (headersTimeout div 20)
-      else: handshakeTimeout,
-    secure: true,
-    handler: handler,
-    tlsPrivateKey: tlsPrivateKey,
-    tlsCertificate: tlsCertificate,
-    minVersion: tlsMinVersion,
-    maxVersion: tlsMaxVersion)
-
-  let localAddress =
-    when address is string:
-      initTAddress(address)
-    else:
-      address
-
-  server = TlsHttpServer(
-    createStreamServer(
-      localAddress,
-      handleTlsConnCb,
-      flags,
-      child = StreamServer(server)))
+    createStreamServer(localAddress, handleConnCb, flags, child = StreamServer(server))
+  )
 
   trace "Created TLS HTTP Server", host = $server.localAddress()
 
-  return server
+  server
+
+proc create*(
+    _: typedesc[HttpServer],
+    address: TransportAddress | string,
+    tlsPrivateKey: TLSPrivateKey,
+    tlsCertificate: TLSCertificate,
+    handler: HttpAsyncCallback = nil,
+    flags: set[ServerFlags] = {},
+    tlsFlags: set[TLSFlags] = {},
+    tlsMinVersion = TLSVersion.TLS12,
+    tlsMaxVersion = TLSVersion.TLS12,
+    headersTimeout = HttpHeadersTimeout,
+    handshakeTimeout: Duration,
+): HttpServer {.
+    raises: [TransportOsError],
+    deprecated: "Use headersTimeout instead of handshakeTimeout"
+.} =
+  let headersTimeout =
+    if handshakeTimeout > 0.seconds:
+      min(handshakeTimeout, headersTimeout)
+    else:
+      headersTimeout
+
+  HttpServer.create(
+    address, tlsPrivateKey, tlsCertificate, handler, flags, tlsFlags, tlsMinVersion,
+    tlsMaxVersion, headersTimeout,
+  )
+
+proc handshakeTimeout*(s: HttpServer): Duration {.deprecated: "headersTimeout".} =
+  s.headersTimeout
+
+proc `handshakeTimeout=`*(s: HttpServer, v: Duration) {.deprecated: "headersTimeout".} =
+  s.headersTimeout = v

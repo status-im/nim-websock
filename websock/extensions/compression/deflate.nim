@@ -7,14 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import
-  std/[strutils],
-  pkg/[results,
-    chronos,
-    chronicles,
-    zlib],
-  ../../types,
-  ../../frame
+import std/[strutils], results, chronos, chronicles, zlib, ../../[frame, types]
 
 logScope:
   topics = "websock deflate"
@@ -53,7 +46,17 @@ const
   ExtDeflateThreshold* = 1024
   ExtDeflateDecompressLimit* = 10 shl 20  # 10mb
 
-proc destroyExt(ext: DeflateExt) =
+when not declared(newSeqUninit): # nim 2.2+
+  template newSeqUninit[T: byte](len: int): seq[byte] =
+    newSeqUninitialized[byte](len)
+
+when not declared(setLenUninit):
+  template setLenUninit(src: var seq[byte], newlen: int) =
+    var tmp = newSeqUninit[byte](newlen)
+    copyMem(addr tmp[0], addr src[0], src.len)
+    src = move(tmp)
+
+proc destroyExt(ext: DeflateExt) {.nimcall.} =
   if ext.compCtxState != ContextState.Invalid:
     # zlib.deflateEnd somehow return DATA_ERROR
     # when compression succeed some cases.
@@ -182,65 +185,71 @@ proc compressInit(ext: DeflateExt) =
   ext.compCtxState = ContextState.Initialized
 
 proc compress(zs: var ZStream, data: openArray[byte]): seq[byte] =
-  var buf: array[0xFFFF, byte]
-
   # these casting is needed to prevent compilation
   # error with CLANG
   zs.next_in   = cast[ptr uint8](data[0].unsafeAddr)
   zs.avail_in  = data.len.cuint
 
+  result = newSeqUninit[byte](deflateBound(zs, data.len.culong).int + 10)
+  var added = 0
   while true:
-    zs.next_out  = cast[ptr uint8](buf[0].addr)
-    zs.avail_out = buf.len.cuint
+    let avail = result.len - added
+    zs.next_out  = cast[ptr uint8](result[added].addr)
+    zs.avail_out = avail.cuint
 
     let r = zs.deflate(Z_SYNC_FLUSH)
-    let outSize = buf.len - zs.avail_out.int
-    result.add toOpenArray(buf, 0, outSize-1)
+    added += avail - zs.avail_out.int
 
     if r == Z_STREAM_END:
       break
     elif r == Z_OK:
-      # need more input or more output available
+      # Because we use `Z_SYNC_FLUSH`, we may need more than `deflateBound` bytes
       if zs.avail_in > 0 or zs.avail_out == 0:
+        result.setLenUninit(result.len + 128)
         continue
       else:
         break
     else:
       raise newException(WSExtError, "compression error " & $r)
+  result.setLen(added)
 
 proc decompress(zs: var ZStream, limit: int, data: openArray[byte]): seq[byte] =
-  var buf: array[0xFFFF, byte]
-
   # these casting is needed to prevent compilation
   # error with CLANG
   zs.next_in   = cast[ptr uint8](data[0].unsafeAddr)
   zs.avail_in  = data.len.cuint
 
+  result = newSeqUninit[byte](min(max(data.len * 2, 65636), limit))
+
+  var added = 0
   while true:
-    zs.next_out  = cast[ptr uint8](buf[0].addr)
-    zs.avail_out = buf.len.cuint
+    let avail = result.len - added
+    zs.next_out  = cast[ptr uint8](result[added].addr)
+    zs.avail_out = avail.cuint
 
     let r = zs.inflate(Z_NO_FLUSH)
-    let outSize = buf.len - zs.avail_out.int
-    result.add toOpenArray(buf, 0, outSize-1)
-
-    if result.len > limit:
-      raise newException(WSExtError, "decompression exceeds allowed limit")
+    added += avail - zs.avail_out.int
 
     if r == Z_STREAM_END:
       break
     elif r == Z_OK:
       # need more input or more output available
       if zs.avail_in > 0 or zs.avail_out == 0:
+        if result.len == limit:
+          raise newException(WSExtError, "decompression exceeds allowed limit")
+
+        result.setLenUninit(min(result.len + result.len div 2, limit))
         continue
       else:
         break
     else:
       raise newException(WSExtError, "decompression error " & $r)
 
-  return result
+  result.setLen(added)
 
-method decode(ext: DeflateExt, frame: Frame): Future[Frame] {.async.} =
+method decode(
+    ext: DeflateExt, frame: Frame
+): Future[Frame] {.async: (raises: [CancelledError, AsyncStreamError, WebSocketError]).} =
   if frame.opcode notin {Opcode.Text, Opcode.Binary, Opcode.Cont}:
     # only data frames can be decompressed
     return frame
@@ -262,16 +271,16 @@ method decode(ext: DeflateExt, frame: Frame): Future[Frame] {.async.} =
   # even though the frame.data.len == 0, the stream needs
   # to be closed with trailing bytes if it's a final frame
 
-  var data: seq[byte]
-  var buf: array[0xFFFF, byte]
+  if frame.length > ext.session.frameSize.uint64:
+    raise newException(WSPayloadTooLarge, "payload exceeds allowed max frame size")
 
-  while data.len < frame.length.int:
-    let len = min(frame.length.int - data.len, buf.len)
-    let read = await frame.read(ext.session.stream.reader, addr buf[0], len)
-    data.add toOpenArray(buf, 0, read - 1)
+  var
+    data = newSeqUninit[byte](frame.length.int)
+    offset = 0
 
-    if data.len > ext.session.frameSize:
-      raise newException(WSPayloadTooLarge, "payload exceeds allowed max frame size")
+  while offset < data.len:
+    offset +=
+      await frame.read(ext.session.stream.reader, addr data[offset], data.len - offset)
 
   if frame.fin:
     data.add TrailingBytes
@@ -294,7 +303,9 @@ method decode(ext: DeflateExt, frame: Frame): Future[Frame] {.async.} =
 
   return frame
 
-method encode(ext: DeflateExt, frame: Frame): Future[Frame] {.async.} =
+method encode(
+    ext: DeflateExt, frame: Frame
+): Future[Frame] {.async: (raises: [CancelledError, WebSocketError]).} =
   if frame.opcode notin {Opcode.Text, Opcode.Binary, Opcode.Cont}:
     # only data frames can be compressed
     return frame

@@ -8,7 +8,7 @@
 ## those terms.
 
 import
-  pkg/chronos/unittest2/asynctests
+  chronos/unittest2/asynctests
 
 include ../websock/frame
 
@@ -16,7 +16,7 @@ include ../websock/frame
 
 suite "Test data frames":
   setup:
-    var maskKey {.used.} : array[4, char]
+    var maskKey {.used.} : array[4, byte]
 
   asyncTest "# 7bit length text":
     check (await Frame(
@@ -246,14 +246,14 @@ suite "Test data frames":
       opcode: Opcode.Text,
       mask: true,
       data: toBytes("hi there"),
-      maskKey: ['\xCF', '\xD8', '\x05', 'e']
+      maskKey: [byte 0xCF, 0xD8, 0x05, ord 'e']
     ).encode())
 
     check data == toBytes("\129\136\207\216\5e\167\177%\17\167\189w\0")
 
 suite "Test control frames":
   setup:
-    var maskKey {.used.} : array[4, char]
+    var maskKey {.used.} : array[4, byte]
 
   asyncTest "Close":
     check (await Frame(

@@ -7,17 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[
-  random,
-  sequtils,
-  strutils]
-import pkg/[
+import
+  std/[random, sequtils, strutils],
   httputils,
   chronos/unittest2/asynctests,
   chronicles,
-  stew/byteutils]
-
-import ../websock/websock
+  stew/byteutils,
+  ../websock/websock
 
 import ./helpers
 

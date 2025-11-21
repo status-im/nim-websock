@@ -9,17 +9,16 @@
 
 {.push raises: [].}
 
-import std/[strutils, random]
-import pkg/[
+import
+  std/[strutils, random],
   chronos,
   chronos/streams/tlsstream,
   httputils,
-  chronicles]
-
-import ../websock/websock
+  chronicles,
+  ../websock/websock
 import ./keys
 
-{.push gcsafe, raises: [].}
+{.push raises: [], gcsafe.}
 
 const WSPath* = when defined secure: "/wss" else: "/ws"
 
@@ -50,7 +49,7 @@ proc createServer*(
   {.raises: [].} =
   try:
     let server = when defined secure:
-      TlsHttpServer.create(
+      HttpServer.create(
         address = address,
         tlsPrivateKey = tlsPrivateKey,
         tlsCertificate = tlsCertificate,

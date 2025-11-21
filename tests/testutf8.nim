@@ -9,11 +9,9 @@
 
 import
   std/[strutils],
-  pkg/[
-    stew/byteutils,
-    chronos/unittest2/asynctests,
-    chronicles
-  ],
+  stew/byteutils,
+  chronos/unittest2/asynctests,
+  chronicles,
   ../websock/[websock, utf8dfa]
 
 suite "UTF-8 DFA validator":

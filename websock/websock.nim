@@ -7,26 +7,17 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push gcsafe, raises: [].}
+{.push raises: [], gcsafe.}
 
-import std/[tables,
-            strutils,
-            strformat,
-            sequtils,
-            uri]
-
-import pkg/[chronos,
-            chronos/apps/http/httptable,
-            chronos/streams/asyncstream,
-            chronos/streams/tlsstream,
-            chronicles,
-            httputils,
-            stew/byteutils,
-            stew/base64,
-            stew/base10,
-            nimcrypto/sha]
-
-import ./frame, ./session, /types, ./http, ./extensions/extutils
+import
+  std/[tables, strutils, strformat, sequtils, uri],
+  chronos,
+  chronicles,
+  httputils,
+  stew/[base64, base10, byteutils],
+  nimcrypto/sha,
+  ./[frame, session, types, http],
+  ./extensions/extutils
 
 export session, frame, types, http, httptable
 
@@ -37,9 +28,6 @@ type
   WSServer* = ref object of WebSocket
     protocols: seq[string]
     factories: seq[ExtFactory]
-
-func toException(e: cstring): ref WebSocketError =
-  (ref WebSocketError)(msg: $e)
 
 func contains(extensions: openArray[Ext], extName: string): bool =
   for ext in extensions:
@@ -100,30 +88,39 @@ proc selectExt(isServer: bool,
   response
 
 proc connect*(
-  _: type WebSocket,
-  host: string | TransportAddress,
-  path: string,
-  hostName: string = "", # override used when the hostname has been externally resolved
-  protocols: seq[string] = @[],
-  factories: seq[ExtFactory] = @[],
-  hooks: seq[Hook] = @[],
-  secure = false,
-  flags: set[TLSFlags] = {},
-  version = WSDefaultVersion,
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng = HmacDrbgContext.new()): Future[WSSession] {.async.} =
-
+    _: type WebSocket,
+    host: string | TransportAddress,
+    path: string,
+    hostName: string = "",
+      # override used when the hostname has been externally resolved
+    protocols: seq[string] = @[],
+    factories: seq[ExtFactory] = @[],
+    hooks: seq[Hook] = @[],
+    secure = false,
+    flags: set[TLSFlags] = {},
+    version = WSDefaultVersion,
+    frameSize = WSDefaultFrameSize,
+    onPing: ControlCb = nil,
+    onPong: ControlCb = nil,
+    onClose: CloseCb = nil,
+    rng = HmacDrbgContext.new(),
+): Future[WSSession] {.
+    async: (
+      raises:
+        [CancelledError, AsyncStreamError, HttpError, TransportError, WebSocketError]
+    )
+.} =
   let
     key = Base64Pad.encode(WebSecKey.random(rng[]))
     hostname = if hostName.len > 0: hostName else: $host
 
-  let client = if secure:
-      await TlsHttpClient.connect(host, tlsFlags = flags, hostName = hostname)
-    else:
-      await HttpClient.connect(host)
+  var
+    connected = false
+    client =
+      if secure:
+        await TlsHttpClient.connect(host, tlsFlags = flags, hostName = hostname)
+      else:
+        await HttpClient.connect(host)
 
   let headerData = [
     ("Connection", "Upgrade"),
@@ -131,7 +128,8 @@ proc connect*(
     ("Cache-Control", "no-cache"),
     ("Sec-WebSocket-Version", $version),
     ("Sec-WebSocket-Key", key),
-    ("Host", hostname)]
+    ("Host", hostname),
+  ]
 
   var headers = HttpTable.init(headerData)
   if protocols.len > 0:
@@ -148,72 +146,74 @@ proc connect*(
 
   for hp in hooks:
     if hp.append == nil: continue
-    let res = hp.append(hp, headers)
-    if res.isErr:
-      raise newException(WSHookError,
-        "Header plugin execution failed: " & res.error)
+    hp.append(hp, headers).isOkOr:
+      raise newException(WSHookError, "Header plugin execution failed: " & error)
 
-  let response = try:
-     await client.request(path, headers = headers)
-  except CatchableError as exc:
-    trace "Websocket failed during handshake", exc = exc.msg
-    await client.close()
-    raise exc
+  try:
+    let response = await client.request(path, headers = headers)
 
-  if response.code != Http101.toInt():
-    raise newException(WSFailedUpgradeError,
+    if response.code != Http101.toInt():
+      raise newException(WSFailedUpgradeError,
           &"Server did not reply with a websocket upgrade: " &
           &"Header code: {response.code} Header reason: {response.reason} " &
           &"Address: {client.address}")
 
-  let proto = response.headers.getString("Sec-WebSocket-Protocol")
-  if proto.len > 0 and protocols.len > 0:
-    if proto notin protocols:
-      raise newException(WSFailedUpgradeError,
-        &"Invalid protocol returned {proto}!")
+    let proto = response.headers.getString("Sec-WebSocket-Protocol")
+    if proto.len > 0 and protocols.len > 0:
+      if proto notin protocols:
+        raise newException(WSFailedUpgradeError, &"Invalid protocol returned {proto}!")
 
-  for hp in hooks:
-    if hp.verify == nil: continue
-    let res = await hp.verify(hp, response.headers)
-    if res.isErr:
-      raise newException(WSHookError,
-        "Header verification failed: " & res.error)
+    for hp in hooks:
+      if hp.verify == nil: continue
+      let res = await hp.verify(hp, response.headers)
+      if res.isErr:
+        raise newException(WSHookError, "Header verification failed: " & res.error)
 
-  var extensions: seq[Ext]
-  let exts = response.headers.getList("Sec-WebSocket-Extensions")
-  discard selectExt(false, extensions, factories, exts)
+    var extensions: seq[Ext]
+    let exts = response.headers.getList("Sec-WebSocket-Extensions")
+    discard selectExt(false, extensions, factories, exts)
 
-  # Client data should be masked.
-  let session = WSSession(
-    stream: client.stream,
-    readyState: ReadyState.Open,
-    masked: true,
-    extensions: system.move(extensions),
-    rng: rng,
-    frameSize: frameSize,
-    onPing: onPing,
-    onPong: onPong,
-    onClose: onClose)
+    # Client data should be masked.
+    let session = WSSession(
+      stream: move(client.stream),
+      readyState: ReadyState.Open,
+      masked: true,
+      extensions: move(extensions),
+      rng: rng,
+      frameSize: frameSize,
+      onPing: onPing,
+      onPong: onPong,
+      onClose: onClose,
+    )
 
-  for ext in session.extensions:
-    ext.session = session
+    for ext in session.extensions:
+      ext.session = session
 
-  return session
+    connected = true
+    session
+  finally:
+    if not connected:
+      await client.closeWait()
 
 proc connect*(
-  _: type WebSocket,
-  uri: Uri,
-  protocols: seq[string] = @[],
-  factories: seq[ExtFactory] = @[],
-  hooks: seq[Hook] = @[],
-  flags: set[TLSFlags] = {},
-  version = WSDefaultVersion,
-  frameSize = WSDefaultFrameSize,
-  onPing: ControlCb = nil,
-  onPong: ControlCb = nil,
-  onClose: CloseCb = nil,
-  rng = HmacDrbgContext.new()): Future[WSSession]
-  {.raises: [WSWrongUriSchemeError].} =
+    _: type WebSocket,
+    uri: Uri,
+    protocols: seq[string] = @[],
+    factories: seq[ExtFactory] = @[],
+    hooks: seq[Hook] = @[],
+    flags: set[TLSFlags] = {},
+    version = WSDefaultVersion,
+    frameSize = WSDefaultFrameSize,
+    onPing: ControlCb = nil,
+    onPong: ControlCb = nil,
+    onClose: CloseCb = nil,
+    rng = HmacDrbgContext.new(),
+): Future[WSSession] {.
+    async: (
+      raises:
+        [CancelledError, AsyncStreamError, HttpError, TransportError, WebSocketError]
+    )
+.} =
   ## Create a new websockets client
   ## using a Uri
   ##
@@ -229,7 +229,7 @@ proc connect*(
   if uri.port.len <= 0:
     uri.port = if secure: "443" else: "80"
 
-  return WebSocket.connect(
+  await WebSocket.connect(
     host = uri.hostname & ":" & uri.port,
     path = uri.path,
     hostName = uri.hostname,
@@ -243,31 +243,25 @@ proc connect*(
     onPing = onPing,
     onPong = onPong,
     onClose = onClose,
-    rng = rng)
+    rng = rng,
+  )
 
 proc handleRequest*(
-  ws: WSServer,
-  request: HttpRequest,
-  version: uint = WSDefaultVersion,
-  hooks: seq[Hook] = @[]): Future[WSSession]
-  {.
-    async:
-    (raises: [
-      CancelledError,
-      CatchableError,
-      WSHandshakeError,
-      WSProtoMismatchError])
-  .} =
+    ws: WSServer,
+    request: HttpRequest,
+    version: uint = WSDefaultVersion,
+    hooks: seq[Hook] = @[],
+): Future[WSSession] {.
+    async: (raises: [CancelledError, WebSocketError])
+.} =
   ## Creates a new socket from a request.
   ##
 
   if not request.headers.contains("Sec-WebSocket-Version"):
     raise newException(WSHandshakeError, "Missing version header")
 
-  ws.version = Base10.decode(
-    uint,
-    request.headers.getString("Sec-WebSocket-Version"))
-    .tryGet() # this method throws
+  ws.version = Base10.decode(uint, request.headers.getString("Sec-WebSocket-Version")).valueOr:
+    raise (ref WebSocketError)(msg: $error)
 
   if ws.version != version:
     await request.stream.writer.sendError(Http426)
