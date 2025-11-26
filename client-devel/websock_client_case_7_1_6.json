@@ -8,7 +8,7 @@
    "createWirelog": true,
    "description": "Send 256K message followed by close then a ping",
    "droppedByMe": false,
-   "duration": 14,
+   "duration": 11,
    "expectation": "Case outcome depends on implementation defined close behavior. Message and close frame are sent back to back. If the close frame is processed before the text message write is complete (as can happen in asynchronous processing models) the close frame is processed first and the text message may not be received or may only be partially received.",
    "expected": {
       "NON-STRICT": [],
@@ -28,8 +28,8 @@
       "requireClean": true
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=215&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: 4i/HQJ1TVJ29b80YS9/dLQ==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: PZwxpBOyQSE3tR5e4tf3VDYv/Os=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=215&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: 1CxpSWcaft9TOjvLJ/hFHw==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: EKTvrBuFr47ABGNkh+4MqCuENsw=\r\n\r\n",
    "id": "7.1.6",
    "isServer": true,
    "localCloseCode": 1000,
@@ -56,12 +56,11 @@
       "1": 2
    },
    "rxOctetStats": {
+      "32": 1,
       "288": 1,
-      "28800": 1,
-      "36768": 1,
-      "65536": 3
+      "65536": 4
    },
-   "started": "2025-11-21T06:35:17.457Z",
+   "started": "2025-11-26T12:34:40.658Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 2,
@@ -192,35 +191,35 @@
          "RO",
          [
             65536,
-            "81ff000000000004000082efb5f7c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dc ..."
+            "81ff000000000004000036ce4774748f341001e82d1c04fd053545aa70525ca67547748f341001e82d1c04fd053545aa70525ca67547748f341001e82d1c04fd ..."
          ]
       ],
       [
          "RO",
          [
             65536,
-            "c693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9 ..."
-         ]
-      ],
-      [
-         "RO",
-         [
-            28800,
-            "87c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0ae ..."
+            "341001e82d1c04fd053545aa70525ca67547748f341001e82d1c04fd053545aa70525ca67547748f341001e82d1c04fd053545aa70525ca67547748f341001e8 ..."
          ]
       ],
       [
          "RO",
          [
             65536,
-            "87c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0ae ..."
+            "7547748f341001e82d1c04fd053545aa70525ca67547748f341001e82d1c04fd053545aa70525ca67547748f341001e82d1c04fd053545aa70525ca67547748f ..."
          ]
       ],
       [
          "RO",
          [
-            36768,
-            "82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e88787c4c0aec693b5c9df9fb0dcf7b6f18b82d1e887 ..."
+            65536,
+            "70525ca67547748f341001e82d1c04fd053545aa70525ca67547748f341001e82d1c04fd053545aa70525ca67547748f341001e82d1c04fd053545aa70525ca6 ..."
+         ]
+      ],
+      [
+         "RO",
+         [
+            32,
+            "053545aa70525ca67547748f3410818cbb865266f3e33e0ad4a60509c9ea3647"
          ]
       ],
       [
@@ -233,7 +232,7 @@
          true,
          0,
          true,
-         "82efb5f7"
+         "36ce4774"
       ],
       [
          "RF",
@@ -245,7 +244,7 @@
          true,
          0,
          true,
-         "241e2998"
+         "bb865266"
       ]
    ]
 }
