@@ -24,6 +24,7 @@ type
   HttpServer* = ref object of StreamServer
     handler*: HttpAsyncCallback
     headersTimeout*: Duration
+    acceptLock: AsyncLock
     case secure*: bool
     of true:
       tlsFlags*: set[TLSFlags]
@@ -137,12 +138,17 @@ proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
       HttpError, "Callback already registered - cannot mix callback and accepts styles!"
     )
 
+  await server.acceptLock.acquire()
   trace "Awaiting new request"
-  let
+  var transp: StreamTransport
+  try:
     transp = await StreamServer(server).accept()
-    stream = server.openAsyncStream(transp).valueOr:
-      await transp.closeWait()
-      raise (ref HttpError)(msg: error)
+  finally:
+    server.acceptLock.release()
+
+  let stream = server.openAsyncStream(transp).valueOr:
+    await transp.closeWait()
+    raise (ref HttpError)(msg: error)
 
   trace "Got new request", isTls = server.secure
   try:
@@ -173,7 +179,9 @@ proc create*(
     else:
       address
 
-  var server = HttpServer(handler: handler, headersTimeout: headersTimeout)
+  var server = HttpServer(
+    handler: handler, headersTimeout: headersTimeout, acceptLock: newAsyncLock()
+  )
 
   server = HttpServer(
     createStreamServer(localAddress, handleConnCb, flags, child = StreamServer(server))
@@ -221,6 +229,7 @@ proc create*(
     tlsCertificate: tlsCertificate,
     minVersion: tlsMinVersion,
     maxVersion: tlsMaxVersion,
+    acceptLock: newAsyncLock(),
   )
 
   let localAddress =
