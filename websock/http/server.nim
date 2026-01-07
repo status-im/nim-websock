@@ -91,6 +91,8 @@ proc processHttpRequest*(
 ): Future[HttpRequest] {.
     async: (raises: [CancelledError, AsyncStreamError, HttpError])
 .} =
+  ## Wait for HTTP headers from the stream and return the HttpRequest
+  ##
   return await readHttpRequest(stream, server.headersTimeout)
 
 proc openAsyncStream(
@@ -137,6 +139,9 @@ proc handleConnCb(
     await stream.closeWait()
 
 proc acceptStream*(server: HttpServer): Future[AsyncStream] {.async.} =
+  ## Await a new AsyncStream that connected to the server
+  ##
+
   if not isNil(server.handler):
     raise newException(
       HttpError, "Callback already registered - cannot mix callback and accepts styles!"
@@ -155,6 +160,9 @@ proc acceptStream*(server: HttpServer): Future[AsyncStream] {.async.} =
 # TODO async raises not implemented for accept because it breaks libp2p (1.13.0
 #      at the time of writing)
 proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
+  ## Await a new, fully-handshaked HttpRequest to the server
+  ##
+
   let stream = await acceptStream(server)
 
   try:

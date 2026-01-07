@@ -63,7 +63,7 @@ proc createServerNoStart*(
         flags = flags,
       )
     return server
-  except CatchableError as exc:
+  except TransportOsError as exc:
     raise newException(Defect, exc.msg)
 
 proc createServer*(

@@ -1193,6 +1193,16 @@ suite "Partial frames":
     await lowLevelRecv(7, 10, 5)
 
 suite "Test accept":
+  setup:
+    var
+      server = createServerNoStart(address)
+      wsServer = WSServer.new()
+
+  teardown:
+    if server != nil:
+      server.stop()
+      waitFor server.closeWait()
+
   proc runEchoClient(address: TransportAddress, id: string): Future[void] {.async.} =
     let client = await connectClient(address).wait(2.seconds)
     try:
@@ -1209,99 +1219,89 @@ suite "Test accept":
       clientFuts.add(runEchoClient(address, $i))
     await allFutures(clientFuts).wait(5.seconds)
 
-  template withTestServer(body: untyped) =
-    let server {.inject.} = createServerNoStart(address)
-    let wsServer {.inject.} = WSServer.new()
-    try:
-      body
-    finally:
-      server.stop()
-      await server.closeWait()
-
   asyncTest "basic acceptStream test":
-    withTestServer:
-      proc runServer() {.async.} =
-        let clientStream = await server.acceptStream()
-        try:
-          let req = await server.processHttpRequest(clientStream)
-          check req.uri.path == WSPath
-          let wsSession = await wsServer.handleRequest(req)
-          try:
-            let msg = await wsSession.recvMsg()
-            await wsSession.send(msg, Opcode.Text)
-          finally:
-            await wsSession.close()
-        except CatchableError as exc:
-          await clientStream.closeWait()
-          raise exc
-
-      let serverTask = runServer()
-
+    proc runServer() {.async.} =
+      let clientStream = await server.acceptStream()
       try:
-        await runEchoClient(address, "single")
-      finally:
-        if not serverTask.finished:
-          await serverTask.cancelAndWait()
-        else:
-          await serverTask
+        let req = await server.processHttpRequest(clientStream)
+        check req.uri.path == WSPath
+        let wsSession = await wsServer.handleRequest(req)
+        try:
+          let msg = await wsSession.recvMsg()
+          await wsSession.send(msg, Opcode.Text)
+        finally:
+          await wsSession.close()
+      except CatchableError as exc:
+        await clientStream.closeWait()
+        raise exc
+
+    let serverTask = runServer()
+
+    try:
+      await runEchoClient(address, "single")
+    finally:
+      if not serverTask.finished:
+        await serverTask.cancelAndWait()
+      else:
+        await serverTask
 
   asyncTest "concurrent acceptStream test":
-    withTestServer:
-      proc worker(stream: AsyncStream) {.async.} =
-        var wsSession: WSSession
-        try:
-          let req = await server.processHttpRequest(stream)
-          wsSession = await wsServer.handleRequest(req)
-          let msg = await wsSession.recvMsg()
-          await wsSession.send(msg, Opcode.Text)
-        finally:
-          if not isNil(wsSession):
-            await wsSession.close()
-          else:
-            await stream.closeWait()
-
-      proc runServer() {.async.} =
-        while true:
-          try:
-            let clientStream = await server.acceptStream()
-            asyncSpawn worker(clientStream)
-          except CancelledError:
-            break
-
-      let serverTask = runServer()
-
+    proc worker(stream: AsyncStream) {.async.} =
+      var wsSession: WSSession
       try:
-        await runManyClients(address, 100)
+        let req = await server.processHttpRequest(stream)
+        wsSession = await wsServer.handleRequest(req)
+        let msg = await wsSession.recvMsg()
+        await wsSession.send(msg, Opcode.Text)
       finally:
-        await serverTask.cancelAndWait()
-        if serverTask.failed:
-          raise serverTask.error
+        if not isNil(wsSession):
+          await wsSession.close()
+        else:
+          await stream.closeWait()
+
+    proc runServer() {.async.} =
+      while true:
+        try:
+          let clientStream = await server.acceptStream()
+          asyncSpawn worker(clientStream)
+        except CancelledError:
+          # serverTask.cancelAndWait() was called; stop accepting clients.
+          break
+
+    let serverTask = runServer()
+
+    try:
+      await runManyClients(address, 100)
+    finally:
+      await serverTask.cancelAndWait()
+      if serverTask.failed:
+        raise serverTask.error
 
   asyncTest "accept test":
-    withTestServer:
-      proc worker(req: HttpRequest) {.async.} =
-        var wsSession: WSSession
-        try:
-          wsSession = await wsServer.handleRequest(req)
-          let msg = await wsSession.recvMsg()
-          await wsSession.send(msg, Opcode.Text)
-        finally:
-          if not isNil(wsSession):
-            await wsSession.close()
-
-      proc runServer() {.async.} =
-        while true:
-          try:
-            let req = await server.accept()
-            asyncSpawn worker(req)
-          except CancelledError:
-            break
-
-      let serverTask = runServer()
-
+    proc worker(req: HttpRequest) {.async.} =
+      var wsSession: WSSession
       try:
-        await runManyClients(address, 10)
+        wsSession = await wsServer.handleRequest(req)
+        let msg = await wsSession.recvMsg()
+        await wsSession.send(msg, Opcode.Text)
       finally:
-        await serverTask.cancelAndWait()
-        if serverTask.failed:
-          raise serverTask.error
+        if not isNil(wsSession):
+          await wsSession.close()
+
+    proc runServer() {.async.} =
+      while true:
+        try:
+          let req = await server.accept()
+          asyncSpawn worker(req)
+        except CancelledError:
+          # serverTask.cancelAndWait() was called; stop accepting clients.
+          break
+
+    let serverTask = runServer()
+
+    try:
+      await runManyClients(address, 10)
+    finally:
+      await serverTask.cancelAndWait()
+      if serverTask.failed:
+        raise serverTask.error
