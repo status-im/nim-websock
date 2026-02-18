@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock server - <span style="font-size: 1.3em;"><b>Case 5.2</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-01-07T13:35:15.727Z</a></p>
+      <p class="case case_ok">websock server - <span style="font-size: 1.3em;"><b>Case 5.2</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-02-18T17:45:28.172Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send Pong fragmented into 2 fragments.</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>Connection is failed immediately, since control message MUST NOT be fragmented.</p>
 
@@ -221,13 +221,13 @@ Upgrade: WebSocket
 Connection: Upgrade
 Pragma: no-cache
 Cache-Control: no-cache
-Sec-WebSocket-Key: yXhSDp+W1XqV4kXV09bkNA==
+Sec-WebSocket-Key: ksb8KtI4BfZYQM2PSTq6Aw==
 Sec-WebSocket-Version: 13</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
-Date: Wed, 07 Jan 2026 13:35:15 GMT
+Date: Wed, 18 Feb 2026 17:45:28 GMT
 Connection: Upgrade
 Upgrade: websocket
-Sec-Websocket-Accept: 81pTizyPmlFuGqzjxrF6nr3xvX8=</pre>
+Sec-Websocket-Accept: umJjY0LWOwESUuQF5XTO9o0qPCA=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -277,14 +277,14 @@ Sec-Websocket-Accept: 81pTizyPmlFuGqzjxrF6nr3xvX8=</pre>
       <div id="wirelog">
          <pre class="wirelog_tx_octets">000 TX OCTETS: 474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f3235</pre>
          <pre class="wirelog_tx_octets">               2e31302e312d302e31302e390d0a ...</pre>
-         <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205765642c203037204a61</pre>
-         <pre class="wirelog_rx_octets">               6e20323032362031333a33353a31 ...</pre>
-         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=10, FIN=False, RSV=0, PAYLOAD-LEN=9, MASK=0a3950c5, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205765642c203138204665</pre>
+         <pre class="wirelog_rx_octets">               6220323032362031373a34353a32 ...</pre>
+         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=10, FIN=False, RSV=0, PAYLOAD-LEN=9, MASK=7a7eeffe, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               fragment1</pre>
-         <pre class="wirelog_tx_octets">003 TX OCTETS: 0a890a3950c56c4b31a2675c3eb13b</pre>
-         <pre class="wirelog_tx_frame">004 TX FRAME : OPCODE=0, FIN=True, RSV=0, PAYLOAD-LEN=9, MASK=07c80586, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_tx_octets">003 TX OCTETS: 0a897a7eeffe1c0c8e99171b818a4b</pre>
+         <pre class="wirelog_tx_frame">004 TX FRAME : OPCODE=0, FIN=True, RSV=0, PAYLOAD-LEN=9, MASK=51fd6bf5, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               fragment2</pre>
-         <pre class="wirelog_tx_octets">005 TX OCTETS: 808907c8058661ba64e16aad6bf235</pre>
+         <pre class="wirelog_tx_octets">005 TX OCTETS: 808951fd6bf5378f0a923c98058163</pre>
          <pre class="wirelog_kill_after">006 FAIL CONNECTION AFTER 1.000000 sec</pre>
          <pre class="wirelog_tcp_closed_by_peer">007 TCP DROPPED BY PEER</pre>
       </div>
