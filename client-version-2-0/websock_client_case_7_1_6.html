@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_info">websock-client - <span style="font-size: 1.3em;"><b>Case 7.1.6</b></span> : Informational - <span style="font-size: 0.9em;"><b>15</b> ms @ 2026-03-07T18:25:37.291Z</a></p>
+      <p class="case case_info">websock-client - <span style="font-size: 1.3em;"><b>Case 7.1.6</b></span> : Informational - <span style="font-size: 0.9em;"><b>16</b> ms @ 2026-03-31T17:40:43.071Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send 256K message followed by close then a ping</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>Case outcome depends on implementation defined close behavior. Message and close frame are sent back to back. If the close frame is processed before the text message write is complete (as can happen in asynchronous processing models) the close frame is processed first and the text message may not be received or may only be partially received.</p>
 
@@ -220,14 +220,14 @@ Upgrade: websocket
 Host: 127.0.0.1:9001
 Connection: Upgrade
 Sec-Websocket-Version: 13
-Sec-Websocket-Key: oULhm/2UMbHetTxxUHYUqw==
+Sec-Websocket-Key: 5ASAsgNeXjv4b45EpPx80g==
 Cache-Control: no-cache</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
 Server: AutobahnTestSuite/25.10.1-0.10.9
 X-Powered-By: AutobahnPython/0.10.9
 Upgrade: WebSocket
 Connection: Upgrade
-Sec-WebSocket-Accept: CXONIQuKCv17g2JLU71kcas51qY=</pre>
+Sec-WebSocket-Accept: x8QLlmZ/2d7j1ZwsV2iBemsQkgg=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -250,10 +250,11 @@ Sec-WebSocket-Accept: CXONIQuKCv17g2JLU71kcas51qY=</pre>
       <h3>Octets Received by Chop Size</h3>
       <table>
          <tr class="stats_header"><td>Chop Size</td><td>Count</td><td>Octets</td></tr>
-         <tr class="stats_row"><td>32</td><td>1</td><td>32</td></tr>
          <tr class="stats_row"><td>288</td><td>1</td><td>288</td></tr>
-         <tr class="stats_row"><td>65536</td><td>4</td><td>262144</td></tr>
-         <tr class="stats_total"><td>Total</td><td>6</td><td>262464</td></tr>
+         <tr class="stats_row"><td>6176</td><td>1</td><td>6176</td></tr>
+         <tr class="stats_row"><td>29696</td><td>2</td><td>59392</td></tr>
+         <tr class="stats_row"><td>65536</td><td>3</td><td>196608</td></tr>
+         <tr class="stats_total"><td>Total</td><td>7</td><td>262464</td></tr>
       </table>
       <h3>Octets Transmitted by Chop Size</h3>
       <table>
@@ -299,20 +300,23 @@ Sec-WebSocket-Accept: CXONIQuKCv17g2JLU71kcas51qY=</pre>
          <pre class="wirelog_tx_frame">008 TX FRAME : OPCODE=9, FIN=True, RSV=0, PAYLOAD-LEN=0, MASK=None, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_octets">009 TX OCTETS: 8900</pre>
          <pre class="wirelog_kill_after">010 FAIL CONNECTION AFTER 1.000000 sec</pre>
-         <pre class="wirelog_rx_octets">011 RX OCTETS: 81ff0000000000040000f900950cbb41e668ce26ff64cb33d74d8a64a22a9368a73fbb41e668ce26ff64cb33d74d8a64a22a</pre>
-         <pre class="wirelog_rx_octets">               9368a73fbb41e668ce26ff64cb33 ...</pre>
-         <pre class="wirelog_rx_octets">012 RX OCTETS: e668ce26ff64cb33d74d8a64a22a9368a73fbb41e668ce26ff64cb33d74d8a64a22a9368a73fbb41e668ce26ff64cb33d74d</pre>
-         <pre class="wirelog_rx_octets">               8a64a22a9368a73fbb41e668ce26 ...</pre>
-         <pre class="wirelog_rx_octets">013 RX OCTETS: a73fbb41e668ce26ff64cb33d74d8a64a22a9368a73fbb41e668ce26ff64cb33d74d8a64a22a9368a73fbb41e668ce26ff64</pre>
-         <pre class="wirelog_rx_octets">               cb33d74d8a64a22a9368a73fbb41 ...</pre>
-         <pre class="wirelog_rx_octets">014 RX OCTETS: a22a9368a73fbb41e668ce26ff64cb33d74d8a64a22a9368a73fbb41e668ce26ff64cb33d74d8a64a22a9368a73fbb41e668</pre>
-         <pre class="wirelog_rx_octets">               ce26ff64cb33d74d8a64a22a9368 ...</pre>
-         <pre class="wirelog_rx_octets">015 RX OCTETS: d74d8a64a22a9368a73fbb41e668818c2a2d9ecc6248f2a0450dc9a35841faed</pre>
-         <pre class="wirelog_rx_frame">016 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=262144, MASKED=True, MASK=6639303039353063</pre>
+         <pre class="wirelog_rx_octets">011 RX OCTETS: 81ff0000000000040000b8d2be29fa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890f</pre>
+         <pre class="wirelog_rx_octets">               d2ba8c1afa93cd4d8ff4d4418ae1 ...</pre>
+         <pre class="wirelog_rx_octets">012 RX OCTETS: cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68</pre>
+         <pre class="wirelog_rx_octets">               cbb6890fd2ba8c1afa93cd4d8ff4 ...</pre>
+         <pre class="wirelog_rx_octets">013 RX OCTETS: 8c1afa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d441</pre>
+         <pre class="wirelog_rx_octets">               8ae1fc68cbb6890fd2ba8c1afa93 ...</pre>
+         <pre class="wirelog_rx_octets">014 RX OCTETS: 890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d</pre>
+         <pre class="wirelog_rx_octets">               8ff4d4418ae1fc68cbb6890fd2ba ...</pre>
+         <pre class="wirelog_rx_octets">015 RX OCTETS: fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1a</pre>
+         <pre class="wirelog_rx_octets">               fa93cd4d8ff4d4418ae1fc68cbb6 ...</pre>
+         <pre class="wirelog_rx_octets">016 RX OCTETS: d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890fd2ba8c1afa93cd4d8ff4d4418ae1fc68cbb6890f</pre>
+         <pre class="wirelog_rx_octets">               d2ba8c1afa93cd4d8ff4d4418ae1 ...</pre>
+         <pre class="wirelog_rx_frame">017 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=262144, MASKED=True, MASK=6238643262653239</pre>
          <pre class="wirelog_rx_frame">               BAsd7&jh23BAsd7&jh23BAsd7&jh23BAsd7&jh23BAsd7&jh23BAsd7&jh23BAsd ...</pre>
-         <pre class="wirelog_rx_frame">017 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=12, MASKED=True, MASK=3261326439656363</pre>
+         <pre class="wirelog_rx_frame">018 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=12, MASKED=True, MASK=3266346433303836</pre>
          <pre class="wirelog_rx_frame">               Hello World!</pre>
-         <pre class="wirelog_tcp_closed_by_peer">018 TCP DROPPED BY PEER</pre>
+         <pre class="wirelog_tcp_closed_by_peer">019 TCP DROPPED BY PEER</pre>
       </div>
       <br/><hr/>
    </body>
