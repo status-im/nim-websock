@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2023 Status Research & Development GmbH
+## Copyright (c) 2023-2026 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -8,7 +8,7 @@
 ## those terms.
 
 packageName = "websock"
-version     = "0.2.1"
+version     = "0.2.2"
 author      = "Status Research & Development GmbH"
 description = "WS protocol implementation"
 license     = "MIT"
@@ -28,8 +28,7 @@ task test, "run tests":
   let
     envNimflags = getEnv("NIMFLAGS")
     nimFlags = envNimFlags &
-      " --verbosity:0 --hints:off --hint:Name:on " &
-      "--styleCheck:usages --styleCheck:error" &
+      " --verbosity:0 --styleCheck:usages --styleCheck:error" &
       " --mm:refc"
 
   # dont't need to run it, only want to test if it is compileable
