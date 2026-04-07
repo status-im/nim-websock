@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock server - <span style="font-size: 1.3em;"><b>Case 9.1.6</b></span> : Pass - <span style="font-size: 0.9em;"><b>340</b> ms @ 2026-04-07T08:53:27.189Z</a></p>
+      <p class="case case_ok">websock server - <span style="font-size: 1.3em;"><b>Case 9.1.6</b></span> : Pass - <span style="font-size: 0.9em;"><b>274</b> ms @ 2026-04-07T09:37:22.187Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send text message message with payload of length 16 * 2**20 (16M).</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>Receive echo'ed text message (with payload as sent).</p>
 
@@ -221,13 +221,13 @@ Upgrade: WebSocket
 Connection: Upgrade
 Pragma: no-cache
 Cache-Control: no-cache
-Sec-WebSocket-Key: vVWe+gp95M2znWBBxvi4zg==
+Sec-WebSocket-Key: w2xv4onOqoWtessXlLmcag==
 Sec-WebSocket-Version: 13</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
-Date: Tue, 07 Apr 2026 08:53:27 GMT
+Date: Tue, 07 Apr 2026 09:37:22 GMT
 Connection: Upgrade
 Upgrade: websocket
-Sec-Websocket-Accept: Z7yZWDWuXiRdozdayRmIJJhQ7+Q=</pre>
+Sec-Websocket-Accept: 5uG89EyiTw1kvaKeETxDlKhx0vE=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -251,15 +251,31 @@ Sec-Websocket-Accept: Z7yZWDWuXiRdozdayRmIJJhQ7+Q=</pre>
       <table>
          <tr class="stats_header"><td>Chop Size</td><td>Count</td><td>Octets</td></tr>
          <tr class="stats_row"><td>166</td><td>1</td><td>166</td></tr>
+         <tr class="stats_row"><td>2058</td><td>1</td><td>2058</td></tr>
          <tr class="stats_row"><td>3072</td><td>1</td><td>3072</td></tr>
+         <tr class="stats_row"><td>4424</td><td>1</td><td>4424</td></tr>
+         <tr class="stats_row"><td>4583</td><td>1</td><td>4583</td></tr>
+         <tr class="stats_row"><td>6038</td><td>1</td><td>6038</td></tr>
+         <tr class="stats_row"><td>7680</td><td>1</td><td>7680</td></tr>
+         <tr class="stats_row"><td>8192</td><td>13</td><td>106496</td></tr>
+         <tr class="stats_row"><td>17090</td><td>1</td><td>17090</td></tr>
+         <tr class="stats_row"><td>29159</td><td>1</td><td>29159</td></tr>
          <tr class="stats_row"><td>29696</td><td>1</td><td>29696</td></tr>
-         <tr class="stats_row"><td>36512</td><td>1</td><td>36512</td></tr>
+         <tr class="stats_row"><td>36864</td><td>1</td><td>36864</td></tr>
+         <tr class="stats_row"><td>41994</td><td>1</td><td>41994</td></tr>
          <tr class="stats_row"><td>47616</td><td>1</td><td>47616</td></tr>
-         <tr class="stats_row"><td>48128</td><td>2</td><td>96256</td></tr>
-         <tr class="stats_row"><td>59392</td><td>2</td><td>118784</td></tr>
-         <tr class="stats_row"><td>61440</td><td>1</td><td>61440</td></tr>
-         <tr class="stats_row"><td>65536</td><td>250</td><td>16384000</td></tr>
-         <tr class="stats_total"><td>Total</td><td>260</td><td>16777542</td></tr>
+         <tr class="stats_row"><td>47969</td><td>1</td><td>47969</td></tr>
+         <tr class="stats_row"><td>48022</td><td>31</td><td>1488682</td></tr>
+         <tr class="stats_row"><td>48128</td><td>9</td><td>433152</td></tr>
+         <tr class="stats_row"><td>49192</td><td>1</td><td>49192</td></tr>
+         <tr class="stats_row"><td>51044</td><td>1</td><td>51044</td></tr>
+         <tr class="stats_row"><td>52658</td><td>1</td><td>52658</td></tr>
+         <tr class="stats_row"><td>52764</td><td>2</td><td>105528</td></tr>
+         <tr class="stats_row"><td>57294</td><td>1</td><td>57294</td></tr>
+         <tr class="stats_row"><td>65324</td><td>3</td><td>195972</td></tr>
+         <tr class="stats_row"><td>65483</td><td>1</td><td>65483</td></tr>
+         <tr class="stats_row"><td>65536</td><td>212</td><td>13893632</td></tr>
+         <tr class="stats_total"><td>Total</td><td>289</td><td>16777542</td></tr>
       </table>
       <h3>Octets Transmitted by Chop Size</h3>
       <table>
@@ -289,11 +305,11 @@ Sec-Websocket-Accept: Z7yZWDWuXiRdozdayRmIJJhQ7+Q=</pre>
          <pre class="wirelog_tx_octets">000 TX OCTETS: 474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f3235</pre>
          <pre class="wirelog_tx_octets">               2e31302e312d302e31302e390d0a ...</pre>
          <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c203037204170</pre>
-         <pre class="wirelog_rx_octets">               7220323032362030383a35333a32 ...</pre>
+         <pre class="wirelog_rx_octets">               7220323032362030393a33373a32 ...</pre>
          <pre class="wirelog_kill_after">002 CLOSE CONNECTION AFTER 100.000000 sec</pre>
-         <pre class="wirelog_tx_frame">003 TX FRAME : OPCODE=8, FIN=True, RSV=0, PAYLOAD-LEN=2, MASK=09a1f849, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_tx_frame">003 TX FRAME : OPCODE=8, FIN=True, RSV=0, PAYLOAD-LEN=2, MASK=ccbb779a, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               0x03e8</pre>
-         <pre class="wirelog_tx_octets">004 TX OCTETS: 888209a1f8490a49</pre>
+         <pre class="wirelog_tx_octets">004 TX OCTETS: 8882ccbb779acf53</pre>
          <pre class="wirelog_tcp_closed_by_peer">005 TCP DROPPED BY PEER</pre>
       </div>
       <br/><hr/>
