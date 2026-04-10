@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock secure server - <span style="font-size: 1.3em;"><b>Case 3.1</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-04-10T16:47:10.666Z</a></p>
+      <p class="case case_ok">websock secure server - <span style="font-size: 1.3em;"><b>Case 3.1</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-04-10T16:49:07.953Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send small text message with <b>RSV = 1</b>.</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>The connection is failed immediately (1002/protocol error), since RSV must be 0, when no extension defining RSV meaning has been negotiated.</p>
 
@@ -221,13 +221,13 @@ Upgrade: WebSocket
 Connection: Upgrade
 Pragma: no-cache
 Cache-Control: no-cache
-Sec-WebSocket-Key: oc3TyTtv5CYNZUoczgOrHw==
+Sec-WebSocket-Key: uVX+iUL6cXDqDV8tCSk+hA==
 Sec-WebSocket-Version: 13</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
-Date: Fri, 10 Apr 2026 16:47:10 GMT
+Date: Fri, 10 Apr 2026 16:49:07 GMT
 Connection: Upgrade
 Upgrade: websocket
-Sec-Websocket-Accept: A8gK7FR36veM2NBLysXniu5r2rs=</pre>
+Sec-Websocket-Accept: XlKjUPRiJ3gkc4mz5xdrulr1jWs=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -277,10 +277,10 @@ Sec-Websocket-Accept: A8gK7FR36veM2NBLysXniu5r2rs=</pre>
          <pre class="wirelog_tx_octets">000 TX OCTETS: 474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32</pre>
          <pre class="wirelog_tx_octets">               352e31302e312d302e31302e390d ...</pre>
          <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204672692c203130204170</pre>
-         <pre class="wirelog_rx_octets">               7220323032362031363a34373a31 ...</pre>
-         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=1, FIN=True, RSV=1, PAYLOAD-LEN=13, MASK=5822816e, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_rx_octets">               7220323032362031363a34393a30 ...</pre>
+         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=1, FIN=True, RSV=1, PAYLOAD-LEN=13, MASK=bafd9642, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               Hello, world!</pre>
-         <pre class="wirelog_tx_octets">003 TX OCTETS: 918d5822816e1047ed02370ea1193750ed0a79</pre>
+         <pre class="wirelog_tx_octets">003 TX OCTETS: 918dbafd9642f298fa2ed5d1b635d58ffa269b</pre>
          <pre class="wirelog_kill_after">004 FAIL CONNECTION AFTER 1.000000 sec</pre>
          <pre class="wirelog_tcp_closed_by_peer">005 TCP DROPPED BY PEER</pre>
       </div>
