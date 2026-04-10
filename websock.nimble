@@ -14,7 +14,7 @@ description = "WS protocol implementation"
 license     = "MIT"
 skipDirs    = @["examples", "tests"]
 
-requires "nim >= 1.6.0"
+requires "nim >= 2.0.16"
 requires "chronos >= 4.2.0 & < 4.4.0"
 requires "httputils >= 0.2.0"
 requires "chronicles >= 0.10.2"
@@ -25,26 +25,23 @@ requires "results"
 requires "zlib"
 
 task test, "run tests":
-  let
-    envNimflags = getEnv("NIMFLAGS")
-    nimFlags = envNimFlags &
-      " --verbosity:0 --styleCheck:usages --styleCheck:error" &
-      " --mm:refc"
+  let nimFlags = getEnv("NIMFLAGS") &
+    " --verbosity:0 --styleCheck:usages --styleCheck:error"
 
   # dont't need to run it, only want to test if it is compileable
-  exec "nim c -c " & nimFlags & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json --styleCheck:usages --styleCheck:hint ./tests/all_tests"
+  exec "nim c -c " & nimFlags & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json ./tests/all_tests"
 
-  exec "nim c -r " & nimFlags & " --opt:speed -d:debug -d:chronicles_log_level=INFO ./tests/all_tests.nim"
+  exec "nim c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/all_tests.nim"
   rmFile "./tests/all_tests"
 
-  exec "nim c -r " & nimFlags & " --opt:speed -d:debug -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  exec "nim c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim -d:secure c -r " & nimFlags & " --opt:speed -d:debug -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  exec "nim -d:secure c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim -d:accepts c -r " & nimFlags & " --opt:speed -d:debug -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  exec "nim -d:accepts c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim -d:secure -d:accepts c -r " & nimFlags & " --opt:speed -d:debug -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  exec "nim -d:secure -d:accepts c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
