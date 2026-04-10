@@ -8,13 +8,13 @@
 ## those terms.
 
 packageName = "websock"
-version     = "0.2.2"
+version     = "0.3.0"
 author      = "Status Research & Development GmbH"
 description = "WS protocol implementation"
 license     = "MIT"
 skipDirs    = @["examples", "tests"]
 
-requires "nim >= 1.6.0"
+requires "nim >= 2.0.8"
 requires "chronos >= 4.2.0 & < 4.4.0"
 requires "httputils >= 0.2.0"
 requires "chronicles >= 0.10.2"
