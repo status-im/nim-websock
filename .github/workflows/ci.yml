@@ -42,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get latest nimbus-build-system commit hash
         id: versions
@@ -51,7 +51,7 @@ jobs:
           echo "nimbus_build_system=$nbsHash" >> $GITHUB_OUTPUT
 
       - name: Restore prebuilt Nim from cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: NimBinCache
           key: 'nim-${{ matrix.branch }}-${{ steps.versions.outputs.nimbus_build_system }}'
@@ -72,7 +72,7 @@ jobs:
 
       - name: Cache Docker image
         id: cache-docker-image
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /var/lib/docker # Or the specific path where your image is stored
           key: ${{ runner.os }}-docker-image-${{ steps.cache_key.outputs.cache_key }}
@@ -99,7 +99,7 @@ jobs:
           bash scripts/${{ matrix.websock }}.sh ${{ matrix.branch }}
 
       - name: Upload Autobahn result
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: autobahn-artifact-${{ matrix.websock }}-${{ matrix.branch }}
           path: ./autobahn/reports
@@ -112,7 +112,7 @@ jobs:
     needs: autobahn-test
     steps:
       - name: Merge Autobahn Artifacts
-        uses: actions/upload-artifact/merge@v4
+        uses: actions/upload-artifact/merge@v7
         with:
           name: autobahn-report
           pattern: autobahn-artifact-*
@@ -130,13 +130,13 @@ jobs:
 
     steps:
       - name: Download Autobahn reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: autobahn-report
           path: ./autobahn_reports
 
       - name: Setup Python version
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: pypy-3.10
 
@@ -156,10 +156,9 @@ jobs:
           publish_dir: ./autobahn_reports
 
       - name: Delete artefacts
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@v6
         with:
           failOnError: false
           name: |
             autobahn-report
             autobahn-artifact-*
-
