@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock-client - <span style="font-size: 1.3em;"><b>Case 9.5.1</b></span> : Pass - <span style="font-size: 0.9em;"><b>444</b> ms @ 2026-04-10T14:04:00.918Z</a></p>
+      <p class="case case_ok">websock-client - <span style="font-size: 1.3em;"><b>Case 9.5.1</b></span> : Pass - <span style="font-size: 0.9em;"><b>331</b> ms @ 2026-04-10T14:51:12.486Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send text message message with payload of length 1 * 2**20 (1M). Sent out data in chops of 64 octets.</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>Receive echo'ed text message (with payload as sent).</p>
 
@@ -221,13 +221,13 @@ Host: 127.0.0.1:9001
 Sec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15
 Cache-Control: no-cache
 Sec-Websocket-Version: 13
-Sec-Websocket-Key: JFepVBFg5WQQZUai5eWo1Q==</pre>
+Sec-Websocket-Key: yhjh3gT0XEF58y6+iQ8sIA==</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
 Server: AutobahnTestSuite/25.10.1-0.10.9
 X-Powered-By: AutobahnPython/0.10.9
 Upgrade: WebSocket
 Connection: Upgrade
-Sec-WebSocket-Accept: Ao/FcEZftTXT/rybmqET4qSAY2Q=</pre>
+Sec-WebSocket-Accept: ltUpVHJcV3ed4j2pA8R0aqoKZe4=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -251,10 +251,12 @@ Sec-WebSocket-Accept: Ao/FcEZftTXT/rybmqET4qSAY2Q=</pre>
       <table>
          <tr class="stats_header"><td>Chop Size</td><td>Count</td><td>Octets</td></tr>
          <tr class="stats_row"><td>288</td><td>1</td><td>288</td></tr>
-         <tr class="stats_row"><td>29696</td><td>10</td><td>296960</td></tr>
-         <tr class="stats_row"><td>30734</td><td>1</td><td>30734</td></tr>
-         <tr class="stats_row"><td>65536</td><td>11</td><td>720896</td></tr>
-         <tr class="stats_total"><td>Total</td><td>23</td><td>1048878</td></tr>
+         <tr class="stats_row"><td>29696</td><td>3</td><td>89088</td></tr>
+         <tr class="stats_row"><td>32768</td><td>3</td><td>98304</td></tr>
+         <tr class="stats_row"><td>32782</td><td>1</td><td>32782</td></tr>
+         <tr class="stats_row"><td>41984</td><td>1</td><td>41984</td></tr>
+         <tr class="stats_row"><td>65536</td><td>12</td><td>786432</td></tr>
+         <tr class="stats_total"><td>Total</td><td>21</td><td>1048878</td></tr>
       </table>
       <h3>Octets Transmitted by Chop Size</h3>
       <table>
