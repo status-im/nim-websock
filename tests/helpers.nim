@@ -37,6 +37,35 @@ proc waitForClose*(ws: WSSession) {.async.} =
   except CatchableError:
     trace "Closing websocket"
 
+proc createServerNoStart*(
+  address = initTAddress("127.0.0.1:8888"),
+  tlsPrivateKey = TLSPrivateKey.init(SecureKey),
+  tlsCertificate = TLSCertificate.init(SecureCert),
+  flags: set[ServerFlags] = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr},
+  tlsFlags: set[TLSFlags] = {},
+  tlsMinVersion = TLSVersion.TLS12,
+  tlsMaxVersion = TLSVersion.TLS12
+): HttpServer {.raises: [].} =
+  try:
+    let server = when defined(secure):
+      HttpServer.create(
+        address = address,
+        tlsPrivateKey = tlsPrivateKey,
+        tlsCertificate = tlsCertificate,
+        flags = flags,
+        tlsFlags = tlsFlags,
+        tlsMinVersion = tlsMinVersion,
+        tlsMaxVersion = tlsMaxVersion,
+      )
+    else:
+      HttpServer.create(
+        address = address,
+        flags = flags,
+      )
+    return server
+  except TransportOsError as exc:
+    raise newException(Defect, exc.msg)
+
 proc createServer*(
   address = initTAddress("127.0.0.1:8888"),
   tlsPrivateKey = TLSPrivateKey.init(SecureKey),
@@ -45,23 +74,19 @@ proc createServer*(
   flags: set[ServerFlags] = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr},
   tlsFlags: set[TLSFlags] = {},
   tlsMinVersion = TLSVersion.TLS12,
-  tlsMaxVersion = TLSVersion.TLS12): HttpServer
-  {.raises: [].} =
-  try:
-    let server = when defined secure:
-      HttpServer.create(
-        address = address,
-        tlsPrivateKey = tlsPrivateKey,
-        tlsCertificate = tlsCertificate,
-        flags = flags,
-        tlsFlags = tlsFlags,
-        tlsMinVersion = tlsMinVersion,
-        tlsMaxVersion = tlsMaxVersion)
-    else:
-      HttpServer.create(
-        address = address,
-        flags = flags)
+  tlsMaxVersion = TLSVersion.TLS12
+): HttpServer {.raises: [].} =
+  let server = createServerNoStart(
+    address = address,
+    tlsPrivateKey = tlsPrivateKey,
+    tlsCertificate = tlsCertificate,
+    flags = flags,
+    tlsFlags = tlsFlags,
+    tlsMinVersion = tlsMinVersion,
+    tlsMaxVersion = tlsMaxVersion
+  )
 
+  try:
     when defined accepts:
       proc accepts() {.async: (raises: []).} =
         try:
