@@ -26,7 +26,7 @@ requires "zlib"
 
 task test, "run tests":
   let nimFlags = getEnv("NIMFLAGS") &
-    " --verbosity:0 --styleCheck:usages --styleCheck:error"
+    " --verbosity:0 --styleCheck:usages --styleCheck:error --mm:refc"
 
   # dont't need to run it, only want to test if it is compileable
   exec "nim c -c " & nimFlags & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json ./tests/all_tests"
