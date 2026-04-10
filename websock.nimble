@@ -24,24 +24,27 @@ requires "bearssl"
 requires "results"
 requires "zlib"
 
+proc build(params: string) =
+  let cmdPrefix = "nim c " & getEnv("NIMFLAGS") &
+    " --verbosity:0 --styleCheck:usages --styleCheck:error --mm:"
+  exec cmdPrefix & "orc " & params
+  exec cmdPrefix & "refc " & params
+
 task test, "run tests":
-  let nimFlags = getEnv("NIMFLAGS") &
-    " --verbosity:0 --styleCheck:usages --styleCheck:error --mm:refc"
-
   # dont't need to run it, only want to test if it is compileable
-  exec "nim c -c " & nimFlags & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json ./tests/all_tests"
+  build "-c -d:chronicles_log_level=TRACE -d:chronicles_sinks:json ./tests/all_tests"
 
-  exec "nim c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/all_tests.nim"
+  build "-r --opt:speed -d:chronicles_log_level=INFO ./tests/all_tests.nim"
   rmFile "./tests/all_tests"
 
-  exec "nim c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  build "-r --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim -d:secure c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  build "-d:secure -r --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim -d:accepts c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  build "-d:accepts -r --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
 
-  exec "nim -d:secure -d:accepts c -r " & nimFlags & " --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
+  build "-d:secure -d:accepts -r --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
   rmFile "./tests/testwebsockets"
