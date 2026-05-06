@@ -40,7 +40,7 @@ template used(x: typed) =
   # silence unused warning
   discard
 
-proc readHttpRequest(
+proc readHttpRequest*(
     stream: AsyncStream, headersTimeout: Duration
 ): Future[HttpRequest] {.
     async: (raises: [CancelledError, AsyncStreamError, HttpError])
@@ -129,9 +129,7 @@ proc handleConnCb(
   finally:
     await stream.closeWait()
 
-# TODO async raises not implemented for accept because it breaks libp2p (1.13.0
-#      at the time of writing)
-proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
+proc acceptStream*(server: HttpServer): Future[AsyncStream] {.async.} =
   if not isNil(server.handler):
     raise newException(
       HttpError, "Callback already registered - cannot mix callback and accepts styles!"
@@ -145,6 +143,13 @@ proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
       raise (ref HttpError)(msg: error)
 
   trace "Got new request", isTls = server.secure
+  stream
+
+# TODO async raises not implemented for accept because it breaks libp2p (1.13.0
+#      at the time of writing)
+proc accept*(server: HttpServer): Future[HttpRequest] {.async.} =
+  let stream = await server.acceptStream()
+
   try:
     await stream.readHttpRequest(server.headersTimeout)
   except CancelledError as exc:
