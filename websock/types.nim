@@ -54,6 +54,11 @@ type
 
   MaskKey* = array[4, byte]
   WebSecKey* = array[16, byte]
+  RandomBytesProc* = proc(dst: var openArray[byte]): bool {.
+    closure, gcsafe, raises: []
+  .}
+  WebSocketRng* = ref object
+    randomBytes: RandomBytesProc
 
   Frame* = ref object
     fin*: bool                 ## Indicates that this is the final fragment in a message.
@@ -88,7 +93,7 @@ type
     masked*: bool             # send masked packets
     binary*: bool             # is payload binary?
     flags*: set[TLSFlags]
-    rng*: ref HmacDrbgContext
+    rng*: WebSocketRng
     frameSize*: int           # max frame buffer size
     onPing*: ControlCb
     onPong*: ControlCb
@@ -167,6 +172,7 @@ type
   WSInvalidUTF8* = object of WebSocketError
   WSExtError* = object of WebSocketError
   WSHookError* = object of WebSocketError
+  WSRngError* = object of WebSocketError
 
 const
   StatusNotUsed* = (StatusCodes(0)..StatusCodes(999))
@@ -219,6 +225,38 @@ method encode*(
 
 method toHttpOptions*(self: Ext): string {.base, gcsafe.} =
   raiseAssert "Not implemented!"
+
+proc newWebSocketRng*(randomBytes: RandomBytesProc): WebSocketRng =
+  ## Create a WebSocket RNG from a random-bytes callback.
+  ##
+  ## The callback must fill the entire destination buffer and return `true` on
+  ## success.
+  doAssert not randomBytes.isNil, "randomBytes cannot be null"
+  WebSocketRng(randomBytes: randomBytes)
+
+proc generate*(rng: WebSocketRng, dst: var openArray[byte]): bool =
+  doAssert not rng.isNil, "rng cannot be null"
+  rng.randomBytes(dst)
+
+proc bearSslRng*(rng: ref HmacDrbgContext): WebSocketRng =
+  ## Wrap an existing BearSSL HMAC-DRBG context.
+  doAssert not rng.isNil, "rng cannot be null"
+  newWebSocketRng(
+    proc(dst: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
+      if dst.len > 0:
+        hmacDrbgGenerate(rng[], addr dst[0], uint dst.len)
+      true
+  )
+
+proc newWebSocketRng*(): WebSocketRng =
+  ## Create the default WebSocket RNG using BearSSL
+  bearSslRng(HmacDrbgContext.new())
+
+proc random*(
+    T: typedesc[MaskKey | WebSecKey], rng: WebSocketRng
+): T {.raises: [WebSocketError].} =
+  if not rng.generate(result):
+    raise newException(WSRngError, "Failed to generate WebSocket random bytes")
 
 func random*(T: typedesc[MaskKey | WebSecKey], rng: var HmacDrbgContext): T =
   rng.generate(result)

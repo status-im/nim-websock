@@ -19,6 +19,17 @@ import ./helpers
 
 let address = initTAddress("127.0.0.1:8888")
 
+suite "Test RNG":
+  test "custom random-bytes callback":
+    let rng = newWebSocketRng(
+      proc(dst: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
+        for i in 0 ..< dst.len:
+          dst[i] = byte(i + 1)
+        true
+    )
+
+    check MaskKey.random(rng) == [byte 1, 2, 3, 4]
+
 suite "Test handshake":
   setup:
     var
@@ -730,7 +741,7 @@ suite "Test Closing":
 
 suite "Test Payload":
   setup:
-    let rng {.used.} = HmacDrbgContext.new()
+    let rng {.used.} = newWebSocketRng()
     var
       server: HttpServer
 
@@ -834,7 +845,7 @@ suite "Test Payload":
       address = initTAddress("127.0.0.1:8888"),
       frameSize = maxFrameSize)
 
-    let maskKey = MaskKey.random(rng[])
+    let maskKey = MaskKey.random(rng)
     await session.stream.writer.write(
       (await Frame(
         fin: false,
@@ -894,7 +905,7 @@ suite "Test Payload":
         pong = true
     )
 
-    let maskKey = MaskKey.random(rng[])
+    let maskKey = MaskKey.random(rng)
     await session.stream.writer.write(
       (await Frame(
         fin: false,

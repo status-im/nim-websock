@@ -103,7 +103,7 @@ proc connect*(
     onPing: ControlCb = nil,
     onPong: ControlCb = nil,
     onClose: CloseCb = nil,
-    rng = HmacDrbgContext.new(),
+    rng: WebSocketRng = newWebSocketRng(),
 ): Future[WSSession] {.
     async: (
       raises:
@@ -111,7 +111,7 @@ proc connect*(
     )
 .} =
   let
-    key = Base64Pad.encode(WebSecKey.random(rng[]))
+    key = Base64Pad.encode(WebSecKey.random(rng))
     hostname = if hostName.len > 0: hostName else: $host
 
   var
@@ -197,6 +197,46 @@ proc connect*(
 
 proc connect*(
     _: type WebSocket,
+    host: string | TransportAddress,
+    path: string,
+    hostName: string = "",
+      # override used when the hostname has been externally resolved
+    protocols: seq[string] = @[],
+    factories: seq[ExtFactory] = @[],
+    hooks: seq[Hook] = @[],
+    secure = false,
+    flags: set[TLSFlags] = {},
+    version = WSDefaultVersion,
+    frameSize = WSDefaultFrameSize,
+    onPing: ControlCb = nil,
+    onPong: ControlCb = nil,
+    onClose: CloseCb = nil,
+    rng: ref HmacDrbgContext,
+): Future[WSSession] {.
+    async: (
+      raises:
+        [CancelledError, AsyncStreamError, HttpError, TransportError, WebSocketError]
+    )
+.} =
+  await WebSocket.connect(
+    host = host,
+    path = path,
+    hostName = hostName,
+    protocols = protocols,
+    factories = factories,
+    hooks = hooks,
+    secure = secure,
+    flags = flags,
+    version = version,
+    frameSize = frameSize,
+    onPing = onPing,
+    onPong = onPong,
+    onClose = onClose,
+    rng = bearSslRng(rng),
+  )
+
+proc connect*(
+    _: type WebSocket,
     uri: Uri,
     protocols: seq[string] = @[],
     factories: seq[ExtFactory] = @[],
@@ -207,7 +247,7 @@ proc connect*(
     onPing: ControlCb = nil,
     onPong: ControlCb = nil,
     onClose: CloseCb = nil,
-    rng = HmacDrbgContext.new(),
+    rng: WebSocketRng = newWebSocketRng(),
 ): Future[WSSession] {.
     async: (
       raises:
@@ -244,6 +284,39 @@ proc connect*(
     onPong = onPong,
     onClose = onClose,
     rng = rng,
+  )
+
+proc connect*(
+    _: type WebSocket,
+    uri: Uri,
+    protocols: seq[string] = @[],
+    factories: seq[ExtFactory] = @[],
+    hooks: seq[Hook] = @[],
+    flags: set[TLSFlags] = {},
+    version = WSDefaultVersion,
+    frameSize = WSDefaultFrameSize,
+    onPing: ControlCb = nil,
+    onPong: ControlCb = nil,
+    onClose: CloseCb = nil,
+    rng: ref HmacDrbgContext,
+): Future[WSSession] {.
+    async: (
+      raises:
+        [CancelledError, AsyncStreamError, HttpError, TransportError, WebSocketError]
+    )
+.} =
+  await WebSocket.connect(
+    uri = uri,
+    protocols = protocols,
+    factories = factories,
+    hooks = hooks,
+    flags = flags,
+    version = version,
+    frameSize = frameSize,
+    onPing = onPing,
+    onPong = onPong,
+    onClose = onClose,
+    rng = bearSslRng(rng),
   )
 
 proc handleRequest*(
@@ -350,7 +423,7 @@ proc new*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng = HmacDrbgContext.new()): WSServer =
+  rng: WebSocketRng = newWebSocketRng()): WSServer =
 
   return WSServer(
     protocols: @protos,
@@ -361,3 +434,22 @@ proc new*(
     onPing: onPing,
     onPong: onPong,
     onClose: onClose)
+
+proc new*(
+  _: typedesc[WSServer],
+  protos: openArray[string] = [""],
+  factories: openArray[ExtFactory] = [],
+  frameSize = WSDefaultFrameSize,
+  onPing: ControlCb = nil,
+  onPong: ControlCb = nil,
+  onClose: CloseCb = nil,
+  rng: ref HmacDrbgContext): WSServer =
+
+  WSServer.new(
+    protos = protos,
+    factories = factories,
+    frameSize = frameSize,
+    onPing = onPing,
+    onPong = onPong,
+    onClose = onClose,
+    rng = bearSslRng(rng))
