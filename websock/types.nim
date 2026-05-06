@@ -235,7 +235,8 @@ proc newWebSocketRng*(randomBytes: RandomBytesProc): WebSocketRng =
   WebSocketRng(randomBytes: randomBytes)
 
 proc generate*(rng: WebSocketRng, dst: var openArray[byte]): bool =
-  doAssert not rng.isNil, "rng cannot be null"
+  if rng.isNil or rng.randomBytes.isNil:
+    return false
   rng.randomBytes(dst)
 
 proc bearSslRng*(rng: ref HmacDrbgContext): WebSocketRng =

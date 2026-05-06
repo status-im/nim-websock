@@ -30,6 +30,15 @@ suite "Test RNG":
 
     check MaskKey.random(rng) == [byte 1, 2, 3, 4]
 
+  test "custom random-bytes callback failure raises WSRngError":
+    let rng = newWebSocketRng(
+      proc(dst: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
+        false
+    )
+
+    expect WSRngError:
+      discard MaskKey.random(rng)
+
 suite "Test handshake":
   setup:
     var
