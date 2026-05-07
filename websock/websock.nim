@@ -103,7 +103,7 @@ proc connect*(
     onPing: ControlCb = nil,
     onPong: ControlCb = nil,
     onClose: CloseCb = nil,
-    rng: WebSocketRng = newWebSocketRng(),
+    rng: RandomBytesRng = bearSslRng(HmacDrbgContext.new()),
 ): Future[WSSession] {.
     async: (
       raises:
@@ -213,6 +213,7 @@ proc connect*(
     onClose: CloseCb = nil,
     rng: ref HmacDrbgContext,
 ): Future[WSSession] {.
+    deprecated: "use the RandomBytesRng overload",
     async: (
       raises:
         [CancelledError, AsyncStreamError, HttpError, TransportError, WebSocketError]
@@ -247,7 +248,7 @@ proc connect*(
     onPing: ControlCb = nil,
     onPong: ControlCb = nil,
     onClose: CloseCb = nil,
-    rng: WebSocketRng = newWebSocketRng(),
+    rng: RandomBytesRng = bearSslRng(HmacDrbgContext.new()),
 ): Future[WSSession] {.
     async: (
       raises:
@@ -423,7 +424,7 @@ proc new*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: WebSocketRng = newWebSocketRng()): WSServer =
+  rng: RandomBytesRng = bearSslRng(HmacDrbgContext.new())): WSServer =
 
   return WSServer(
     protocols: @protos,
@@ -443,7 +444,8 @@ proc new*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: ref HmacDrbgContext): WSServer =
+  rng: ref HmacDrbgContext): WSServer {.
+    deprecated: "use the RandomBytesRng overload".} =
 
   WSServer.new(
     protos = protos,

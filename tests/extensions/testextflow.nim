@@ -116,7 +116,7 @@ suite "Encode frame extensions flow":
       frame.opcode == Opcode.Binary
 
 suite "Decode frame extensions flow":
-  let rng = newWebSocketRng()
+  let rng = bearSslRng(HmacDrbgContext.new())
   var
     address: TransportAddress
     server: StreamServer

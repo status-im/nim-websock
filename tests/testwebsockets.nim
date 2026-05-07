@@ -21,20 +21,18 @@ let address = initTAddress("127.0.0.1:8888")
 
 suite "Test RNG":
   test "custom random-bytes callback":
-    let rng = newWebSocketRng(
+    let rng: RandomBytesRng =
       proc(dst: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
         for i in 0 ..< dst.len:
           dst[i] = byte(i + 1)
         true
-    )
 
     check MaskKey.random(rng) == [byte 1, 2, 3, 4]
 
   test "custom random-bytes callback failure raises WSRngError":
-    let rng = newWebSocketRng(
-      proc(dst: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
+    let rng: RandomBytesRng =
+      proc(_: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
         false
-    )
 
     expect WSRngError:
       discard MaskKey.random(rng)
@@ -750,7 +748,7 @@ suite "Test Closing":
 
 suite "Test Payload":
   setup:
-    let rng {.used.} = newWebSocketRng()
+    let rng {.used.} = bearSslRng(HmacDrbgContext.new())
     var
       server: HttpServer
 

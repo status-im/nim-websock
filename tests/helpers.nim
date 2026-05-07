@@ -91,7 +91,7 @@ proc connectClient*(
   onPing: ControlCb = nil,
   onPong: ControlCb = nil,
   onClose: CloseCb = nil,
-  rng: WebSocketRng = newWebSocketRng()): Future[WSSession] {.async.} =
+  rng: RandomBytesRng = bearSslRng(HmacDrbgContext.new())): Future[WSSession] {.async.} =
   let secure = when defined secure: true else: false
   return await WebSocket.connect(
     host = address,
