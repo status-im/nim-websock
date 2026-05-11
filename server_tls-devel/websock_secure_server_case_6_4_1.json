@@ -8,7 +8,7 @@
    "createWirelog": true,
    "description": "Send invalid UTF-8 text message in 3 fragments (frames).\nFirst frame payload is valid, then wait, then 2nd frame which contains the payload making the sequence invalid, then wait, then 3rd frame with rest.\nNote that PART1 and PART3 are valid UTF-8 in themselves, PART2 is a 0x110000 encoded as in the UTF-8 integer encoding scheme, but the codepoint is invalid (out of range).\n<br><br>MESSAGE PARTS:<br>\nPART1 = cebae1bdb9cf83cebcceb5<br>\nPART2 = f4908080<br>\nPART3 = 656469746564<br>\n",
    "droppedByMe": false,
-   "duration": 2003,
+   "duration": 2002,
    "expectation": "The first frame is accepted, we expect to timeout on the first wait. The 2nd frame should be rejected immediately (fail fast on UTF-8). If we timeout, we expect the connection is failed at least then, since the complete message payload is not valid UTF-8.",
    "expected": {
       "NON-STRICT": [
@@ -37,8 +37,8 @@
       "requireClean": false
    },
    "failedByMe": false,
-   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: Cfha48/D3C3HERGHuqHqQg==\r\nSec-WebSocket-Version: 13\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Mon, 11 May 2026 22:03:11 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: CG1LtPPy0tWnPUG8WAvGOzacd/E=\r\n\r\n",
+   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: L4f7W5y74YyWtiJpNVwa1A==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Mon, 11 May 2026 22:03:44 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: aibEi72mqKmpBXBkTYAKtnkl6b8=\r\n\r\n",
    "id": "6.4.1",
    "isServer": false,
    "localCloseCode": null,
@@ -63,7 +63,7 @@
    "rxOctetStats": {
       "166": 1
    },
-   "started": "2026-05-11T22:03:11.634Z",
+   "started": "2026-05-11T22:03:44.775Z",
    "trafficStats": null,
    "txFrameStats": {
       "0": 2,
@@ -93,7 +93,7 @@
          "RO",
          [
             166,
-            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204d6f6e2c203131204d617920323032362032323a30333a31 ..."
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a204d6f6e2c203131204d617920323032362032323a30333a34 ..."
          ]
       ],
       [
@@ -105,7 +105,7 @@
          1,
          false,
          0,
-         "f1556ef3",
+         "ba0b7001",
          null,
          null,
          false
@@ -114,7 +114,7 @@
          "TO",
          [
             17,
-            "018bf1556ef33fef8f4e489aed3d4d9bdb"
+            "018bba0b700174b191bc03c4f3cf06c5c5"
          ],
          false
       ],
@@ -136,7 +136,7 @@
          0,
          false,
          0,
-         "ad3a380f",
+         "4715a00d",
          null,
          null,
          false
@@ -145,7 +145,7 @@
          "TO",
          [
             10,
-            "0084ad3a380f59aab88f"
+            "00844715a00db385208d"
          ],
          false
       ],
@@ -167,7 +167,7 @@
          0,
          true,
          0,
-         "07eeab19",
+         "71b1557a",
          null,
          null,
          false
@@ -176,7 +176,7 @@
          "TO",
          [
             12,
-            "808607eeab19628ac26d628a"
+            "808671b1557a14d53c0e14d5"
          ],
          false
       ],
