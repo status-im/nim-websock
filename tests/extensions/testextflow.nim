@@ -116,11 +116,11 @@ suite "Encode frame extensions flow":
       frame.opcode == Opcode.Binary
 
 suite "Decode frame extensions flow":
-  let rng = HmacDrbgContext.new()
+  let rng = bearSslRng(HmacDrbgContext.new())
   var
     address: TransportAddress
     server: StreamServer
-    maskKey = MaskKey.random(rng[])
+    maskKey = MaskKey.random(rng)
     transport: StreamTransport
     reader: AsyncStreamReader
     frame: Frame

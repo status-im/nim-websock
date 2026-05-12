@@ -111,7 +111,7 @@ proc doSend(
 
   let maskKey =
     if ws.masked:
-      MaskKey.random(ws.rng[])
+      MaskKey.random(ws.rng)
     else:
       default(MaskKey)
 
