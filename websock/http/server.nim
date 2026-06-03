@@ -47,9 +47,8 @@ proc readHttpRequest*(
 .} =
   ## Process transport data to the HTTP server
   ##
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    let remoteAddr =
-      stream.reader.tsource.remoteAddress2().valueOr(default(TransportAddress))
+  let remoteAddr =
+    stream.reader.tsource.remoteAddress2().valueOr(default(TransportAddress))
 
   trace "Received connection", remoteAddr
 
