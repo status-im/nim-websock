@@ -20,7 +20,7 @@ requires "httputils >= 0.2.0"
 requires "chronicles >= 0.10.2"
 requires "stew >= 0.4.2"
 requires "nimcrypto"
-requires "bearssl"
+requires "bearssl#head"
 requires "results"
 requires "zlib"
 
