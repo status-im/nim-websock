@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock-secure-client - <span style="font-size: 1.3em;"><b>Case 3.4</b></span> : Pass - <span style="font-size: 0.9em;"><b>3</b> ms @ 2026-06-23T08:24:26.953Z</a></p>
+      <p class="case case_ok">websock-secure-client - <span style="font-size: 1.3em;"><b>Case 3.4</b></span> : Pass - <span style="font-size: 0.9em;"><b>4</b> ms @ 2026-08-06T07:34:39.680Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send small text message, then send again with <b>RSV = 4</b>, then send Ping. Octets are sent in octet-wise chops.</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>Echo for first message is received, but then connection is failed immediately, since RSV must be 0, when no extension defining RSV meaning has been negotiated. The Pong is not received.</p>
 
@@ -221,13 +221,13 @@ Host: 127.0.0.1:9002
 Sec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15
 Cache-Control: no-cache
 Sec-Websocket-Version: 13
-Sec-Websocket-Key: KKf0aW3ICeSyaK7WXsNjTA==</pre>
+Sec-Websocket-Key: uiwr7haGVSii+r2gKABF6A==</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
 Server: AutobahnTestSuite/25.10.1-0.10.9
 X-Powered-By: AutobahnPython/0.10.9
 Upgrade: WebSocket
 Connection: Upgrade
-Sec-WebSocket-Accept: CTPV8bHJ0ihl7266eZll/GKoNq8=</pre>
+Sec-WebSocket-Accept: pyMhzDw1sCpEp9Vd2kJiderQkYQ=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -257,9 +257,9 @@ Sec-WebSocket-Accept: CTPV8bHJ0ihl7266eZll/GKoNq8=</pre>
       <h3>Octets Transmitted by Chop Size</h3>
       <table>
          <tr class="stats_header"><td>Chop Size</td><td>Count</td><td>Octets</td></tr>
-         <tr class="stats_row"><td>1</td><td>19</td><td>19</td></tr>
+         <tr class="stats_row"><td>1</td><td>18</td><td>18</td></tr>
          <tr class="stats_row"><td>208</td><td>1</td><td>208</td></tr>
-         <tr class="stats_total"><td>Total</td><td>20</td><td>227</td></tr>
+         <tr class="stats_total"><td>Total</td><td>19</td><td>226</td></tr>
       </table>
       <h3>Frames Received by Opcode</h3>
       <table>
@@ -303,13 +303,12 @@ Sec-WebSocket-Accept: CTPV8bHJ0ihl7266eZll/GKoNq8=</pre>
          <pre class="wirelog_tx_octets_sync">019 TX OCTETS: 64</pre>
          <pre class="wirelog_tx_octets_sync">020 TX OCTETS: 21</pre>
          <pre class="wirelog_tx_octets_sync">021 TX OCTETS: c1</pre>
-         <pre class="wirelog_tx_octets_sync">022 TX OCTETS: 0d</pre>
-         <pre class="wirelog_rx_octets">023 RX OCTETS: 818d6079cfdc281ca3b00f55efab0f0ba3b841</pre>
-         <pre class="wirelog_rx_frame">024 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=13, MASKED=True, MASK=3630373963666463</pre>
+         <pre class="wirelog_rx_octets">022 RX OCTETS: 818d6b3b2d5c235e413004170d2b044941384a</pre>
+         <pre class="wirelog_rx_frame">023 RX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=13, MASKED=True, MASK=3662336232643563</pre>
          <pre class="wirelog_rx_frame">               Hello, world!</pre>
+         <pre class="wirelog_tx_octets_sync">024 TX OCTETS: 0d</pre>
          <pre class="wirelog_tx_octets_sync">025 TX OCTETS: 48</pre>
-         <pre class="wirelog_tx_octets_sync">026 TX OCTETS: 65</pre>
-         <pre class="wirelog_tcp_closed_by_peer">027 TCP DROPPED BY PEER</pre>
+         <pre class="wirelog_tcp_closed_by_peer">026 TCP DROPPED BY PEER</pre>
       </div>
       <br/><hr/>
    </body>

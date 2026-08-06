@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock secure server - <span style="font-size: 1.3em;"><b>Case 6.12.8</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-06-23T08:24:16.457Z</a></p>
+      <p class="case case_ok">websock secure server - <span style="font-size: 1.3em;"><b>Case 6.12.8</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-08-06T07:34:08.245Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send a text message with payload which is not valid UTF-8 in one fragment.<br><br>Payload: 0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbe</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>The connection is failed immediately, since the payload is not valid UTF-8.</p>
 
@@ -221,13 +221,13 @@ Upgrade: WebSocket
 Connection: Upgrade
 Pragma: no-cache
 Cache-Control: no-cache
-Sec-WebSocket-Key: M7aJ/dVS1zRUfgNyQsqhnw==
+Sec-WebSocket-Key: +4NTcoMem7vJUGXoTeyOdQ==
 Sec-WebSocket-Version: 13</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
-Date: Tue, 23 Jun 2026 08:24:16 GMT
+Date: Thu, 06 Aug 2026 07:34:08 GMT
 Connection: Upgrade
 Upgrade: websocket
-Sec-Websocket-Accept: wsAhz7iTI9KVOe68DmL0OIdJdyk=</pre>
+Sec-Websocket-Accept: g/G+WrKnW/qVPqXiqYKQaTlDs0g=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -276,13 +276,13 @@ Sec-Websocket-Accept: wsAhz7iTI9KVOe68DmL0OIdJdyk=</pre>
       <div id="wirelog">
          <pre class="wirelog_tx_octets">000 TX OCTETS: 474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32</pre>
          <pre class="wirelog_tx_octets">               352e31302e312d302e31302e390d ...</pre>
-         <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c203233204a75</pre>
-         <pre class="wirelog_rx_octets">               6e20323032362030383a32343a31 ...</pre>
-         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=63, MASK=9b7025dc, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205468752c203036204175</pre>
+         <pre class="wirelog_rx_octets">               6720323032362030373a33343a30 ...</pre>
+         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=63, MASK=02742e24, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0</pre>
          <pre class="wirelog_tx_frame">               b1b2b3b4b5b6b7b8b9babbbcbdbe ...</pre>
-         <pre class="wirelog_tx_octets">003 TX OCTETS: 81bf9b7025dc1bf1a75f1ff5a35b13f9af5717fdab530be1b74f0fe5b34b03e9bf4707edbb433bd1877f3fd5837b33d98f77</pre>
-         <pre class="wirelog_tx_octets">               37dd8b732bc1976f2fc5936b23c9 ...</pre>
+         <pre class="wirelog_tx_octets">003 TX OCTETS: 81bf02742e2482f5aca786f1a8a38afda4af8ef9a0ab92e5bcb796e1b8b39aedb4bf9ee9b0bba2d58c87a6d18883aadd848f</pre>
+         <pre class="wirelog_tx_octets">               aed9808bb2c59c97b6c19893bacd ...</pre>
          <pre class="wirelog_kill_after">004 FAIL CONNECTION AFTER 0.500000 sec</pre>
          <pre class="wirelog_tcp_closed_by_peer">005 TCP DROPPED BY PEER</pre>
       </div>
