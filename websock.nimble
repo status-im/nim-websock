@@ -8,7 +8,7 @@
 ## those terms.
 
 packageName = "websock"
-version     = "0.4.0"
+version     = "0.4.1"
 author      = "Status Research & Development GmbH"
 description = "WS protocol implementation"
 license     = "MIT"
