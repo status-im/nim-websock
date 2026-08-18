@@ -1,0 +1,104 @@
+{
+   "agent": "websock-client",
+   "behavior": "OK",
+   "behaviorClose": "UNCLEAN",
+   "case": 281,
+   "closedByMe": true,
+   "createStats": true,
+   "createWirelog": true,
+   "description": "Send text message message with payload of length 1 * 2**20 (1M). Sent out data in chops of 1024 octets.",
+   "droppedByMe": false,
+   "duration": 40,
+   "expectation": "Receive echo'ed text message (with payload as sent).",
+   "expected": {},
+   "expectedClose": {
+      "closeCode": [
+         1000
+      ],
+      "closedByMe": true,
+      "requireClean": true
+   },
+   "failedByMe": false,
+   "httpRequest": "GET /runCase?case=281&agent=websock-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9001\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: e1oK3WSsb6X38xOi7vaDxQ==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: D1uULIc/PCiHGdOgl9MIbIrpZJs=\r\n\r\n",
+   "id": "9.5.5",
+   "isServer": true,
+   "localCloseCode": 1000,
+   "localCloseReason": null,
+   "received": [],
+   "remoteCloseCode": null,
+   "remoteCloseReason": null,
+   "reportCompressionRatio": false,
+   "reportTime": true,
+   "result": "Received text message of length 1048576.",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
+   "rxFrameStats": {
+      "1": 1
+   },
+   "rxOctetStats": {
+      "288": 1,
+      "29696": 10,
+      "30734": 1,
+      "65536": 11
+   },
+   "started": "2026-08-18T10:22:35.061Z",
+   "trafficStats": null,
+   "txFrameStats": {
+      "1": 1,
+      "8": 1
+   },
+   "txOctetStats": {
+      "4": 1,
+      "10": 1,
+      "208": 1,
+      "1024": 1024
+   },
+   "wasClean": false,
+   "wasCloseHandshakeTimeout": false,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
+   "wasOpenHandshakeTimeout": false,
+   "wasServerConnectionDropTimeout": false,
+   "wirelog": [
+      [
+         "RO",
+         [
+            288,
+            "474554202f72756e436173653f636173653d323831266167656e743d776562736f636b2d636c69656e7420485454502f312e310d0a436f6e6e656374696f6e3a ..."
+         ]
+      ],
+      [
+         "TO",
+         [
+            208,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a5365727665723a204175746f6261686e5465737453756974652f32352e31 ..."
+         ],
+         false
+      ],
+      [
+         "TI",
+         1000
+      ],
+      [
+         "TF",
+         [
+            2,
+            "0x03e8"
+         ],
+         8,
+         true,
+         0,
+         null,
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            4,
+            "880203e8"
+         ],
+         false
+      ]
+   ]
+}
