@@ -17,7 +17,6 @@ jobs:
   build:
     uses: status-im/nimbus-common-workflow/.github/workflows/common.yml@main
     with:
-      nim-versions: '["version-2-0", "version-2-2", "devel"]'
       test-command: |
         nim --version
         nimble --version
@@ -34,7 +33,7 @@ jobs:
       max-parallel: 20
       matrix:
         websock: [ws, wsc, wss, wssc]
-        branch: [version-2-0, version-2-2, devel]
+        branch: [version-2-0, version-2-2, version-2-4, devel]
 
     defaults:
       run:
@@ -42,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Get latest nimbus-build-system commit hash
         id: versions
@@ -51,7 +50,7 @@ jobs:
           echo "nimbus_build_system=$nbsHash" >> $GITHUB_OUTPUT
 
       - name: Restore prebuilt Nim from cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: NimBinCache
           key: 'nim-${{ matrix.branch }}-${{ steps.versions.outputs.nimbus_build_system }}'
@@ -72,7 +71,7 @@ jobs:
 
       - name: Cache Docker image
         id: cache-docker-image
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: /var/lib/docker # Or the specific path where your image is stored
           key: ${{ runner.os }}-docker-image-${{ steps.cache_key.outputs.cache_key }}
@@ -136,7 +135,7 @@ jobs:
           path: ./autobahn_reports
 
       - name: Setup Python version
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: pypy-3.10
 
