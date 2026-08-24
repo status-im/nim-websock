@@ -8,21 +8,21 @@
 ## those terms.
 
 packageName = "websock"
-version     = "0.4.1"
+version     = "0.4.2"
 author      = "Status Research & Development GmbH"
 description = "WS protocol implementation"
 license     = "MIT"
 skipDirs    = @["examples", "tests"]
 
 requires "nim >= 2.0.16"
-requires "chronos >= 4.2.0 & < 4.6.0"
-requires "httputils >= 0.2.0"
-requires "chronicles >= 0.10.2"
-requires "stew >= 0.4.2"
-requires "nimcrypto"
-requires "bearssl"
-requires "results"
-requires "zlib"
+requires "bearssl >= 0.2.13"
+requires "chronicles >= 0.12.4"
+requires "chronos >= 4.4.0 & < 4.6.0"
+requires "httputils >= 0.5.1"
+requires "nimcrypto >= 0.7.0"
+requires "results >= 0.5.0"
+requires "stew >= 0.5.2"
+requires "zlib >= 0.2.0"
 
 proc build(params: string) =
   let cmdPrefix = "nim c " & getEnv("NIMFLAGS") &
