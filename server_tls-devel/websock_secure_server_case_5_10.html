@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock secure server - <span style="font-size: 1.3em;"><b>Case 5.10</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-08-18T10:22:03.609Z</a></p>
+      <p class="case case_ok">websock secure server - <span style="font-size: 1.3em;"><b>Case 5.10</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-08-25T04:39:24.182Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send unfragmented Text Message after Continuation Frame with FIN = true, where there is nothing to continue, sent in per-frame chops.</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>The connection is failed immediately, since there is no message to continue.</p>
 
@@ -221,13 +221,13 @@ Upgrade: WebSocket
 Connection: Upgrade
 Pragma: no-cache
 Cache-Control: no-cache
-Sec-WebSocket-Key: t7hlWprdlCNDsGlrrQPG9g==
+Sec-WebSocket-Key: PfLrKnJqveNgQjNehjNnZA==
 Sec-WebSocket-Version: 13</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
-Date: Tue, 18 Aug 2026 10:22:03 GMT
+Date: Tue, 25 Aug 2026 04:39:24 GMT
 Connection: Upgrade
 Upgrade: websocket
-Sec-Websocket-Accept: FkYgVMgby709BlER6ePsYby1PbA=</pre>
+Sec-Websocket-Accept: bIIB+/8OJe4fDdnLFNo/zqsNbVw=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -278,15 +278,15 @@ Sec-Websocket-Accept: FkYgVMgby709BlER6ePsYby1PbA=</pre>
       <div id="wirelog">
          <pre class="wirelog_tx_octets">000 TX OCTETS: 474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32</pre>
          <pre class="wirelog_tx_octets">               352e31302e312d302e31302e390d ...</pre>
-         <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c203138204175</pre>
-         <pre class="wirelog_rx_octets">               6720323032362031303a32323a30 ...</pre>
-         <pre class="wirelog_tx_frame_sync">002 TX FRAME : OPCODE=0, FIN=True, RSV=0, PAYLOAD-LEN=24, MASK=6e59dfdc, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=True</pre>
+         <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c203235204175</pre>
+         <pre class="wirelog_rx_octets">               6720323032362030343a33393a32 ...</pre>
+         <pre class="wirelog_tx_frame_sync">002 TX FRAME : OPCODE=0, FIN=True, RSV=0, PAYLOAD-LEN=24, MASK=e685042e, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=True</pre>
          <pre class="wirelog_tx_frame_sync">               non-continuation payload</pre>
-         <pre class="wirelog_tx_octets_sync">003 TX OCTETS: 80986e59dfdc0036b1f10d36b1a80737aabd1a30b0b24e29bea50236beb8</pre>
-         <pre class="wirelog_tx_frame_sync">004 TX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=13, MASK=5bd80bb5, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=True</pre>
+         <pre class="wirelog_tx_octets_sync">003 TX OCTETS: 8098e685042e88ea6a0385ea6a5a8feb714f92ec6b40c6f565578aea654a</pre>
+         <pre class="wirelog_tx_frame_sync">004 TX FRAME : OPCODE=1, FIN=True, RSV=0, PAYLOAD-LEN=13, MASK=01ddd0ac, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=True</pre>
          <pre class="wirelog_tx_frame_sync">               Hello, world!</pre>
          <pre class="wirelog_kill_after">005 FAIL CONNECTION AFTER 1.000000 sec</pre>
-         <pre class="wirelog_tx_octets_sync">006 TX OCTETS: 818d5bd80bb513bd67d934f42bc234aa67d17a</pre>
+         <pre class="wirelog_tx_octets_sync">006 TX OCTETS: 818d01ddd0ac49b8bcc06ef1f0db6eafbcc820</pre>
          <pre class="wirelog_tcp_closed_by_peer">007 TCP DROPPED BY PEER</pre>
       </div>
       <br/><hr/>
