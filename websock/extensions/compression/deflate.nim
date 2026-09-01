@@ -1,5 +1,5 @@
 ## nim-websock
-## Copyright (c) 2021 Status Research & Development GmbH
+## Copyright (c) 2021-2026 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,7 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[strutils], results, chronos, chronicles, zlib, ../../[frame, types]
+{.push raises: [], gcsafe.}
+
+import std/strutils, results, chronos, chronicles, zlib, ../../[frame, types]
 
 logScope:
   topics = "websock deflate"
@@ -69,14 +71,14 @@ proc destroyExt(ext: DeflateExt) {.nimcall.} =
     ext.decompCtxState = ContextState.Invalid
 
 # Need to be declared early and not be generic to work with ARC/ORC
-proc newDeflateExt: DeflateExt =
+func newDeflateExt: DeflateExt =
   result.new(destroyExt)
 
-proc concatParam(resp: var string, param: string) =
+func concatParam(resp: var string, param: string) =
   resp.add "; "
   resp.add param
 
-proc validateWindowBits(arg: ExtParam, res: var int): Result[string, string] =
+func validateWindowBits(arg: ExtParam, res: var int): Result[string, string] =
   if arg.value.len == 0:
     return ok("")
 
@@ -97,7 +99,7 @@ proc validateWindowBits(arg: ExtParam, res: var int): Result[string, string] =
   res = winbit
   return ok("=" & arg.value)
 
-proc createParams(args: seq[ExtParam],
+func createParams(args: seq[ExtParam],
                     opts: var DeflateOpts): Result[string, string] =
   # besides validating extensions params, this proc
   # also constructing extension params for response
@@ -144,7 +146,7 @@ proc createParams(args: seq[ExtParam],
   ok(resp)
 
 {.warning[HoleEnumConv]:off.}
-proc getWindowBits(opts: DeflateOpts, isServer: bool): ZWindowBits =
+func getWindowBits(opts: DeflateOpts, isServer: bool): ZWindowBits =
   if isServer:
     if opts.serverMaxWindowBits == 0:
       Z_RAW_DEFLATE
@@ -158,7 +160,7 @@ proc getWindowBits(opts: DeflateOpts, isServer: bool): ZWindowBits =
 
 {.warning[HoleEnumConv]:on.}
 
-proc getContextTakeover(opts: DeflateOpts, isServer: bool): bool =
+func getContextTakeover(opts: DeflateOpts, isServer: bool): bool =
   if isServer:
     opts.serverNoContextTakeOver
   else:
@@ -184,10 +186,10 @@ proc compressInit(ext: DeflateExt) =
   )
   ext.compCtxState = ContextState.Initialized
 
-proc compress(zs: var ZStream, data: openArray[byte]): seq[byte] =
+proc compress(zs: var ZStream, data: openArray[byte]): seq[byte] {.raises: [WSExtError].} =
   # these casting is needed to prevent compilation
   # error with CLANG
-  zs.next_in   = cast[ptr uint8](data[0].unsafeAddr)
+  zs.next_in   = cast[ptr uint8](data[0].addr)
   zs.avail_in  = data.len.cuint
 
   result = newSeqUninit[byte](deflateBound(zs, data.len.culong).int + 10)
@@ -213,10 +215,10 @@ proc compress(zs: var ZStream, data: openArray[byte]): seq[byte] =
       raise newException(WSExtError, "compression error " & $r)
   result.setLen(added)
 
-proc decompress(zs: var ZStream, limit: int, data: openArray[byte]): seq[byte] =
+proc decompress(zs: var ZStream, limit: int, data: openArray[byte]): seq[byte] {.raises: [WSExtError].} =
   # these casting is needed to prevent compilation
   # error with CLANG
-  zs.next_in   = cast[ptr uint8](data[0].unsafeAddr)
+  zs.next_in   = cast[ptr uint8](data[0].addr)
   zs.avail_in  = data.len.cuint
 
   result = newSeqUninit[byte](min(max(data.len * 2, 65636), limit))
@@ -357,7 +359,7 @@ method toHttpOptions(ext: DeflateExt): string =
   # using paramStr here is a bit clunky
   extID & ext.paramStr
 
-proc makeOffer(
+func makeOffer(
   clientNoContextTakeOver: bool,
   clientMaxWindowBits: int): string =
 
@@ -372,7 +374,7 @@ proc makeOffer(
 
   param
 
-proc deflateFactory*(
+func deflateFactory*(
   threshold = ExtDeflateThreshold,
   decompressLimit = ExtDeflateDecompressLimit,
   level = Z_DEFAULT_LEVEL,
@@ -381,7 +383,7 @@ proc deflateFactory*(
   clientNoContextTakeOver = false,
   clientMaxWindowBits = 15): ExtFactory =
 
-  proc factory(isServer: bool,
+  func factory(isServer: bool,
        args: seq[ExtParam]): Result[Ext, string] {.
        gcsafe, raises: [].} =
 
