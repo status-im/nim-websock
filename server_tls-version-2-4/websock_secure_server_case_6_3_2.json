@@ -1,0 +1,541 @@
+{
+   "agent": "websock secure server",
+   "behavior": "OK",
+   "behaviorClose": "OK",
+   "case": 73,
+   "closedByMe": false,
+   "createStats": true,
+   "createWirelog": true,
+   "description": "Send invalid UTF-8 text message in fragments of 1 octet, resulting in frames ending on positions which are not code point ends.<br><br>MESSAGE:<br>cebae1bdb9cf83cebcceb5eda080656469746564",
+   "droppedByMe": false,
+   "duration": 2,
+   "expectation": "The connection is failed immediately, since the payload is not valid UTF-8.",
+   "expected": {
+      "OK": []
+   },
+   "expectedClose": {
+      "closeCode": [
+         1007
+      ],
+      "closedByMe": false,
+      "closedByWrongEndpointIsFatal": true,
+      "requireClean": false
+   },
+   "failedByMe": false,
+   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: 3BgYmpF4XMbPC6uw83myWw==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Tue, 25 Aug 2026 09:31:50 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: ue4OyqJJnHVBrkGdGQ2iHtHOpAg=\r\n\r\n",
+   "id": "6.3.2",
+   "isServer": false,
+   "localCloseCode": null,
+   "localCloseReason": null,
+   "received": [],
+   "remoteCloseCode": null,
+   "remoteCloseReason": null,
+   "reportCompressionRatio": false,
+   "reportTime": false,
+   "result": "Actual events match at least one expected.",
+   "resultClose": "Connection was properly closed",
+   "rxFrameStats": {},
+   "rxOctetStats": {
+      "166": 1
+   },
+   "started": "2026-08-25T09:31:50.861Z",
+   "trafficStats": null,
+   "txFrameStats": {
+      "0": 20,
+      "1": 1
+   },
+   "txOctetStats": {
+      "6": 1,
+      "7": 20,
+      "245": 1
+   },
+   "wasClean": false,
+   "wasCloseHandshakeTimeout": false,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
+   "wasOpenHandshakeTimeout": false,
+   "wasServerConnectionDropTimeout": false,
+   "wirelog": [
+      [
+         "TO",
+         [
+            245,
+            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d ..."
+         ],
+         false
+      ],
+      [
+         "RO",
+         [
+            166,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c2032352041756720323032362030393a33313a35 ..."
+         ]
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xce"
+         ],
+         1,
+         false,
+         0,
+         "bf2fcc0b",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0181bf2fcc0b71"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xba"
+         ],
+         0,
+         false,
+         0,
+         "474ce278",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081474ce278fd"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xe1"
+         ],
+         0,
+         false,
+         0,
+         "e1c310c6",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081e1c310c600"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xbd"
+         ],
+         0,
+         false,
+         0,
+         "b4d3d009",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081b4d3d00909"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xb9"
+         ],
+         0,
+         false,
+         0,
+         "946924af",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081946924af2d"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xcf"
+         ],
+         0,
+         false,
+         0,
+         "a2e3688f",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081a2e3688f6d"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0x83"
+         ],
+         0,
+         false,
+         0,
+         "8a1b4ab2",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "00818a1b4ab209"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xce"
+         ],
+         0,
+         false,
+         0,
+         "5306a4d5",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "00815306a4d59d"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xbc"
+         ],
+         0,
+         false,
+         0,
+         "ca455029",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081ca45502976"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xce"
+         ],
+         0,
+         false,
+         0,
+         "e6be6fe4",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081e6be6fe428"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xb5"
+         ],
+         0,
+         false,
+         0,
+         "990c4dea",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081990c4dea2c"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xed"
+         ],
+         0,
+         false,
+         0,
+         "f6be3733",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081f6be37331b"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0xa0"
+         ],
+         0,
+         false,
+         0,
+         "29e092e7",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "008129e092e789"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "0x80"
+         ],
+         0,
+         false,
+         0,
+         "f4fa5752",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081f4fa575274"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "e"
+         ],
+         0,
+         false,
+         0,
+         "584d0848",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "0081584d08483d"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "d"
+         ],
+         0,
+         false,
+         0,
+         "62a6b429",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "008162a6b42906"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "i"
+         ],
+         0,
+         false,
+         0,
+         "8c375da8",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "00818c375da8e5"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "t"
+         ],
+         0,
+         false,
+         0,
+         "5505b1f4",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "00815505b1f421"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "e"
+         ],
+         0,
+         false,
+         0,
+         "4270627e",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "00814270627e27"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            1,
+            "d"
+         ],
+         0,
+         false,
+         0,
+         "66ce1cff",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            7,
+            "008166ce1cff02"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            0,
+            ""
+         ],
+         0,
+         true,
+         0,
+         "b4452bba",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            6,
+            "8080b4452bba"
+         ],
+         false
+      ],
+      [
+         "KL",
+         1
+      ]
+   ]
+}

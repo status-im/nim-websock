@@ -1,0 +1,99 @@
+{
+   "agent": "websock server",
+   "behavior": "OK",
+   "behaviorClose": "OK",
+   "case": 119,
+   "closedByMe": false,
+   "createStats": true,
+   "createWirelog": true,
+   "description": "Send a text message with payload which is not valid UTF-8 in one fragment.<br><br>Payload: 0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbe",
+   "droppedByMe": false,
+   "duration": 1,
+   "expectation": "The connection is failed immediately, since the payload is not valid UTF-8.",
+   "expected": {
+      "OK": []
+   },
+   "expectedClose": {
+      "closeCode": [
+         1007
+      ],
+      "closedByMe": false,
+      "closedByWrongEndpointIsFatal": true,
+      "requireClean": false
+   },
+   "failedByMe": false,
+   "httpRequest": "GET /ws HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8888\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: LdMrBmKsHLaRTvhOmEQjkw==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Tue, 25 Aug 2026 09:32:04 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: hZcNrN+FcnGjkVpqJ9MBrZ0SgVQ=\r\n\r\n",
+   "id": "6.12.8",
+   "isServer": false,
+   "localCloseCode": null,
+   "localCloseReason": null,
+   "received": [],
+   "remoteCloseCode": null,
+   "remoteCloseReason": null,
+   "reportCompressionRatio": false,
+   "reportTime": false,
+   "result": "Actual events match at least one expected.",
+   "resultClose": "Connection was properly closed",
+   "rxFrameStats": {},
+   "rxOctetStats": {
+      "166": 1
+   },
+   "started": "2026-08-25T09:32:04.466Z",
+   "trafficStats": null,
+   "txFrameStats": {
+      "1": 1
+   },
+   "txOctetStats": {
+      "69": 1,
+      "244": 1
+   },
+   "wasClean": false,
+   "wasCloseHandshakeTimeout": false,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
+   "wasOpenHandshakeTimeout": false,
+   "wasServerConnectionDropTimeout": false,
+   "wirelog": [
+      [
+         "TO",
+         [
+            244,
+            "474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d0a ..."
+         ],
+         false
+      ],
+      [
+         "RO",
+         [
+            166,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c2032352041756720323032362030393a33323a30 ..."
+         ]
+      ],
+      [
+         "TF",
+         [
+            63,
+            "0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbe ..."
+         ],
+         1,
+         true,
+         0,
+         "bd0e69af",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            69,
+            "81bfbd0e69af3d8feb2c398bef283587e3243183e7202d9ffb3c299bff382597f3342193f7301dafcb0c19abcf0815a7c30411a3c7000dbfdb1c09bbdf1805b7 ..."
+         ],
+         false
+      ],
+      [
+         "KL",
+         0.5
+      ]
+   ]
+}

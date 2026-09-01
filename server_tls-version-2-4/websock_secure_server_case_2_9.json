@@ -1,0 +1,178 @@
+{
+   "agent": "websock secure server",
+   "behavior": "OK",
+   "behaviorClose": "UNCLEAN",
+   "case": 25,
+   "closedByMe": true,
+   "createStats": true,
+   "createWirelog": true,
+   "description": "Send unsolicited pong with payload. Send ping with payload. Verify pong for ping is received.",
+   "droppedByMe": false,
+   "duration": 1,
+   "expectation": "Nothing in reply to own Pong, but Pong with payload echo'ed in reply to Ping. Clean close with normal code.",
+   "expected": {
+      "OK": [
+         [
+            "pong",
+            "ping payload"
+         ]
+      ]
+   },
+   "expectedClose": {
+      "closeCode": [
+         1000
+      ],
+      "closedByMe": true,
+      "requireClean": true
+   },
+   "failedByMe": false,
+   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: 094pVY18zKqqCzavJ9tFfg==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Tue, 25 Aug 2026 09:31:48 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: i/7zJxCeLXW5rBaZNlnhQgxxl2s=\r\n\r\n",
+   "id": "2.9",
+   "isServer": false,
+   "localCloseCode": 1000,
+   "localCloseReason": null,
+   "received": [
+      [
+         "pong",
+         "ping payload"
+      ]
+   ],
+   "remoteCloseCode": null,
+   "remoteCloseReason": null,
+   "reportCompressionRatio": false,
+   "reportTime": false,
+   "result": "Actual events match at least one expected.",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
+   "rxFrameStats": {
+      "10": 1
+   },
+   "rxOctetStats": {
+      "14": 1,
+      "166": 1
+   },
+   "started": "2026-08-25T09:31:48.481Z",
+   "trafficStats": null,
+   "txFrameStats": {
+      "8": 1,
+      "9": 1,
+      "10": 1
+   },
+   "txOctetStats": {
+      "8": 1,
+      "18": 1,
+      "30": 1,
+      "245": 1
+   },
+   "wasClean": false,
+   "wasCloseHandshakeTimeout": false,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
+   "wasOpenHandshakeTimeout": false,
+   "wasServerConnectionDropTimeout": false,
+   "wirelog": [
+      [
+         "TO",
+         [
+            245,
+            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d ..."
+         ],
+         false
+      ],
+      [
+         "RO",
+         [
+            166,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c2032352041756720323032362030393a33313a34 ..."
+         ]
+      ],
+      [
+         "TF",
+         [
+            24,
+            "unsolicited pong payload"
+         ],
+         10,
+         true,
+         0,
+         "4fa38380",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            30,
+            "8a984fa383803acdf0ef23cae0e93bc6e7a03fccede76fd3e2f923cce2e4"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            12,
+            "ping payload"
+         ],
+         9,
+         true,
+         0,
+         "bf850218",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            18,
+            "898cbf850218cfec6c7f9ff56361d3ea637c"
+         ],
+         false
+      ],
+      [
+         "TI",
+         1
+      ],
+      [
+         "RO",
+         [
+            14,
+            "8a0c70696e67207061796c6f6164"
+         ]
+      ],
+      [
+         "RF",
+         [
+            12,
+            "ping payload"
+         ],
+         10,
+         true,
+         0,
+         false,
+         null
+      ],
+      [
+         "TF",
+         [
+            2,
+            "0x03e8"
+         ],
+         8,
+         true,
+         0,
+         "6b00e38f",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            8,
+            "88826b00e38f68e8"
+         ],
+         false
+      ]
+   ]
+}

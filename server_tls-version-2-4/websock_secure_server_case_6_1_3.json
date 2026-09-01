@@ -1,0 +1,202 @@
+{
+   "agent": "websock secure server",
+   "behavior": "OK",
+   "behaviorClose": "UNCLEAN",
+   "case": 67,
+   "closedByMe": true,
+   "createStats": true,
+   "createWirelog": true,
+   "description": "Send fragmented text message, 3 fragments, first and last of length 0, middle non-empty.",
+   "droppedByMe": false,
+   "duration": 2,
+   "expectation": "A message is echo'ed back to us (with payload = payload of middle fragment).",
+   "expected": {
+      "OK": [
+         [
+            "message",
+            "middle frame payload",
+            false
+         ]
+      ]
+   },
+   "expectedClose": {
+      "closeCode": [
+         1000
+      ],
+      "closedByMe": true,
+      "requireClean": true
+   },
+   "failedByMe": false,
+   "httpRequest": "GET /wss HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8889\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: dEJmGtZUFkw8cLbsqMberQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Tue, 25 Aug 2026 09:31:50 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: WxNM96wAj1iWNbJQgG4w0rJTSfk=\r\n\r\n",
+   "id": "6.1.3",
+   "isServer": false,
+   "localCloseCode": 1000,
+   "localCloseReason": null,
+   "received": [
+      [
+         "message",
+         "middle frame payload",
+         false
+      ]
+   ],
+   "remoteCloseCode": null,
+   "remoteCloseReason": null,
+   "reportCompressionRatio": false,
+   "reportTime": false,
+   "result": "Actual events match at least one expected.",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
+   "rxFrameStats": {
+      "1": 1
+   },
+   "rxOctetStats": {
+      "22": 1,
+      "166": 1
+   },
+   "started": "2026-08-25T09:31:50.819Z",
+   "trafficStats": null,
+   "txFrameStats": {
+      "0": 2,
+      "1": 1,
+      "8": 1
+   },
+   "txOctetStats": {
+      "6": 2,
+      "8": 1,
+      "26": 1,
+      "245": 1
+   },
+   "wasClean": false,
+   "wasCloseHandshakeTimeout": false,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
+   "wasOpenHandshakeTimeout": false,
+   "wasServerConnectionDropTimeout": false,
+   "wirelog": [
+      [
+         "TO",
+         [
+            245,
+            "474554202f77737320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d ..."
+         ],
+         false
+      ],
+      [
+         "RO",
+         [
+            166,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c2032352041756720323032362030393a33313a35 ..."
+         ]
+      ],
+      [
+         "TF",
+         [
+            0,
+            ""
+         ],
+         1,
+         false,
+         0,
+         "602b5422",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            6,
+            "0180602b5422"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            20,
+            "middle frame payload"
+         ],
+         0,
+         false,
+         0,
+         "777d5cad",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            26,
+            "0094777d5cad1a1438c91b187ccb051c31c8570d3dd41b123dc9"
+         ],
+         false
+      ],
+      [
+         "TF",
+         [
+            0,
+            ""
+         ],
+         0,
+         true,
+         0,
+         "2fc7836b",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            6,
+            "80802fc7836b"
+         ],
+         false
+      ],
+      [
+         "TI",
+         1
+      ],
+      [
+         "RO",
+         [
+            22,
+            "81146d6964646c65206672616d65207061796c6f6164"
+         ]
+      ],
+      [
+         "RF",
+         [
+            20,
+            "middle frame payload"
+         ],
+         1,
+         true,
+         0,
+         false,
+         null
+      ],
+      [
+         "TF",
+         [
+            2,
+            "0x03e8"
+         ],
+         8,
+         true,
+         0,
+         "280d85e2",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            8,
+            "8882280d85e22be5"
+         ],
+         false
+      ]
+   ]
+}

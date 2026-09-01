@@ -202,7 +202,7 @@ pre.wirelog_tcp_closed_by_peer {color: #fff; margin: 0; background-color: #000; 
       <center><a href="https://autobahn-testsuite.readthedocs.io/" title="Autobahn WebSocket Testsuite"><img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report.png"          border="0" width="820" height="46" alt="Autobahn WebSocket Testsuite Report"></img></a></center>
       <center><a href="https://autobahn-testsuite.readthedocs.io/"           title="Autobahn WebSocket">          <img src="https://autobahn-testsuite.readthedocs.io/en/latest/_static/img/ws_protocol_test_report_autobahn.png" border="0" width="300" height="68" alt="Autobahn WebSocket">                 </img></a></center>
       <br/>
-      <p class="case case_ok">websock server - <span style="font-size: 1.3em;"><b>Case 5.2</b></span> : Pass - <span style="font-size: 0.9em;"><b>0</b> ms @ 2026-08-25T04:35:32.303Z</a></p>
+      <p class="case case_ok">websock server - <span style="font-size: 1.3em;"><b>Case 5.2</b></span> : Pass - <span style="font-size: 0.9em;"><b>1</b> ms @ 2026-08-25T09:29:29.234Z</a></p>
       <p class="case_text_block case_desc"><b>Case Description</b><br/><br/>Send Pong fragmented into 2 fragments.</p>
       <p class="case_text_block case_expect"><b>Case Expectation</b><br/><br/>Connection is failed immediately, since control message MUST NOT be fragmented.</p>
 
@@ -221,13 +221,13 @@ Upgrade: WebSocket
 Connection: Upgrade
 Pragma: no-cache
 Cache-Control: no-cache
-Sec-WebSocket-Key: 3O1z+rFjFuCncjf4ZilAAQ==
+Sec-WebSocket-Key: PD8+czkODc0tFtekaTMk4w==
 Sec-WebSocket-Version: 13</pre>
       <pre class="http_dump">HTTP/1.1 101 Switching Protocols
-Date: Tue, 25 Aug 2026 04:35:32 GMT
+Date: Tue, 25 Aug 2026 09:29:29 GMT
 Connection: Upgrade
 Upgrade: websocket
-Sec-Websocket-Accept: BnkcymjnirV2ZeULHvkOkXxF0no=</pre>
+Sec-Websocket-Accept: F748PdQ0mLb12M5EID42AFZqyEQ=</pre>
       <br/><hr/>
       <h2>Closing Behavior</h2>
       <table>
@@ -278,13 +278,13 @@ Sec-Websocket-Accept: BnkcymjnirV2ZeULHvkOkXxF0no=</pre>
          <pre class="wirelog_tx_octets">000 TX OCTETS: 474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f3235</pre>
          <pre class="wirelog_tx_octets">               2e31302e312d302e31302e390d0a ...</pre>
          <pre class="wirelog_rx_octets">001 RX OCTETS: 485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c203235204175</pre>
-         <pre class="wirelog_rx_octets">               6720323032362030343a33353a33 ...</pre>
-         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=10, FIN=False, RSV=0, PAYLOAD-LEN=9, MASK=14e0c097, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_rx_octets">               6720323032362030393a32393a32 ...</pre>
+         <pre class="wirelog_tx_frame">002 TX FRAME : OPCODE=10, FIN=False, RSV=0, PAYLOAD-LEN=9, MASK=2d8900a5, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               fragment1</pre>
-         <pre class="wirelog_tx_octets">003 TX OCTETS: 0a8914e0c0977292a1f07985aee325</pre>
-         <pre class="wirelog_tx_frame">004 TX FRAME : OPCODE=0, FIN=True, RSV=0, PAYLOAD-LEN=9, MASK=792a8b1f, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
+         <pre class="wirelog_tx_octets">003 TX OCTETS: 0a892d8900a54bfb61c240ec6ed11c</pre>
+         <pre class="wirelog_tx_frame">004 TX FRAME : OPCODE=0, FIN=True, RSV=0, PAYLOAD-LEN=9, MASK=bb9d326c, PAYLOAD-REPEAT-LEN=None, CHOPSIZE=None, SYNC=False</pre>
          <pre class="wirelog_tx_frame">               fragment2</pre>
-         <pre class="wirelog_tx_octets">005 TX OCTETS: 8089792a8b1f1f58ea78144fe56b4b</pre>
+         <pre class="wirelog_tx_octets">005 TX OCTETS: 8089bb9d326cddef530bd6f85c1889</pre>
          <pre class="wirelog_kill_after">006 FAIL CONNECTION AFTER 1.000000 sec</pre>
          <pre class="wirelog_tcp_closed_by_peer">007 TCP DROPPED BY PEER</pre>
       </div>

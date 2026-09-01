@@ -1,0 +1,685 @@
+{
+   "agent": "websock server",
+   "behavior": "OK",
+   "behaviorClose": "UNCLEAN",
+   "case": 8,
+   "closedByMe": true,
+   "createStats": true,
+   "createWirelog": true,
+   "description": "Send text message message with payload of length 65536. Sent out data in chops of 997 octets.",
+   "droppedByMe": false,
+   "duration": 9,
+   "expectation": "Receive echo'ed text message (with payload as sent). Clean close with normal code.",
+   "expected": {
+      "OK": [
+         [
+            "message",
+            "**************************************************************** ...",
+            false
+         ]
+      ]
+   },
+   "expectedClose": {
+      "closeCode": [
+         1000
+      ],
+      "closedByMe": true,
+      "requireClean": true
+   },
+   "failedByMe": false,
+   "httpRequest": "GET /ws HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8888\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: /2b8ZbX6HoTXWJFLFQrbBQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Tue, 25 Aug 2026 09:31:54 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: vRp031nEVgpEV6oCY6DamUIZqOI=\r\n\r\n",
+   "id": "1.1.8",
+   "isServer": false,
+   "localCloseCode": 1000,
+   "localCloseReason": null,
+   "received": [
+      [
+         "message",
+         "**************************************************************** ...",
+         false
+      ]
+   ],
+   "remoteCloseCode": null,
+   "remoteCloseReason": null,
+   "reportCompressionRatio": false,
+   "reportTime": false,
+   "result": "Actual events match at least one expected.",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
+   "rxFrameStats": {
+      "1": 1
+   },
+   "rxOctetStats": {
+      "10": 1,
+      "166": 1,
+      "65536": 1
+   },
+   "started": "2026-08-25T09:31:54.066Z",
+   "trafficStats": null,
+   "txFrameStats": {
+      "1": 1,
+      "8": 1
+   },
+   "txOctetStats": {
+      "8": 1,
+      "244": 1,
+      "745": 1,
+      "997": 65
+   },
+   "wasClean": false,
+   "wasCloseHandshakeTimeout": false,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
+   "wasOpenHandshakeTimeout": false,
+   "wasServerConnectionDropTimeout": false,
+   "wirelog": [
+      [
+         "TO",
+         [
+            244,
+            "474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d0a ..."
+         ],
+         false
+      ],
+      [
+         "RO",
+         [
+            166,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c2032352041756720323032362030393a33313a35 ..."
+         ]
+      ],
+      [
+         "TF",
+         [
+            65536,
+            "**************************************************************** ..."
+         ],
+         1,
+         true,
+         0,
+         "85c1aa07",
+         null,
+         997,
+         false
+      ],
+      [
+         "TO",
+         [
+            997,
+            "81ff000000000001000085c1aa07afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "KL",
+         10
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "afeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802d ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "eb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802daf ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            997,
+            "802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb ..."
+         ],
+         true
+      ],
+      [
+         "TO",
+         [
+            745,
+            "2dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb802dafeb80 ..."
+         ],
+         true
+      ],
+      [
+         "RO",
+         [
+            65536,
+            "817f00000000000100002a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a ..."
+         ]
+      ],
+      [
+         "RO",
+         [
+            10,
+            "2a2a2a2a2a2a2a2a2a2a"
+         ]
+      ],
+      [
+         "RF",
+         [
+            65536,
+            "**************************************************************** ..."
+         ],
+         1,
+         true,
+         0,
+         false,
+         null
+      ],
+      [
+         "TF",
+         [
+            2,
+            "0x03e8"
+         ],
+         8,
+         true,
+         0,
+         "64c10f2d",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            8,
+            "888264c10f2d6729"
+         ],
+         false
+      ]
+   ]
+}

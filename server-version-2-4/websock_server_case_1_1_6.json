@@ -1,0 +1,164 @@
+{
+   "agent": "websock server",
+   "behavior": "OK",
+   "behaviorClose": "UNCLEAN",
+   "case": 6,
+   "closedByMe": true,
+   "createStats": true,
+   "createWirelog": true,
+   "description": "Send text message message with payload of length 65535.",
+   "droppedByMe": false,
+   "duration": 5,
+   "expectation": "Receive echo'ed text message (with payload as sent). Clean close with normal code.",
+   "expected": {
+      "OK": [
+         [
+            "message",
+            "**************************************************************** ...",
+            false
+         ]
+      ]
+   },
+   "expectedClose": {
+      "closeCode": [
+         1000
+      ],
+      "closedByMe": true,
+      "requireClean": true
+   },
+   "failedByMe": false,
+   "httpRequest": "GET /ws HTTP/1.1\r\nUser-Agent: AutobahnTestSuite/25.10.1-0.10.9\r\nHost: 127.0.0.1:8888\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nPragma: no-cache\r\nCache-Control: no-cache\r\nSec-WebSocket-Key: qtgmXsBYa8/bCPT6eqMKww==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nDate: Tue, 25 Aug 2026 09:31:54 GMT\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-Websocket-Accept: cYMvrPcyZFRQoHE4zLt7JoMBhgg=\r\n\r\n",
+   "id": "1.1.6",
+   "isServer": false,
+   "localCloseCode": 1000,
+   "localCloseReason": null,
+   "received": [
+      [
+         "message",
+         "**************************************************************** ...",
+         false
+      ]
+   ],
+   "remoteCloseCode": null,
+   "remoteCloseReason": null,
+   "reportCompressionRatio": false,
+   "reportTime": false,
+   "result": "Actual events match at least one expected.",
+   "resultClose": "The spec requires the connection to be failed cleanly here",
+   "rxFrameStats": {
+      "1": 1
+   },
+   "rxOctetStats": {
+      "3": 1,
+      "166": 1,
+      "65536": 1
+   },
+   "started": "2026-08-25T09:31:54.057Z",
+   "trafficStats": null,
+   "txFrameStats": {
+      "1": 1,
+      "8": 1
+   },
+   "txOctetStats": {
+      "8": 1,
+      "244": 1,
+      "65543": 1
+   },
+   "wasClean": false,
+   "wasCloseHandshakeTimeout": false,
+   "wasNotCleanReason": "peer dropped the TCP connection without previous WebSocket closing handshake",
+   "wasOpenHandshakeTimeout": false,
+   "wasServerConnectionDropTimeout": false,
+   "wirelog": [
+      [
+         "TO",
+         [
+            244,
+            "474554202f777320485454502f312e310d0a557365722d4167656e743a204175746f6261686e5465737453756974652f32352e31302e312d302e31302e390d0a ..."
+         ],
+         false
+      ],
+      [
+         "RO",
+         [
+            166,
+            "485454502f312e312031303120537769746368696e672050726f746f636f6c730d0a446174653a205475652c2032352041756720323032362030393a33313a35 ..."
+         ]
+      ],
+      [
+         "TF",
+         [
+            65535,
+            "**************************************************************** ..."
+         ],
+         1,
+         true,
+         0,
+         "2ccb5836",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            65543,
+            "81feffff2ccb583606e1721c06e1721c06e1721c06e1721c06e1721c06e1721c06e1721c06e1721c06e1721c06e1721c06e1721c06e1721c06e1721c06e1721c ..."
+         ],
+         false
+      ],
+      [
+         "KL",
+         10
+      ],
+      [
+         "RO",
+         [
+            65536,
+            "817effff2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a ..."
+         ]
+      ],
+      [
+         "RO",
+         [
+            3,
+            "2a2a2a"
+         ]
+      ],
+      [
+         "RF",
+         [
+            65535,
+            "**************************************************************** ..."
+         ],
+         1,
+         true,
+         0,
+         false,
+         null
+      ],
+      [
+         "TF",
+         [
+            2,
+            "0x03e8"
+         ],
+         8,
+         true,
+         0,
+         "e02de783",
+         null,
+         null,
+         false
+      ],
+      [
+         "TO",
+         [
+            8,
+            "8882e02de783e3c5"
+         ],
+         false
+      ]
+   ]
+}
