@@ -7,44 +7,79 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-packageName = "websock"
-version     = "0.4.2"
-author      = "Status Research & Development GmbH"
-description = "WS protocol implementation"
-license     = "MIT"
-skipDirs    = @["examples", "tests"]
+mode = ScriptMode.Verbose
 
-requires "nim >= 2.0.16"
-requires "bearssl >= 0.2.13"
-requires "chronicles >= 0.12.4"
-requires "chronos >= 4.4.0 & < 4.6.0"
-requires "httputils >= 0.5.1"
-requires "nimcrypto >= 0.7.0"
-requires "results >= 0.5.0"
-requires "stew >= 0.5.2"
-requires "zlib >= 0.2.0"
+packageName   = "websock"
+version       = "0.4.2"
+author        = "Status Research & Development GmbH"
+description   = "WS protocol implementation"
+license       = "MIT"
+skipDirs      = @["examples", "tests"]
 
-proc build(params: string) =
-  let cmdPrefix = "nim c " & getEnv("NIMFLAGS") &
-    " --verbosity:0 --styleCheck:usages --styleCheck:error --mm:"
-  exec cmdPrefix & "orc " & params
-  exec cmdPrefix & "refc " & params
+requires "nim >= 2.0.16",
+         "bearssl >= 0.2.13",
+         "chronicles >= 0.12.4",
+         "chronos >= 4.4.0 & < 4.6.0",
+         "httputils >= 0.5.1",
+         "nimcrypto >= 0.7.0",
+         "results >= 0.5.0",
+         "stew >= 0.5.2",
+         "zlib >= 0.2.0"
 
-task test, "run tests":
+let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
+let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
+let flags = getEnv("NIMFLAGS", "") # Extra flags for the compiler
+let verbose = getEnv("V", "") notin ["", "0"]
+let platform = getEnv("PLATFORM", "")
+let testArguments = [
+  "",
+  "-d:secure",
+  "-d:accepts",
+  "-d:secure -d:accepts",
+]
+
+from std/os import quoteShell
+
+let cfg =
+  " --styleCheck:usages --styleCheck:error" &
+  (if verbose: "" else: " --verbosity:0") &
+  " --skipParentCfg --skipUserCfg --outdir:build -f " &
+  quoteShell("--nimcache:build/nimcache/$projectName")
+
+proc build(args, path: string) =
+  exec nimc & " " & lang & " " & cfg & " " & flags & " " & args & " " & path
+
+proc run(args, path: string) =
+  build args & " -r", path
+
+proc runTests(args: string) =
   # dont't need to run it, only want to test if it is compileable
-  build "-c -d:chronicles_log_level=TRACE -d:chronicles_sinks:json ./tests/all_tests"
+  build args & " -c -d:chronicles_log_level=TRACE -d:chronicles_sinks:json", "tests/all_tests"
 
-  build "-r --opt:speed -d:chronicles_log_level=INFO ./tests/all_tests.nim"
-  rmFile "./tests/all_tests"
+  run args, "tests/all_tests"
+  for testArgs in testArguments:
+    run args & " " & testArgs, "tests/testwebsockets"
 
-  build "-r --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
-  rmFile "./tests/testwebsockets"
+task test, "Run all tests":
+  runTests "--mm:orc"
+  runTests "--mm:refc"
 
-  build "-d:secure -r --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
-  rmFile "./tests/testwebsockets"
+task test_asan, "Run all tests with ASAN":
+  if platform != "x86" and (NimMajor, NimMinor) >= (2, 2):
+    try:
+      exec "echo '#if __clang_major__ < 20\n#error\n#endif' | clang -E - >/dev/null"
+    except OSError:
+      return
 
-  build "-d:accepts -r --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
-  rmFile "./tests/testwebsockets"
-
-  build "-d:secure -d:accepts -r --opt:speed -d:chronicles_log_level=INFO ./tests/testwebsockets.nim"
-  rmFile "./tests/testwebsockets"
+    # https://clang.llvm.org/docs/AddressSanitizer.html
+    putEnv("ASAN_OPTIONS", "detect_leaks=0:detect_stack_use_after_return=1")
+    # https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
+    putEnv("UBSAN_OPTIONS", "print_stacktrace=1")
+    let asanArgs =
+      " --mm:orc -d:useMalloc --cc:clang --debugger:native" &
+      " --passC:-fsanitize=address,undefined" &
+      " --passL:-fsanitize=address,undefined" &
+      " --passC:-fno-sanitize-recover=undefined" &
+      " --passC:-fno-sanitize-merge" &
+      " --passC:-fno-omit-frame-pointer"
+    runTests asanArgs
