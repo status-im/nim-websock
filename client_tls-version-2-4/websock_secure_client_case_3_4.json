@@ -8,7 +8,7 @@
    "createWirelog": true,
    "description": "Send small text message, then send again with <b>RSV = 4</b>, then send Ping. Octets are sent in octet-wise chops.",
    "droppedByMe": false,
-   "duration": 4,
+   "duration": 2,
    "expectation": "Echo for first message is received, but then connection is failed immediately, since RSV must be 0, when no extension defining RSV meaning has been negotiated. The Pong is not received.",
    "expected": {
       "NON-STRICT": [],
@@ -28,8 +28,8 @@
       "requireClean": false
    },
    "failedByMe": false,
-   "httpRequest": "GET /runCase?case=31&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: oGiM/JRUPz4avVoLCT1iVw==\r\n\r\n",
-   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: 1PZ0i3GCj1UjWcfDEHXYCokfgRo=\r\n\r\n",
+   "httpRequest": "GET /runCase?case=31&agent=websock-secure-client HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nHost: 127.0.0.1:9002\r\nSec-Websocket-Extensions: permessage-deflate; client_max_window_bits=15\r\nCache-Control: no-cache\r\nSec-Websocket-Version: 13\r\nSec-Websocket-Key: cNXSeW4wVrbpM4cX3Py6zg==\r\n\r\n",
+   "httpResponse": "HTTP/1.1 101 Switching Protocols\r\nServer: AutobahnTestSuite/25.10.1-0.10.9\r\nX-Powered-By: AutobahnPython/0.10.9\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: R+tF+3/K2vh2ys76H/oZc43ahHE=\r\n\r\n",
    "id": "3.4",
    "isServer": true,
    "localCloseCode": null,
@@ -54,7 +54,7 @@
       "19": 1,
       "294": 1
    },
-   "started": "2026-10-06T06:33:01.234Z",
+   "started": "2026-10-06T07:32:10.330Z",
    "trafficStats": null,
    "txFrameStats": {
       "1": 2,
@@ -260,10 +260,18 @@
          true
       ],
       [
+         "TO",
+         [
+            1,
+            "0d"
+         ],
+         true
+      ],
+      [
          "RO",
          [
             19,
-            "818d9fb7da0fd7d2b663f09bfa78f0c5b66bbe"
+            "818dca60669982050af5a54c46eea5120afdeb"
          ]
       ],
       [
@@ -276,15 +284,7 @@
          true,
          0,
          true,
-         "9fb7da0f"
-      ],
-      [
-         "TO",
-         [
-            1,
-            "0d"
-         ],
-         true
+         "ca606699"
       ],
       [
          "TO",
