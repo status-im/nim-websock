@@ -10,13 +10,13 @@
 mode = ScriptMode.Verbose
 
 packageName   = "websock"
-version       = "0.4.2"
+version       = "0.5.0"
 author        = "Status Research & Development GmbH"
 description   = "WS protocol implementation"
 license       = "MIT"
 skipDirs      = @["examples", "tests"]
 
-requires "nim >= 2.0.16",
+requires "nim >= 2.2.14",
          "bearssl >= 0.2.13",
          "chronicles >= 0.12.4",
          "chronos >= 4.4.0 & < 4.6.0",
